@@ -32,31 +32,6 @@
   gap: 8px;
 }
 
-/* 抄自 First-Run--4：頭像與名稱同一列
-   style="display:flex;align-items:center;gap:10px;margin-top:2px" */
-.vx-avatar-row {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  margin-top: 2px;
-}
-
-/* 抄自 First-Run--4：名稱欄位那一格 style="flex:1;min-width:0" */
-.vx-grow {
-  flex: 1;
-  min-width: 0;
-}
-
-/* 抄自 First-Run--4：建立角色鈕 style="margin-top:auto" */
-.vx-push-bottom {
-  margin-top: auto;
-}
-
-/* 抄自 Chat-Thread-Layout--5：我的訊息那一列 style="display:flex" —— 靠右由 v-msg--mine 自己處理 */
-.vx-row {
-  display: flex;
-}
-
 /* ── 線稿框 → 真實 app 的版面 ────────────────────────────────
    線稿的 .v-screen 是 inline style 給的固定框（width:336px;height:560px）。
    實作要填滿視窗、桌機置中。**視覺仍是同一支手機版版面，沒有重新設計。** */
@@ -99,17 +74,4 @@
   display: flex;
   flex-direction: column;
   gap: 8px;
-}
-
-/* ── 🔴 補回設計正本被自己蓋掉的宣告 ──────────────────────────
-   `.v-choice--card` 定義在 `_components-form.css`（「設定頁專用」段），
-   而基礎的 `.v-choice` 定義在**更後面**的 `_components-grid.css` ⇒
-   同樣 0-1-0 的特異度下，**基礎類贏了修飾子**，`align-items: stretch` 被 `center` 蓋掉。
-   後果：卡片內容置中，`.v-choice__head` 的 `justify-content: space-between` 完全失效。
-
-   這是**串接順序造成的 bug，不是設計意圖** —— 修飾子與 `__head` 的宣告只有一起成立才說得通。
-   這裡把 `--card` 自己寫的值補回來，**不是改設計**。
-   ⏸ 待回寫設計正本（把 `.v-choice--card` 移到 `.v-choice` 之後，或提高特異度）。 */
-.vx-frame .v-choice--card {
-  align-items: stretch;
 }

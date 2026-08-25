@@ -18,7 +18,7 @@ import { join, relative } from 'node:path';
 const ROOT = new URL('..', import.meta.url).pathname;
 const SRC = join(ROOT, 'src');
 const DESIGN = ['components.css', 'tokens.css'].map((f) => join(SRC, 'shared', 'styles', f));
-const OURS = [join(SRC, 'shared', 'styles', 'layout.css')];
+const OURS = ['layout.css', 'components-vx.css'].map((f) => join(SRC, 'shared', 'styles', f));
 const TOKEN = /\b(?:vx?-[a-z0-9]+(?:[_-]{1,2}[a-z0-9]+)*|is-[a-z-]+)\b/g;
 
 function walk(dir: string, out: string[] = []): string[] {

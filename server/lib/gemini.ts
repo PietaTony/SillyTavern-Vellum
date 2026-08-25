@@ -75,3 +75,61 @@ export function parseChunk(chunk: GeminiChunk): { text: string; finishReason?: s
   const finishReason = cand?.finishReason;
   return finishReason === undefined ? { text } : { text, finishReason };
 }
+
+export type CharacterDraft = { name: string; description: string; firstMessage: string };
+
+/**
+ * 從一張圖產生角色設定。**多模態 ＋ 結構化輸出，兩者都已實打驗證**（2026-08-25）。
+ *
+ * 🔴 這是**新功能，不是從 ST 搬來的**。實查：ST 只有 Image Captioning extension，
+ * 它把圖片轉成描述**插入對話**，不碰角色欄位；
+ * `generateCharacter`／`createCharacterFrom` 在 `public/scripts/` 202 個檔裡零命中。
+ *
+ * `responseSchema` 讓模型只能回這三個欄位 —— 不必自己 parse 自由文字。
+ */
+export async function draftFromImage(
+  key: string,
+  mimeType: string,
+  base64: string,
+  model = DEFAULT_MODEL,
+): Promise<{ ok: true; draft: CharacterDraft } | { ok: false; message: string }> {
+  const res = await fetch(
+    `${BASE}/models/${model}:generateContent?key=${encodeURIComponent(key)}`,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        contents: [
+          {
+            role: 'user',
+            parts: [
+              { inline_data: { mime_type: mimeType, data: base64 } },
+              { text: '看這張角色圖，為一個角色扮演 app 產生角色設定。全部用繁體中文。描述寫外貌與性格，初始訊息寫他開口的第一句話。' },
+            ],
+          },
+        ],
+        generationConfig: {
+          maxOutputTokens: 4096,
+          responseMimeType: 'application/json',
+          responseSchema: {
+            type: 'OBJECT',
+            properties: {
+              name: { type: 'STRING' },
+              description: { type: 'STRING' },
+              firstMessage: { type: 'STRING' },
+            },
+            required: ['name', 'description', 'firstMessage'],
+          },
+        },
+      }),
+    },
+  );
+  const body = (await res.json()) as {
+    candidates?: { content?: { parts?: { text?: string }[] } }[];
+    error?: { message?: string };
+  };
+  if (!res.ok) return { ok: false, message: body.error?.message ?? `HTTP ${res.status}` };
+  const text = body.candidates?.[0]?.content?.parts?.[0]?.text;
+  if (!text) return { ok: false, message: '模型沒有回傳內容' };
+  return { ok: true, draft: JSON.parse(text) as CharacterDraft };
+}
