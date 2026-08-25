@@ -1,7 +1,8 @@
 import { Hono } from 'hono';
 import { z } from 'zod';
-import { listJson, writeJson, readJson, readBin, writeBin } from '../lib/storage.ts';
-import { embedCard, readCard, viewOf } from '../lib/card.ts';
+import { listJson, writeJson, readJson, readBin } from '../lib/storage.ts';
+import { embedCard, readCard } from '../lib/card.ts';
+import { importCardFiles } from '../lib/importCard.ts';
 import { readChunks, writeChunks } from '../lib/png.ts';
 import { getKey, redact } from '../lib/secrets.ts';
 import { draftFromImage } from '../lib/gemini.ts';
@@ -22,6 +23,13 @@ export const CharacterSchema = z.object({
    * ⇒ 匯出時從那個檔重建，**不是**從這四個欄位重建。
    */
   card: z.string().optional(),
+  /**
+   * 從卡片抽出來的資產（桌寵貼圖之類）。
+   * 🔴 **抽出來 ≠ 從卡裡刪掉**：卡內原欄位依 A1 原樣保留，這裡只是另存一份可用的。
+   */
+  assets: z
+    .array(z.object({ path: z.string(), mime: z.string(), bytes: z.number(), from: z.string() }))
+    .optional(),
 });
 export type Character = z.infer<typeof CharacterSchema>;
 
@@ -62,15 +70,14 @@ export const characters = new Hono()
    */
   .post('/import', async (c) => {
     const png = Buffer.from(await c.req.arrayBuffer());
-    let view;
+    const id = crypto.randomUUID();
+    let imported;
     try {
-      view = viewOf(readCard(png));
+      imported = await importCardFiles(png, id);
     } catch (e) {
       return c.json({ error: e instanceof Error ? e.message : '這張圖不是角色卡' }, 400);
     }
-    const id = crypto.randomUUID();
-    // 🔴 先寫卡再寫索引：反過來的話中途失敗會留下一筆指向不存在的卡的紀錄。
-    await writeBin(`characters/${id}.png`, png);
+    const { view, assets } = imported;
     const ch: Character = {
       id,
       name: view.name || '未命名角色',
@@ -80,6 +87,7 @@ export const characters = new Hono()
       avatar: `/api/characters/${id}/avatar.png`,
       createdAt: new Date().toISOString(),
       card: `${id}.png`,
+      ...(assets.length > 0 ? { assets } : {}),
     };
     await writeJson(`characters/${id}.json`, ch);
     return c.json({ ...ch, alternateGreetings: view.alternateGreetings.length }, 201);

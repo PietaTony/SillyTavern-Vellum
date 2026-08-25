@@ -33,7 +33,8 @@
     "verify:wi": "tsx scripts/verify-worldbook.ts",
     "verify:rules": "tsx scripts/verify-output-rules.ts",
     "verify:vars": "tsx scripts/verify-vars.ts",
-    "gate:no-eval": "tsx scripts/gate-no-eval.ts"
+    "gate:no-eval": "tsx scripts/gate-no-eval.ts",
+    "verify:companion": "tsx scripts/verify-companion.ts"
   },
   "dependencies": {
     "@emotion/react": "^11.14.0",

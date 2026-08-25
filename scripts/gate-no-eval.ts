@@ -12,20 +12,11 @@
  */
 import { readdirSync, readFileSync, statSync } from 'node:fs';
 import { join, relative } from 'node:path';
+import { stripNoise } from './strip-noise.ts';
 
 const ROOT = new URL('..', import.meta.url).pathname;
 const ROOTS = ['server', 'src', 'scripts'];
 const BANNED = [/\beval\s*\(/, /\bnew\s+Function\s*\(/, /\bFunction\s*\(\s*['"`]/];
-
-/** 剝掉行註解、區塊註解與字串字面量。刻意簡單：寧可多剝，不可少剝。 */
-export function stripNoise(src: string): string {
-  return src
-    .replace(/\/\*[\s\S]*?\*\//g, ' ')
-    .replace(/(^|[^:])\/\/[^\n]*/g, '$1 ')
-    .replace(/`(?:\\.|[^`\\])*`/g, '``')
-    .replace(/'(?:\\.|[^'\\\n])*'/g, "''")
-    .replace(/"(?:\\.|[^"\\\n])*"/g, '""');
-}
 
 export function findBanned(src: string): string[] {
   const clean = stripNoise(src);

@@ -1,0 +1,44 @@
+/**
+ * 匯入一張角色卡：**落檔 ＋ 抽資產 ＋ 產生索引紀錄**。
+ *
+ * 從 route 抽出來的理由不只是行數：匯入是**有順序要求的一串副作用**
+ * （先寫卡、再抽資產、最後寫索引），而 route 應該只負責「收 request、回 response」。
+ *
+ * 🔴 **卡片只解析一次。** 這張真卡 6.8 MB、兩份各 3 MB base64；
+ * 每多一次 `readCard` 就多解一次 base64 ＋ 多 parse 一次 3 MB JSON。
+ */
+import { readCard, viewOf, type Card } from './card.ts';
+import { spriteBytes, spriteExt, spritesInCard } from './sprite.ts';
+import { writeBin } from './storage.ts';
+
+export type ImportedAsset = { path: string; mime: string; bytes: number; from: string };
+
+export type ImportedCard = {
+  id: string;
+  card: Card;
+  view: ReturnType<typeof viewOf>;
+  assets: ImportedAsset[];
+};
+
+/**
+ * 把卡片與其資產寫進資料目錄。**呼叫端負責寫索引 JSON**——
+ * 順序是刻意的：先有實體檔，才有指向它的紀錄。反過來會留下指向不存在檔案的紀錄。
+ */
+export async function importCardFiles(png: Buffer, id: string): Promise<ImportedCard> {
+  const card = readCard(png);
+  await writeBin(`characters/${id}.png`, png);
+
+  // 內嵌的大圖抽成獨立檔（規格 P7 硬約束 3）。
+  // ⚠️ **抽出來 ≠ 從卡裡刪掉**：卡內原欄位依 A1 原樣保留，這裡只是另存一份可用的。
+  const assets: ImportedAsset[] = [];
+  for (const [i, sp] of spritesInCard(card.payloads[card.primary]).entries()) {
+    try {
+      const path = `characters/${id}.assets/${i}.${spriteExt(sp.mime)}`;
+      await writeBin(path, spriteBytes(sp));
+      assets.push({ path, mime: sp.mime, bytes: sp.bytes, from: sp.at });
+    } catch {
+      // 壞掉的 base64：跳過這一張，其餘照抽。**角色本體比貼圖重要**，不因此擋下整次匯入。
+    }
+  }
+  return { id, card, view: viewOf(card), assets };
+}
