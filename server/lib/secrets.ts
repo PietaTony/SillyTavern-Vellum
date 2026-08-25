@@ -7,8 +7,13 @@
  */
 import { readJson, writeJson } from './storage.ts';
 
-export type ProviderId = 'google' | 'anthropic';
-type Store = Partial<Record<ProviderId, string>>;
+/**
+ * 🔴 **供應商 id 是開放集合，不是列舉。** 家數要從 2 變 26（規格 §2.1），
+ * 寫死列舉的話每加一家都要改型別 —— 那正是「加一家＝加一行設定」要避免的。
+ * 合法性由 `providers/registry.ts` 認定，這裡只負責存取。
+ */
+export type ProviderId = string;
+type Store = Record<string, string>;
 
 const FILE = 'secrets.json';
 
@@ -22,10 +27,13 @@ export async function getKey(provider: ProviderId): Promise<string | undefined> 
   return (await readJson<Store>(FILE, {}))[provider];
 }
 
-/** 回「哪些已設定」，不洩漏值 */
-export async function whichAreSet(): Promise<Record<ProviderId, boolean>> {
+/**
+ * 回「哪些已設定」，不洩漏值。
+ * 🔴 **只回傳鍵名與布林**，永遠不回值 —— `00-FACTS` F3。
+ */
+export async function whichAreSet(): Promise<Record<string, boolean>> {
   const s = await readJson<Store>(FILE, {});
-  return { google: Boolean(s.google), anthropic: Boolean(s.anthropic) };
+  return Object.fromEntries(Object.keys(s).map((k) => [k, Boolean(s[k])]));
 }
 
 /** 錯誤訊息可能夾帶金鑰片段（SPEC §2 安全註記）⇒ 一律先遮罩 */

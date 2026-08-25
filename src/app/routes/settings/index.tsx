@@ -44,11 +44,12 @@ function SettingsPage() {
 
         <Divider component="li" />
 
-        <ListItemButton disabled>
+        <ListItemButton onClick={() => void nav({ to: '/settings/providers' })}>
           <ListItemIcon>
             <SmartToyOutlinedIcon />
           </ListItemIcon>
-          <ListItemText primary="AI 供應商與金鑰" secondary="還沒做" />
+          <ListItemText primary="AI 供應商與金鑰" secondary="26 家供應商、選模型" />
+          <ChevronRightIcon color="disabled" />
         </ListItemButton>
       </List>
     </Screen>

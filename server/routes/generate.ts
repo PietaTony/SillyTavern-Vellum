@@ -12,17 +12,16 @@ import { z } from 'zod';
 import { getKey, redact } from '../lib/secrets.ts';
 import { safeId } from '../lib/ids.ts';
 import { readJson, writeJson } from '../lib/storage.ts';
-import { DEFAULT_MODEL, buildBody, parseChunk, streamGenerate, type GeminiChunk } from '../lib/gemini.ts';
+import { adapterFor } from '../providers/dispatch.ts';
+import { byId, isSelectable } from '../providers/registry.ts';
 import type { Chat, Message } from '../lib/chatModel.ts';
-import { displayOf } from '../lib/persona.ts';
-import { personaForChat } from '../lib/personaContext.ts';
-import { insertAtDepth, personaPieces } from '../lib/personaPrompt.ts';
-import { substitute } from '../lib/macro.ts';
-import { worldDepthPieces, worldForChat, worldSystemText, DEPTH_PRIORITY } from '../lib/promptWorld.ts';
+import { buildTurn } from '../lib/buildTurn.ts';
 
 const Body = z.object({
   chatId: z.string(),
-  model: z.string().default(DEFAULT_MODEL),
+  // 🔴 **provider 是參數，不再寫死**（驗收 A4）。沒給就用 google —— 既有行為不變。
+  provider: z.string().default('google'),
+  model: z.string().optional(),
   // 🔴 給足預算：3.6-flash 實測 thinking 吃掉 514 tokens 才吐 6 個字（07-gemini-facts §2）
   maxOutputTokens: z.number().int().min(256).max(65_536).default(4096),
 });
@@ -32,53 +31,38 @@ const sse = (event: string, data: unknown) => `event: ${event}\ndata: ${JSON.str
 export const generate = new Hono().post('/', async (c) => {
   const parsed = Body.safeParse(await c.req.json());
   if (!parsed.success) return c.json({ error: '參數不合法' }, 400);
-  const { model, maxOutputTokens } = parsed.data;
+  const { maxOutputTokens } = parsed.data;
+  const cfg = byId(parsed.data.provider);
+  if (!cfg) return c.json({ error: '不認得這一家供應商' }, 400);
+  if (!isSelectable(cfg)) return c.json({ error: `Vellum 還沒接上 ${cfg.displayName}` }, 400);
+  const model = parsed.data.model ?? cfg.defaultModel;
   // 🔴 chatId 會被接進檔案路徑 ⇒ 先過白名單（見 lib/ids.ts）
   const chatId = safeId(parsed.data.chatId);
   if (!chatId) return c.json({ error: '找不到這段對話' }, 404);
 
-  const key = await getKey('google');
-  if (!key) return c.json({ error: '尚未設定 Gemini 金鑰', action: 'setup-key' }, 400);
+  const key = await getKey(cfg.id);
+  if (!key) return c.json({ error: `尚未設定 ${cfg.displayName} 金鑰`, action: 'setup-key' }, 400);
 
   const chat = await readJson<Chat | null>(`chats/${chatId}.json`, null);
   if (!chat) return c.json({ error: '找不到這段對話' }, 404);
 
-  /**
-   * 🔴 **persona 在這裡現算，不是建立對話時算一次存起來**（規格 B2）。
-   * 使用者可能在別的分頁改了全域預設 —— 存起來的話這一段對話永遠用舊的。
-   */
-  const who = await personaForChat(chat);
-  const userName = displayOf(who.persona);
-  const pieces = personaPieces(who.persona);
-  const macros = { user: userName, char: chat.characterName };
+  const { system, messages } = await buildTurn(chat);
 
-  // `{{user}}`／`{{char}}` 在送進模型之前就要展開 —— 模型看到大括號只會照抄。
-  const history = chat.messages.map((m) => ({ role: m.role, text: substitute(m.text, macros) }));
-  // 世界書：好友那本（character 層）＋ persona 那本（persona 層）。
-  const world = await worldForChat(chat, who.persona, history.map((m) => ({ name: '', text: m.text })));
-
-  const withPersona = insertAtDepth(
-    history,
-    [
-      ...pieces.atDepth.map((x) => ({ ...x, priority: DEPTH_PRIORITY.persona })),
-      ...worldDepthPieces(world.plan),
-    ],
-    (text) => ({ role: 'model' as const, text: substitute(text, macros) }),
-  );
-
-  const system = [
-    `你正在扮演「${chat.characterName}」。全程使用繁體中文，保持角色語氣。`,
-    `對方（使用者）叫「${userName}」。`,
-    ...worldSystemText(world.plan).map((t) => substitute(t, macros)),
-    ...pieces.system.map((t) => substitute(t, macros)),
-  ].join('\n');
-
-  const body = buildBody(withPersona, system, maxOutputTokens);
-
+  const adapter = adapterFor(cfg.format);
   const controller = new AbortController();
   c.req.raw.signal.addEventListener('abort', () => controller.abort());
 
-  const upstream = await streamGenerate(key, model, body, controller.signal);
+  const upstream = await adapter.open(
+    cfg,
+    key,
+    {
+      model,
+      system,
+      messages,
+      maxOutputTokens,
+    },
+    controller.signal,
+  );
   if (!upstream.ok || !upstream.body) {
     const raw = await upstream.text();
     return c.json({ error: redact(raw, [key]).slice(0, 500), status: upstream.status }, 502);
@@ -92,6 +76,8 @@ export const generate = new Hono().post('/', async (c) => {
       let buf = '';
       let full = '';
       let finish: string | undefined;
+      // 🔴 用量可能分兩次到（Anthropic 開頭給 input、結尾給 output）⇒ 累積不覆蓋。
+      let usage: Record<string, number | undefined> = {};
       try {
         for (;;) {
           const { done, value } = await reader.read();
@@ -101,19 +87,42 @@ export const generate = new Hono().post('/', async (c) => {
           buf = lines.pop() ?? '';
           for (const line of lines) {
             if (!line.startsWith('data: ')) continue;
-            const chunk = JSON.parse(line.slice(6)) as GeminiChunk;
-            const { text, finishReason } = parseChunk(chunk);
-            if (finishReason) finish = finishReason;
-            if (text) {
-              full += text;
-              ctrl.enqueue(enc.encode(sse('delta', { text })));
+            const payload = line.slice(6).trim();
+            // 🔴 OpenAI 相容的串流以 `data: [DONE]` 結尾，那不是 JSON。
+            if (payload === '[DONE]') continue;
+            let parsedChunk: unknown;
+            try {
+              parsedChunk = JSON.parse(payload);
+            } catch {
+              // 壞掉的一行不該讓整條串流死掉 —— 跳過，繼續讀下一行。
+              continue;
+            }
+            for (const ev of adapter.parse(parsedChunk)) {
+              if (ev.type === 'delta') {
+                // 🔴 **thinking 不進正文**：它是思考過程，混進去會變成角色的台詞。
+                if (ev.kind === 'text') {
+                  full += ev.text;
+                  ctrl.enqueue(enc.encode(sse('delta', { text: ev.text })));
+                } else {
+                  ctrl.enqueue(enc.encode(sse('thinking', { text: ev.text })));
+                }
+              } else if (ev.type === 'usage') {
+                usage = { ...usage, ...ev.usage };
+              } else if (ev.type === 'done') {
+                if (ev.finishReason) finish = ev.finishReason;
+                if (ev.usage) usage = { ...usage, ...ev.usage };
+              } else {
+                ctrl.enqueue(enc.encode(sse('error', { message: redact(ev.message, [key]) })));
+              }
             }
           }
         }
         const msg: Message = { id: crypto.randomUUID(), role: 'model', text: full, at: new Date().toISOString() };
         chat.messages.push(msg);
         await writeJson(`chats/${chatId}.json`, chat);
-        ctrl.enqueue(enc.encode(sse('done', { message: msg, finishReason: finish ?? 'STOP' })));
+        ctrl.enqueue(
+          enc.encode(sse('done', { message: msg, finishReason: finish ?? 'STOP', usage })),
+        );
       } catch (e) {
         const detail = e instanceof Error ? redact(e.message, [key]) : '串流中斷';
         ctrl.enqueue(enc.encode(sse('error', { message: detail })));
