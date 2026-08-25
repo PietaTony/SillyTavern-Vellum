@@ -1,0 +1,2577 @@
+/* ─────────────────────────────────────────────────────────────
+   設計正本的元件層，**逐字搬過來的資產，不是我們寫的 code**。
+
+   來源：SillyTavern-Vellum/plans/ui/prototype/proto/css/bundle.css 第 85–1524 行
+   （209 個 `v-` class，零個字面色碼，全部走 tokens.css 的 semantic 層）
+
+   🔴 **不要在這裡改樣式。** 要改就改設計正本再搬一次 ——
+   在這裡改等於製造第二份正本，而那是今天已經吃過虧的形狀。
+
+   🔴 **也不要另外發明 class。** 畫面要用的 class 一律從這裡挑；
+   挑不到就是設計沒畫，去問，不要自己編。`gate:classes` 會擋。
+   我手寫自己的一套 class 的那一版，把編號圓圈、行內程式碼片、
+   步驟內的按鈕、提示行全部弄丟了 —— 那不是疏忽，是「重新發明」的必然結果。
+
+   file-size 閘門對本檔豁免（理由同 tokens.css：抄來的設計資產）。
+   ───────────────────────────────────────────────────────────── */
+
+/* ===== _components.css ===== */
+/* ============================================================
+   Vellum 元件庫
+   依據：Components.dc.html（D31 定稿）・Component-Variants・SPEC.md §6
+
+   🔴 兩個前綴，兩種命運：
+      .v-*   產品元件 —— 會變成 code。這裡定的結構就是未來元件的結構。
+      .dc-*  線稿註解 —— 永遠不會變成 code。畫布上的說明框、比較表、標題。
+
+   一個元素不得同時是兩者。到 P8（實作回饋環）拆分時，
+   .dc-* 整區丟掉，.v-* 一對一對應到實作。
+
+   狀態的寫法：每個 state 都給一個顯式 .is-* class，同時 bind 真正的 pseudo-class。
+   因為線稿是靜態的 —— :hover 在圖上看不見，.is-hover 才畫得出來。
+
+   紀律：不得出現字面顏色（#RRGGBB 與 rgba() 一律算），只能 var()。
+   ⚠️ 2026-08-24：.dc-rule 的 background 曾寫死 rgba(138,90,43,.06)，
+      它就是 --accent-wash-subtle。機械驗證只掃 # 沒掃 rgba( ⇒ 一直是綠燈。
+      尺太窤也是尺壞了。
+
+   🔴 底色層次（這三行是 2026-08-24 被活文件抓出來的，不是預先想好的）：
+      螢幕底 = --paper       整個 app 是一張紙
+      浮起件 = --surface     列表、對白塊、輸入框、面板
+      內凹件 = --surface-sunk 狀態列、已封存
+      若把螢幕底設成 --surface，B3 對白淡底塊會跟底色同色而完全消失。
+   ============================================================ */
+
+/* ==========================================================
+   原子層 · PRIMITIVES
+   ========================================================== */
+
+/* --- 按鈕（D31 C3：文字為主）-------------------------
+   唯一真實缺點：手機上難按。解法是視覺仍是文字，
+   但 padding 撐到 44×44 以上——看起來安靜，按起來不會滑。 */
+.v-btn {
+  font-family: var(--font-ui);
+  font-size: 13px;
+  font-weight: 600;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: var(--hit-min);
+  min-width: var(--hit-min);
+  padding: 7px 12px;
+  background: transparent;
+  border: none;
+  border-bottom: 1.5px solid transparent;
+  color: var(--ink-muted);
+  cursor: pointer;
+  white-space: nowrap;
+}
+.v-btn--primary {
+  color: var(--accent);
+  border-bottom-color: var(--accent);
+}
+.v-btn--secondary {
+  color: var(--ink-muted);
+  font-weight: 400;
+}
+.v-btn--danger {
+  color: var(--danger);
+}
+.v-btn--ghost {
+  color: var(--ink-faint);
+}
+
+.v-btn:hover,
+.v-btn.is-hover {
+  color: var(--ink);
+}
+.v-btn--primary:hover,
+.v-btn--primary.is-hover {
+  color: var(--accent);
+  border-bottom-width: 2.5px;
+}
+.v-btn:focus-visible,
+.v-btn.is-focused {
+  outline: none;
+  box-shadow: var(--focus-ring);
+  border-radius: var(--radius-sm);
+}
+/* 🔴 停用的按鈕**不用 `pointer-events: none`**。點不到就沒辦法告訴他「為什麼不能按」，
+   而那正是他最需要知道的一句話（`project_vellum_always_guide`：每個死路都要有出口）。
+   對原型還有第二層代價：點不到 ⇒ 探針收不到 ⇒ **正確的停用行為會被記成誤點**，
+   而誤點是 P6 的核心指標。 */
+.v-btn.is-disabled {
+  color: var(--ink-faint);
+  border-bottom-color: transparent;
+  cursor: not-allowed;
+}
+.v-btn.is-loading {
+  color: var(--ink-faint);
+  pointer-events: none;
+}
+.v-btn.is-loading::after {
+  content: "⋯";
+  margin-left: 5px;
+}
+
+/* 圖上標示實際點擊區用；不是產品狀態，只在元件庫活文件裡出現 */
+.v-btn.is-hitbox-shown {
+  outline: 1px dashed var(--line-strong);
+  outline-offset: 0;
+}
+
+/* --- 輸入框 ------------------------------------------------ */
+.v-field {
+  /* 🔴 `box-sizing` 不是排版偏好，是**這個元件會不會跑版**的開關。
+     `.v-field--block` 是 `width:100%`，content-box 之下再加 padding 與 border
+     ⇒ 每個欄位都比容器寬 24px（搜尋框 border 2px ⇒ 28px）。
+     2026-08-25 實測：18 張用到欄位的畫面，**14 張橫向溢出**。 */
+  box-sizing: border-box;
+  font-family: var(--font-ui);
+  font-size: 12.5px;
+  background: var(--field-bg);
+  border: 1px solid var(--field-line);
+  border-radius: var(--radius-sm);
+  padding: 8px 11px;
+  color: var(--ink);
+}
+.v-field--inline {
+  flex: 1;
+} /* 對話輸入區 */
+.v-field--block {
+  display: block;
+  width: 100%;
+} /* 表單 */
+.v-field--area {
+  min-height: 72px;
+  line-height: 1.7;
+}
+
+.v-field.is-placeholder {
+  color: var(--ink-faint);
+}
+.v-field.is-focused {
+  border-color: var(--accent);
+  box-shadow: var(--focus-ring);
+}
+.v-field.is-error {
+  border-color: var(--danger);
+}
+.v-field.is-disabled {
+  background: var(--surface-sunk);
+  color: var(--ink-faint);
+}
+.v-field.is-readonly {
+  background: var(--surface-sunk);
+  border-style: dashed;
+  color: var(--ink-muted);
+}
+
+.v-field-label {
+  font-size: var(--text-label);
+  font-weight: 500;
+  color: var(--ink-muted);
+  font-family: var(--font-ui);
+}
+.v-field-help {
+  font-size: var(--text-caption);
+  color: var(--ink-faint);
+  margin-top: 4px;
+}
+.v-field-help.is-error {
+  color: var(--danger);
+}
+
+/* --- 標籤 -------------------------------------------------- */
+.v-tag {
+  font-family: var(--font-ui);
+  font-size: 10.5px;
+  padding: 2px 8px;
+  border-radius: 2px;
+  border: 1px solid var(--line-strong);
+  color: var(--ink-muted);
+  white-space: nowrap;
+}
+.v-tag--accent {
+  border-color: var(--accent);
+  color: var(--accent);
+  background: var(--accent-wash);
+}
+.v-tag--danger {
+  border-color: var(--danger);
+  color: var(--danger);
+}
+
+/* --- 三態開關（D31 E1）-------------------------------------
+   🔴 不得用 toggle。D17 的三態是我們跟 ST 最大的區別（ST 只有全域兩態）；
+   「跟隨書」不是關，是第三種狀態。用 toggle 就看不見它 ⇒ 優勢等於沒做。 */
+.v-toggle3 {
+  display: inline-flex;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+  background: var(--surface);
+  font-family: var(--font-ui);
+  font-size: 11px;
+}
+.v-toggle3__item {
+  padding: 5px 11px;
+  color: var(--ink-muted);
+  border-right: 1px solid var(--line);
+  cursor: pointer;
+}
+.v-toggle3__item:last-child {
+  border-right: none;
+}
+.v-toggle3__item.is-on {
+  background: var(--accent);
+  color: var(--accent-ink);
+}
+.v-toggle3__item.is-inherit {
+  background: var(--surface-sunk);
+  color: var(--ink-muted);
+} /* 預設態：跟隨書。中性底，不用強調色 */
+.v-toggle3.is-disabled .v-toggle3__item {
+  color: var(--ink-faint);
+  pointer-events: none;
+}
+.v-toggle3.is-disabled .v-toggle3__item.is-on {
+  background: var(--line-strong);
+  color: var(--surface);
+}
+
+/* --- 頭像 ------------------------------------------------- */
+.v-avatar {
+  width: 30px;
+  height: 30px;
+  border-radius: var(--radius-full);
+  background: var(--line);
+  flex-shrink: 0;
+}
+.v-avatar--sm {
+  width: 26px;
+  height: 26px;
+}
+.v-avatar--lg {
+  width: 56px;
+  height: 56px;
+}
+.v-avatar.is-empty {
+  background: transparent;
+  border: 1px dashed var(--line-strong);
+}
+
+/* --- 系統標記細線（S26：讓「階段」可見）---------------- */
+.v-sysmarker {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-family: var(--font-ui);
+  font-size: 10.5px;
+  color: var(--ink-faint);
+  white-space: nowrap;
+}
+.v-sysmarker::before,
+.v-sysmarker::after {
+  content: "";
+  flex: 1;
+  height: 1px;
+  background: var(--line);
+}
+.v-sysmarker.is-collapsed {
+  color: var(--line-strong);
+}
+
+/* ==========================================================
+   分子層 · COMPONENTS
+   ========================================================== */
+
+/* --- 訊息區塊（D31）-----------------------------------------
+   一則 AI 回覆內部可以有多個 v-msg 交錯。
+   排版判準（即 S17 的 markdown 判準）：
+     *斜體* 或無標記的敘述 → --narration（B1 左豎線）
+     「引號」              → --dialogue （B3 淡底塊）
+   🔴 Fallback 一律走 --narration——匯入的 ST 卡很多不照慣例寫，
+      寧可把對白當敘述，不可把敘述裝進對話框。 */
+.v-msg {
+  font-family: var(--font-body);
+  font-size: var(--text-body);
+  line-height: var(--lh-body);
+  color: var(--ink);
+}
+.v-msg--narration {
+  border-left: 2px solid var(--block-them-rule);
+  padding: 2px 0 2px 14px;
+}
+/* 淡底塊必須比螢幕底（--paper）白，才浮得起來 */
+.v-msg--dialogue {
+  background: var(--block-dialogue-bg);
+  border-radius: var(--radius-md);
+  padding: 9px 13px;
+}
+/* D31 A3：我的訊息是描邊、透明底——不是實底氣泡 */
+.v-msg--mine {
+  border: 1px solid var(--bubble-me-line);
+  border-radius: var(--radius-bubble);
+  padding: 8px 13px;
+  max-width: 74%;
+  margin-left: auto;
+  background: transparent;
+  color: var(--bubble-me-ink);
+}
+
+.v-msg.is-editing {
+  border-color: var(--accent);
+  box-shadow: var(--focus-ring);
+}
+.v-msg.is-selected {
+  background: var(--accent-wash);
+}
+.v-msg.is-streaming::after {
+  content: "▌";
+  color: var(--accent);
+}
+.v-msg.is-error {
+  border-left-color: var(--danger);
+  color: var(--ink-muted);
+}
+.v-msg.is-faded {
+  color: var(--ink-faint);
+} /* 被截斷在 context 外的舊訊息 */
+
+/* 等待骨架——用 B1 的左豎線，因為還不知道首段是敘述還是對白，而 B1 是 fallback */
+.v-msg__skel {
+  height: 9px;
+  background: var(--skeleton);
+  border-radius: 2px;
+  margin-bottom: 9px;
+}
+.v-msg__skel:last-child {
+  margin-bottom: 0;
+}
+.v-msg__hint {
+  font-family: var(--font-ui);
+  font-size: 11.5px;
+  color: var(--ink-faint);
+  margin-top: 9px;
+}
+
+/* 被截斷的長文提示 */
+.v-msg__more {
+  font-family: var(--font-ui);
+  font-size: 9px;
+  color: var(--ink-faint);
+  text-align: center;
+  border: 1px dashed var(--line);
+  padding: 3px;
+  margin-top: 8px;
+}
+
+/* --- 一則回覆：頭像 + 多個 v-msg ------------------------- */
+.v-msg-group {
+  display: flex;
+  gap: 11px;
+  align-items: flex-start;
+}
+.v-msg-group__body {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-width: 0;
+}
+.v-msg-group--mine {
+  justify-content: flex-end;
+}
+.v-msg-group__who {
+  font-family: var(--font-ui);
+  font-size: 9.5px;
+  color: var(--ink-faint);
+  letter-spacing: 0.04em;
+  margin-bottom: 5px;
+}
+
+/* --- 推理摺疊 --------------------------------------------- */
+.v-thinkfold {
+  font-family: var(--font-ui);
+  border: 1px solid var(--line);
+  background: var(--surface);
+  border-radius: var(--radius-sm);
+  padding: 6px 11px;
+  font-size: 11.5px;
+  color: var(--ink-muted);
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  cursor: pointer;
+}
+.v-thinkfold__toggle {
+  color: var(--ink-faint);
+}
+.v-thinkfold.is-thinking {
+  border-style: dashed;
+  color: var(--ink-faint);
+}
+.v-thinkfold.is-expanded {
+  background: var(--surface-sunk);
+}
+.v-thinkfold__body {
+  font-family: var(--font-body);
+  font-size: 13px;
+  line-height: 1.8;
+  color: var(--ink-muted);
+  padding: 9px 11px 2px;
+}
+
+/* --- 重生版本切換 --------------------------------------- */
+.v-pager {
+  display: flex;
+  gap: 9px;
+  align-items: center;
+  font-family: var(--font-ui);
+  font-size: 11px;
+  color: var(--ink-faint);
+}
+.v-pager__btn {
+  border: 1px solid var(--line-strong);
+  background: var(--surface);
+  padding: 1px 8px;
+  border-radius: 2px;
+  color: var(--ink-muted);
+  cursor: pointer;
+}
+.v-pager__btn.is-disabled {
+  color: var(--ink-faint);
+  border-color: var(--line);
+  pointer-events: none;
+}
+.v-pager.is-generating .v-pager__btn {
+  pointer-events: none;
+  color: var(--ink-faint);
+}
+
+/* --- 常駐狀態列 ------------------------------------------- */
+.v-statusbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background: var(--surface-sunk);
+  border-top: 1px solid var(--line);
+  padding: 8px 14px;
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+  color: var(--ink-muted);
+  cursor: pointer;
+}
+.v-statusbar.is-expanded {
+  border-bottom: 1px solid var(--line);
+}
+.v-statusbar.is-warning {
+  color: var(--danger);
+} /* 快撞到 context 上限 */
+.v-statusbar__detail {
+  font-family: var(--font-ui);
+  font-size: 11px;
+  color: var(--ink-muted);
+  padding: 9px 14px;
+  background: var(--surface-sunk);
+  line-height: 1.8;
+}
+
+/* --- 輸入區（D16：⊕ router，九宮格不分頁）------------- */
+.v-composer {
+  display: flex;
+  gap: 8px;
+  padding: 10px 12px;
+  border-top: 1px solid var(--line);
+  align-items: center;
+}
+.v-composer__plus {
+  width: 24px;
+  height: 24px;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-sm);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 13px;
+  color: var(--ink-muted);
+  flex-shrink: 0;
+  cursor: pointer;
+}
+.v-composer__plus.is-open {
+  background: var(--accent);
+  color: var(--accent-ink);
+  border-color: var(--accent);
+}
+.v-composer.is-disabled {
+  background: var(--surface-sunk);
+}
+.v-composer.is-disabled .v-field {
+  color: var(--ink-faint);
+}
+
+/* --- 好友列（D27：完全照 LINE）---------------------------
+   預覽用無襯線——列表是介面，不是內容。襯線只給對話內容。
+   列表用 --surface，在 --paper 螢幕底上浮起來。 */
+.v-listrow {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: var(--surface);
+  border-bottom: 1px solid var(--line);
+  padding: 11px 13px;
+  font-family: var(--font-ui);
+  cursor: pointer;
+}
+.v-listrow--pinned {
+  border-left: 3px solid var(--accent);
+}
+.v-listrow__name {
+  font-size: var(--text-list);
+  font-weight: 600;
+  color: var(--ink);
+}
+.v-listrow__preview {
+  font-size: 12px;
+  color: var(--ink-muted);
+  margin-top: 3px;
+}
+.v-listrow__time {
+  margin-left: auto;
+  font-size: 11px;
+  color: var(--ink-faint);
+  white-space: nowrap;
+}
+.v-listrow__dot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  background: var(--accent);
+  border-radius: var(--radius-full);
+  margin-left: 6px;
+}
+
+.v-listrow:hover,
+.v-listrow.is-hover {
+  background: var(--paper);
+}
+.v-listrow.is-selected {
+  background: var(--accent-wash);
+}
+.v-listrow.is-empty .v-listrow__preview {
+  color: var(--ink-faint);
+} /* 「尚未開始」 */
+.v-listrow.is-archived {
+  background: var(--surface-sunk);
+}
+.v-listrow.is-archived .v-listrow__name {
+  color: var(--ink-muted);
+  font-weight: 400;
+}
+
+/* --- 滑動動作（靜音已刪——我們沒有推播）-------------
+   🔴 封存 ≠ LINE 的隱藏。LINE 的隱藏靠對方再傳訊息喚回；
+      我們的角色不會主動說話 ⇒ 進去就回不來 ⇒ 它是封存，
+      且必須有「設定 → 封存的對話」入口。 */
+.v-swipe {
+  display: flex;
+  align-items: stretch;
+}
+.v-swipe__row {
+  flex: 1;
+}
+.v-swipe__action {
+  display: flex;
+  align-items: center;
+  padding: 0 14px;
+  font-family: var(--font-ui);
+  font-size: 11px;
+  color: var(--accent-ink);
+  white-space: nowrap;
+  cursor: pointer;
+}
+.v-swipe__action--archive {
+  background: var(--ink-faint);
+}
+.v-swipe__action--delete {
+  background: var(--danger);
+}
+.v-swipe__action--pin {
+  background: var(--accent);
+}
+
+/* --- 空狀態（每個死路都要有出口）------------------------ */
+.v-empty {
+  padding: 40px 24px;
+  text-align: center;
+  font-family: var(--font-ui);
+}
+.v-empty__title {
+  font-family: var(--font-body);
+  font-size: var(--text-title);
+  color: var(--ink);
+}
+.v-empty__body {
+  font-size: 12.5px;
+  color: var(--ink-muted);
+  line-height: 1.8;
+  margin-top: 8px;
+}
+.v-empty__action {
+  margin-top: 16px;
+}
+
+/* ==========================================================
+   有機體層 · PATTERNS
+   ========================================================== */
+
+/* 🔴 螢幕底＝--paper，不是 --surface。
+   理由：--block-dialogue-bg 就是 --surface，底色若也是 --surface，
+   B3 對白淡底塊會完全看不見。這是 2026-08-24 被 Component-Library 活文件抓到的。 */
+.v-screen {
+  display: flex;
+  flex-direction: column;
+  background: var(--paper);
+  border: 1px solid var(--line-strong);
+}
+.v-topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--line);
+}
+.v-topbar__title {
+  font-family: var(--font-ui);
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--ink);
+}
+
+.v-thread {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+  padding: 12px;
+  overflow: hidden;
+}
+.v-list {
+  display: flex;
+  flex-direction: column;
+}
+
+/* ==========================================================
+   線稿註解層 · CANVAS ANNOTATION
+   🔴 這一區永遠不會變成 code。到 P8 拆分時整區丟掉。
+   ========================================================== */
+.dc-frame {
+  position: absolute;
+  background: var(--paper);
+  border: 1px solid var(--line);
+  color: var(--ink);
+}
+.dc-frame__label {
+  padding: 18px 24px 14px;
+  border-bottom: 1px solid var(--line);
+  cursor: grab;
+}
+.dc-frame__title {
+  font-family: var(--font-body);
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--ink);
+  letter-spacing: -0.01em;
+}
+.dc-frame__sub {
+  font-size: 13px;
+  color: var(--ink-muted);
+  margin-top: 4px;
+  line-height: 1.6;
+}
+.dc-frame__sub b {
+  color: var(--accent);
+}
+
+.dc-pad {
+  padding: 22px 24px 24px;
+}
+.dc-sec {
+  font-size: 10px;
+  color: var(--ink-faint);
+  letter-spacing: 0.14em;
+  margin: 22px 0 10px;
+}
+.dc-sec:first-child {
+  margin-top: 0;
+}
+.dc-row {
+  display: flex;
+  gap: 14px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+/* 螢幕上方的說明條——註解，不是產品的一部分 */
+.dc-screencap {
+  font-family: var(--font-ui);
+  font-size: 11px;
+  color: var(--ink-faint);
+  letter-spacing: 0.06em;
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--line);
+  background: var(--surface-sunk);
+}
+
+/* 強調框：這條規則為什麼存在 */
+.dc-rule {
+  border: 1px solid var(--accent);
+  background: var(--accent-wash-subtle);
+  padding: 10px 13px;
+  margin-top: 13px;
+}
+.dc-rule__h {
+  font-size: 11.5px;
+  font-weight: 700;
+  color: var(--accent);
+}
+.dc-rule__b {
+  font-size: 11.5px;
+  color: var(--ink-on-wash);
+  line-height: 1.7;
+  margin-top: 4px;
+}
+
+/* 提醒框：這裡有代價或陷阱 */
+.dc-warn {
+  border-left: 2px solid var(--line-strong);
+  padding: 8px 13px;
+  margin-top: 13px;
+}
+.dc-warn__h {
+  font-size: 11.5px;
+  font-weight: 700;
+  color: var(--ink);
+}
+.dc-warn__b {
+  font-size: 11.5px;
+  color: var(--ink-muted);
+  line-height: 1.7;
+  margin-top: 4px;
+}
+
+/* token 註解：這個元件用了哪幾個 token */
+.dc-tk {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--ink-faint);
+  margin-top: 7px;
+  line-height: 1.65;
+}
+.dc-tk b {
+  color: var(--accent);
+  font-weight: 400;
+}
+
+/* 區塊評語：✅ ✗ ⚠️ */
+.dc-open {
+  font-size: 10px;
+  color: var(--ink-muted);
+  border-top: 1px dashed var(--line);
+  padding: 8px 12px 10px;
+  line-height: 1.6;
+}
+
+/* 對照卡 */
+.dc-note {
+  padding: 0 24px 22px;
+  display: flex;
+  gap: 12px;
+}
+.dc-card {
+  flex: 1;
+  border-left: 2px solid var(--accent);
+  padding: 8px 12px;
+}
+.dc-card--muted {
+  border-left-color: var(--line-strong);
+}
+.dc-card__h {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--ink);
+}
+.dc-card__b {
+  font-size: 11px;
+  color: var(--ink-muted);
+  line-height: 1.55;
+  margin-top: 3px;
+}
+
+/* 比較表 */
+.dc-cmp {
+  padding: 4px 24px 20px;
+}
+.dc-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 11px;
+}
+.dc-table th {
+  text-align: left;
+  font-size: 10px;
+  color: var(--ink-faint);
+  font-weight: 700;
+  border-bottom: 1px solid var(--line-strong);
+  padding: 7px 9px;
+  letter-spacing: 0.04em;
+}
+.dc-table td {
+  border-bottom: 1px solid var(--line);
+  padding: 8px 9px;
+  color: var(--ink-muted);
+  line-height: 1.6;
+  vertical-align: top;
+}
+.dc-table td.k {
+  font-weight: 700;
+  color: var(--ink);
+  white-space: nowrap;
+}
+
+/* 狀態標籤：元件庫活文件裡標示這是哪一個 state */
+.dc-state {
+  font-family: var(--font-mono);
+  font-size: 9.5px;
+  color: var(--ink-faint);
+  margin-top: 5px;
+}
+
+/* 展示容器：模擬真實螢幕底色（--paper），否則浮起件看不出來 */
+.dc-demo {
+  background: var(--paper);
+  border: 1px solid var(--line);
+  padding: 14px;
+}
+
+/* ===== _components-app.css ===== */
+/* ============================================================
+   Vellum 元件庫 · 應用層（APP-LEVEL）
+   跨畫面的框架與互動元件——不是「內容」，是「包著內容的東西」。
+
+   為什麼分成另一個檔：
+   _components.css 是「對話產品本體」的元件（訊息、列表、輸入），
+   這一檔是框架與互動層（對話框、橫幅、進度、分步、彈層、操作列）。
+   實作時這兩堆很可能落在不同目錄（features/ vs ui/）。
+
+   同樣的紀律：.v-* 會變成 code；不得出現字面 #RRGGBB。
+   ============================================================ */
+
+/* --- 對話框 —— 不可逆動作前的最後一關 -------------------- */
+.v-modal__scrim {
+  position: absolute;
+  inset: 0;
+  background: var(--scrim);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.v-modal {
+  background: var(--paper);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-panel);
+  width: 420px;
+  max-width: 92%;
+  font-family: var(--font-ui);
+}
+.v-modal__title {
+  font-family: var(--font-body);
+  font-size: var(--text-title);
+  color: var(--ink);
+  padding: 18px 20px 0;
+}
+.v-modal__body {
+  font-size: 12.5px;
+  color: var(--ink-muted);
+  line-height: 1.85;
+  padding: 10px 20px 0;
+}
+.v-modal__body b {
+  color: var(--ink);
+}
+.v-modal__actions {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 4px;
+  padding: 10px 14px 8px;
+}
+.v-modal--danger {
+  border-color: var(--danger);
+}
+.v-modal--danger .v-modal__title {
+  color: var(--danger);
+}
+
+/* --- 全域橫幅 —— 整個 app 的狀態，不屬於任何一個畫面 --------- */
+.v-banner {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 14px;
+  font-family: var(--font-ui);
+  font-size: 12px;
+  background: var(--surface-sunk);
+  border-bottom: 1px solid var(--line);
+  color: var(--ink-muted);
+}
+.v-banner__action {
+  margin-left: auto;
+}
+.v-banner--warning {
+  background: var(--accent-wash);
+  border-bottom-color: var(--accent);
+  color: var(--ink);
+}
+.v-banner--danger {
+  background: var(--danger-wash);
+  border-bottom-color: var(--danger);
+  color: var(--danger);
+}
+.v-banner--success {
+  background: var(--accent-wash);
+  border-bottom-color: var(--accent);
+  color: var(--accent);
+}
+/* 重連中：虛線邊表示「連線不確定」——不靠動畫也讀得出來 */
+.v-banner.is-reconnecting {
+  border-bottom-style: dashed;
+  border-bottom-color: var(--line-strong);
+  color: var(--ink-faint);
+}
+
+/* --- 區塊內提示 —— 屬於某個畫面的一段，不是全域 ------------- */
+.v-alert {
+  border-left: 2px solid var(--line-strong);
+  padding: 9px 13px;
+  font-family: var(--font-ui);
+  font-size: 12px;
+  line-height: 1.75;
+  color: var(--ink-muted);
+}
+.v-alert__title {
+  font-weight: 700;
+  color: var(--ink);
+}
+.v-alert--warning {
+  border-left-color: var(--accent);
+  background: var(--accent-wash);
+}
+.v-alert--danger {
+  border-left-color: var(--danger);
+  background: var(--danger-wash);
+}
+.v-alert--danger .v-alert__title {
+  color: var(--danger);
+}
+
+/* --- 進度條 -------------------------------------------------- */
+.v-progress {
+  height: 4px;
+  background: var(--track);
+  border-radius: var(--radius-full);
+  overflow: hidden;
+}
+.v-progress__fill {
+  height: 100%;
+  background: var(--accent);
+  border-radius: var(--radius-full);
+}
+/* 🔴 不知道要多久就不要假裝知道百分比——整條淡色，不給假數字 */
+.v-progress.is-indeterminate .v-progress__fill {
+  width: 100%;
+  background: var(--line-strong);
+}
+.v-progress.is-failed .v-progress__fill {
+  background: var(--danger);
+}
+
+/* --- 分步流程 —— 更新的六步就是它 ------------------------- */
+.v-steps {
+  display: flex;
+  flex-direction: column;
+}
+.v-steps__item {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  padding: 9px 0;
+  border-bottom: 1px solid var(--line);
+  font-family: var(--font-ui);
+  font-size: 12.5px;
+  color: var(--ink-faint);
+}
+.v-steps__item:last-child {
+  border-bottom: none;
+}
+.v-steps__item::before {
+  content: "○";
+  font-size: 11px;
+  width: 14px;
+  flex-shrink: 0;
+}
+.v-steps__note {
+  margin-left: auto;
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  color: var(--ink-faint);
+}
+
+.v-steps__item.is-done {
+  color: var(--ink-muted);
+}
+.v-steps__item.is-done::before {
+  content: "✓";
+  color: var(--accent);
+}
+.v-steps__item.is-running {
+  color: var(--ink);
+  font-weight: 600;
+}
+.v-steps__item.is-running::before {
+  content: "●";
+  color: var(--accent);
+}
+.v-steps__item.is-failed {
+  color: var(--danger);
+  font-weight: 600;
+}
+.v-steps__item.is-failed::before {
+  content: "✕";
+  color: var(--danger);
+}
+.v-steps__item.is-skipped {
+  color: var(--ink-faint);
+}
+.v-steps__item.is-skipped::before {
+  content: "–";
+}
+/* 🔴 不可逆的那一步必須在執行前就看得出來，不是出事才說 */
+.v-steps__item.is-irreversible .v-steps__label::after {
+  content: " · 不可逆";
+  font-size: 10px;
+  color: var(--danger);
+  font-weight: 400;
+}
+
+/* --- 變更摘要（U-D3：人寫的重點，不是 commit log）-------- */
+.v-changelog {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  font-family: var(--font-ui);
+}
+.v-changelog__item {
+  display: flex;
+  gap: 9px;
+  font-size: 12px;
+  line-height: 1.7;
+  color: var(--ink-muted);
+}
+.v-changelog__item::before {
+  flex-shrink: 0;
+  font-size: 10px;
+  width: 40px;
+}
+.v-changelog__item--feature::before {
+  content: "新增";
+  color: var(--accent);
+}
+.v-changelog__item--fix::before {
+  content: "修正";
+  color: var(--ink-faint);
+}
+.v-changelog__item--breaking::before {
+  content: "破壞性";
+  color: var(--danger);
+}
+.v-changelog__item--breaking {
+  color: var(--ink);
+}
+
+/* --- 版本列（目前版本 → 可用版本）-------------------------- */
+.v-version {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  font-family: var(--font-ui);
+  flex-wrap: wrap;
+}
+.v-version__num {
+  font-family: var(--font-body);
+  font-size: var(--text-title);
+  color: var(--ink);
+}
+.v-version__num.is-new {
+  color: var(--accent);
+}
+.v-version__arrow {
+  color: var(--ink-faint);
+}
+.v-version__meta {
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  color: var(--ink-faint);
+}
+
+/* --- 訊息級操作（S2）---------------------------------------
+   它依附在訊息上，但它是「操作」不是「內容」——所以在這一層。
+   🔴 重生不做水平滑動：丙案已經把水平方向用來區分誰在說話。 */
+.v-msgaction {
+  display: inline-block;
+  border: 1px solid var(--line-strong);
+  background: var(--surface);
+  font-family: var(--font-ui);
+  font-size: 9.5px;
+  padding: 2px 6px;
+  color: var(--ink-muted);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  white-space: nowrap;
+}
+.v-msgaction--danger {
+  color: var(--danger);
+  border-color: var(--danger);
+}
+.v-msgaction.is-active {
+  background: var(--accent);
+  color: var(--accent-ink);
+  border-color: var(--accent);
+}
+.v-msgaction.is-disabled {
+  color: var(--ink-faint);
+  border-color: var(--line);
+  pointer-events: none;
+}
+
+.v-msgaction-bar {
+  display: flex;
+  gap: 5px;
+  margin-top: 6px;
+  flex-wrap: wrap;
+}
+/* 浮動版：hover 才出現。宿主需要 position:relative */
+.v-msgaction-bar--float {
+  position: absolute;
+  right: 0;
+  top: -9px;
+  margin-top: 0;
+  background: var(--surface);
+  border: 1px solid var(--accent);
+  padding: 2px 4px;
+  border-radius: var(--radius-sm);
+}
+
+/* --- 底部動作彈層（手機）-------------------------------
+   跟桌機的「點選 → 動作」同一個心智模型，只是動作長在下方。 */
+.v-sheet {
+  border-top: 2px solid var(--accent);
+  background: var(--surface);
+  padding: 8px 10px;
+  display: flex;
+  flex-direction: column;
+}
+.v-sheet__item {
+  font-family: var(--font-ui);
+  font-size: 11px;
+  color: var(--ink);
+  border-bottom: 1px solid var(--line);
+  padding: 7px 2px;
+  cursor: pointer;
+}
+.v-sheet__item:last-child {
+  border-bottom: none;
+}
+.v-sheet__item--danger {
+  color: var(--danger);
+}
+
+/* --- 預算拆解（狀態列展開後）------------------------------
+   🔴 重點不是數字，是 __why：哪條世界書為什麼進來、什麼被裁掉。
+   這就是 B12「為什麼」層——ST 完全沒有的能力。 */
+.v-budget {
+  display: flex;
+  flex-direction: column;
+  font-family: var(--font-ui);
+}
+.v-budget__row {
+  display: flex;
+  justify-content: space-between;
+  font-size: 10px;
+  padding: 4px 2px;
+  border-bottom: 1px solid var(--line);
+  color: var(--ink-muted);
+}
+.v-budget__row b {
+  font-weight: 700;
+  color: var(--ink);
+  font-family: var(--font-mono);
+}
+.v-budget__row.is-cut b {
+  color: var(--ink-faint);
+  font-weight: 400;
+}
+.v-budget__why {
+  font-size: 9.5px;
+  color: var(--ink-faint);
+  padding: 3px 2px 3px 10px;
+  border-left: 1px solid var(--line-strong);
+  line-height: 1.5;
+}
+
+/* ===== _components-form.css ===== */
+/* ============================================================
+   Vellum 元件庫 · 導覽與表單進階控制（FORM & NAV）
+   編輯頁、世界書、設定頁靠這一批撐起來。
+   紀律：.v-* 會變成 code；不得字面 #RRGGBB。
+   ============================================================ */
+
+/* ===== 導覽 ===== */
+
+/* --- 左側分區導覽（編輯頁）-----------------------------------
+   🔴 .v-panel 是被導覽推開後的「目的地」，不是導覽本身。 */
+.v-navrail {
+  display: flex;
+  flex-direction: column;
+  background: var(--surface-sunk);
+  border-right: 1px solid var(--line);
+  font-family: var(--font-ui);
+}
+.v-navrail__item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 9px 11px;
+  font-size: 11px;
+  color: var(--ink-muted);
+  border-left: 2px solid transparent;
+  cursor: pointer;
+}
+.v-navrail__item.is-active {
+  background: var(--surface);
+  color: var(--ink);
+  font-weight: 600;
+  border-left-color: var(--accent);
+}
+.v-navrail__badge {
+  font-family: var(--font-mono);
+  font-size: 9.5px;
+  color: var(--ink-faint);
+}
+.v-navrail__item.is-active .v-navrail__badge {
+  color: var(--accent);
+}
+.v-navrail__group {
+  font-size: 9px;
+  color: var(--ink-faint);
+  letter-spacing: 0.06em;
+  padding: 9px 11px 4px;
+}
+.v-navrail__rule {
+  height: 1px;
+  background: var(--line);
+  margin: 4px 0;
+}
+
+/* --- 麵包屑頁首（‹ 上層 › 目前項目 ＋ 右側動作）-------------
+   .v-topbar__title 只是標題；這個是階層路徑。 */
+.v-crumb {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 9px 11px;
+  border-bottom: 1px solid var(--line);
+  font-family: var(--font-ui);
+  font-size: 11.5px;
+  color: var(--ink);
+}
+.v-crumb__up {
+  color: var(--ink-muted);
+  cursor: pointer;
+}
+.v-crumb__sep {
+  color: var(--ink-faint);
+}
+.v-crumb__here {
+  font-weight: 600;
+}
+
+/* --- 清單工具列（搜尋 ＋ 排序 ＋ 批次動作）-------------------- */
+.v-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  padding: 8px 11px;
+  background: var(--surface-sunk);
+  border-bottom: 1px solid var(--line);
+}
+.v-toolbar__spacer {
+  flex: 1;
+}
+
+/* --- 下拉清單（錨定彈出的 listbox）-------------------------
+   跟 .v-choice 不同：那是各自描邊的卡片列；
+   這是同一容器內、選中即反白、尾端帶「＋ 新增」的 listbox。
+   跟 .v-panel 也不同：那是整頁推入，這是原地彈出。
+   🔴 卡庫沒有頁面——它就是這個 dropdown。 */
+.v-dropdown {
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  box-shadow: var(--shadow-panel);
+  overflow: hidden;
+  font-family: var(--font-ui);
+}
+.v-dropdown__row {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 8px 10px;
+  font-size: 11px;
+  color: var(--ink);
+  border-bottom: 1px solid var(--line);
+  cursor: pointer;
+}
+.v-dropdown__row:last-child {
+  border-bottom: none;
+}
+.v-dropdown__row.is-selected {
+  background: var(--accent-wash);
+}
+.v-dropdown__row.is-hover {
+  background: var(--paper);
+}
+.v-dropdown__row--add {
+  color: var(--ink-muted);
+  border-top: 1px dashed var(--line-strong);
+}
+.v-dropdown__group {
+  font-size: 9px;
+  color: var(--ink-faint);
+  letter-spacing: 0.06em;
+  padding: 7px 10px 3px;
+  background: var(--surface-sunk);
+}
+
+/* ===== 表單進階 ===== */
+
+/* --- 可摺疊表單分組 -------------------------------------------
+   世界書條目編輯器的 6 組進階設定靠它撐起來。
+   跟 .v-thinkfold 同宗但通用於表單，不是 AI 推理專用。 */
+.v-fold {
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  overflow: hidden;
+}
+.v-fold__head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  font-family: var(--font-ui);
+  font-size: 11px;
+  color: var(--ink);
+  cursor: pointer;
+}
+.v-fold__head::before {
+  content: "›";
+  color: var(--ink-faint);
+  flex-shrink: 0;
+}
+.v-fold.is-open .v-fold__head::before {
+  content: "⌄";
+}
+.v-fold.is-open .v-fold__head {
+  background: var(--surface-sunk);
+  border-bottom: 1px solid var(--line);
+}
+/* 右側摘要：摺起時也看得到重點，不用展開才知道設了什麼 */
+.v-fold__summary {
+  margin-left: auto;
+  font-size: 9.5px;
+  color: var(--ink-faint);
+  font-family: var(--font-mono);
+}
+.v-fold__body {
+  padding: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+}
+
+/* --- 條件顯示子欄位群 ---------------------------------------
+   「選了 @D／Outlet 才出現」的那一群。
+   全 app 密度最高的畫面靠這個模式反覆收納「只在特定選項下有意義」的欄位。 */
+.v-condfield {
+  border-left: 2px solid var(--line-strong);
+  padding: 2px 0 2px 11px;
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+.v-condfield__cap {
+  font-family: var(--font-ui);
+  font-size: 9.5px;
+  color: var(--ink-faint);
+  line-height: 1.6;
+}
+
+/* --- 可編輯多值標籤輸入 -------------------------------------
+   🔴 跟 .v-tag 不同：.v-tag 是展示用的靜態標籤，這是「輸入元件」。 */
+.v-chipfield {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  align-items: center;
+  border: 1px solid var(--field-line);
+  background: var(--field-bg);
+  border-radius: var(--radius-sm);
+  padding: 6px 8px;
+}
+.v-chipfield.is-focused {
+  border-color: var(--accent);
+  box-shadow: var(--focus-ring);
+}
+.v-chipfield__chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  border: 1px solid var(--line-strong);
+  background: var(--surface-sunk);
+  border-radius: 2px;
+  padding: 2px 6px;
+  font-family: var(--font-ui);
+  font-size: 10px;
+  color: var(--ink);
+}
+.v-chipfield__chip::after {
+  content: "✕";
+  color: var(--ink-faint);
+  font-size: 9px;
+  cursor: pointer;
+}
+.v-chipfield__add {
+  border: 1px dashed var(--line-strong);
+  background: transparent;
+  border-radius: 2px;
+  padding: 2px 7px;
+  font-family: var(--font-ui);
+  font-size: 10px;
+  color: var(--ink-muted);
+  cursor: pointer;
+}
+/* 模式切換（正規表達式／全字符合等）*/
+.v-chipfield__mode {
+  font-family: var(--font-mono);
+  font-size: 9.5px;
+  color: var(--accent);
+  margin-left: auto;
+  cursor: pointer;
+}
+
+/* --- 篩選膠囊列（唯讀切換，可複選）---------------------------
+   跟 .v-chipfield 區別：那個可增刪，這個只能開關。
+   跟 .v-toggle3 區別：那個是固定 2–3 態單選，這個數量不定且可複選。 */
+.v-chiprow {
+  display: flex;
+  gap: 5px;
+  flex-wrap: wrap;
+}
+.v-chip {
+  border: 1px solid var(--line-strong);
+  background: var(--surface);
+  border-radius: var(--radius-full);
+  padding: 3px 10px;
+  font-family: var(--font-ui);
+  font-size: 10px;
+  color: var(--ink-muted);
+  cursor: pointer;
+  white-space: nowrap;
+}
+.v-chip__n {
+  font-family: var(--font-mono);
+  font-size: 9px;
+  color: var(--ink-faint);
+  margin-left: 4px;
+}
+.v-chip.is-active {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--accent-ink);
+}
+.v-chip.is-active .v-chip__n {
+  color: var(--accent-ink);
+}
+
+/* --- 巨集輸入的建議清單 ---------------------------------------
+   .v-select 是收合的觸發器，不是展開清單。 */
+.v-autocomplete {
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  box-shadow: var(--shadow-panel);
+  overflow: hidden;
+}
+.v-autocomplete__row {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  padding: 6px 9px;
+  border-bottom: 1px solid var(--line);
+  font-size: 10px;
+  color: var(--ink-muted);
+  cursor: pointer;
+}
+.v-autocomplete__row:last-child {
+  border-bottom: none;
+}
+.v-autocomplete__syntax {
+  font-family: var(--font-mono);
+  color: var(--code-ink);
+  flex-shrink: 0;
+}
+.v-autocomplete__row.is-active {
+  background: var(--accent-wash);
+  color: var(--ink);
+}
+
+/* --- 頁面級搜尋框（.v-field 的變體）------------------------- */
+.v-field--search {
+  /* 🔴 這個 class 有時候單獨使用（沒掛 `.v-field`），所以 box-sizing 要自己再寫一次。
+     只寫在 `.v-field` 上的話，單獨使用的那些會繼續溢出 28px（border 2px 的關係）。 */
+  box-sizing: border-box;
+  border: 2px solid var(--line-strong);
+  font-size: 12.5px;
+  padding: 9px 12px;
+  width: 100%;
+  display: block;
+}
+.v-field--search.is-focused {
+  border-color: var(--accent);
+}
+
+/* ===== 設定頁專用 ===== */
+
+/* --- 主題色票格（卡片內嵌縮圖預覽）-------------------------
+   .v-grid 是⊕ router 的純文字格；這個格子裡有一張模擬渲染。 */
+.v-swatchgrid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 9px;
+}
+.v-swatch {
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  padding: 7px;
+  cursor: pointer;
+}
+.v-swatch.is-selected {
+  border: 2px solid var(--accent);
+  padding: 6px;
+}
+.v-swatch__preview {
+  border: 1px solid var(--line);
+  border-radius: 2px;
+  padding: 7px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.v-swatch__line {
+  height: 4px;
+  border-radius: 1px;
+  background: var(--line-strong);
+}
+.v-swatch__name {
+  font-family: var(--font-ui);
+  font-size: 10px;
+  color: var(--ink);
+  margin-top: 6px;
+  text-align: center;
+}
+
+/* --- 頭像裁切 ------------------------------------------------- */
+.v-cropper {
+  position: relative;
+  background: var(--surface-sunk);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+}
+.v-cropper__box {
+  position: absolute;
+  border: 2px solid var(--accent);
+  border-radius: var(--radius-full);
+  box-shadow: 0 0 0 9999px var(--scrim);
+}
+.v-cropper__label {
+  position: absolute;
+  right: 6px;
+  bottom: 6px;
+  font-family: var(--font-mono);
+  font-size: 9px;
+  color: var(--accent-ink);
+  background: var(--accent);
+  border-radius: 2px;
+  padding: 1px 6px;
+}
+
+/* --- 編號教學步驟（取得金鑰引導）-----------------------------
+   🔴 跟 .v-steps 區別：.v-steps 追蹤狀態（○✓●✕），
+   這個是靜態的「照做」步驟，用數字不用狀態符號。 */
+.v-guide-step {
+  display: flex;
+  gap: 9px;
+  align-items: flex-start;
+  border: 1px solid var(--line);
+  background: var(--surface);
+  border-radius: var(--radius-sm);
+  padding: 7px 9px;
+}
+.v-guide-step__num {
+  width: 15px;
+  height: 15px;
+  flex-shrink: 0;
+  border: 1px solid var(--accent);
+  border-radius: var(--radius-full);
+  color: var(--accent);
+  font-family: var(--font-mono);
+  font-size: 9px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.v-guide-step__text {
+  font-family: var(--font-ui);
+  font-size: 10.5px;
+  color: var(--ink);
+  line-height: 1.55;
+}
+
+/* --- 內嵌等寬片段（網址、key 前綴）-----------------------
+   不是按鈕，是可選取／可複製的文字。 */
+.v-inline-code {
+  font-family: var(--font-mono);
+  font-size: 9.5px;
+  color: var(--code-ink);
+  background: var(--surface-sunk);
+  border-radius: 2px;
+  padding: 1px 5px;
+}
+
+/* --- 方案選擇卡（.v-choice 的多行變體）-----------------------
+   .v-choice__sub 只支援單行 caption；這裡需要標題列＋標籤＋多行說明。 */
+.v-choice--card {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 5px;
+  padding: 11px 12px;
+}
+.v-choice--card.is-selected {
+  padding: 10px 11px;
+}
+.v-choice__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  font-weight: 600;
+}
+.v-choice__body {
+  font-size: 10px;
+  color: var(--ink-muted);
+  line-height: 1.65;
+}
+.v-choice__body b {
+  color: var(--ink);
+}
+
+/* ===== _components-grid.css ===== */
+/* ============================================================
+   Vellum 元件庫 · 導覽與設定控制（NAVIGATION & CONTROLS）
+   把使用者帶到另一個地方的元件，以及讓他調東西的元件。
+   同樣紀律：.v-* 會變成 code；不得出現字面 #RRGGBB。
+   ============================================================ */
+
+/* --- ⊕ 九宮格（D16：router 不是 container）------------------
+   🔴 每格推開下一層，不分頁。
+   分頁預設「這些東西同質」——外觀跟變數不同質。
+   隱喻來自 LINE 的 + 鍵（異質項目、無分頁），不是貼圖鍵（同質、有分頁）。 */
+.v-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+  border-top: 2px solid var(--accent);
+  background: var(--surface-sunk);
+  padding: 11px;
+}
+.v-grid__cell {
+  border: 1px solid var(--line);
+  background: var(--surface);
+  border-radius: var(--radius-sm);
+  padding: 12px 4px;
+  text-align: center;
+  font-family: var(--font-ui);
+  font-size: 10.5px;
+  color: var(--ink);
+  cursor: pointer;
+}
+.v-grid__cell b {
+  display: block;
+  font-size: 14px;
+  font-weight: 400;
+  margin-bottom: 5px;
+  color: var(--ink-muted);
+}
+.v-grid__cell.is-active {
+  border: 2px solid var(--accent);
+  padding: 11px 3px;
+  font-weight: 700;
+}
+/* 預留格：九宮格實際只填六格，空位留給後續佇列的旋鈕，不必重新談 D16 */
+.v-grid__cell.is-empty {
+  border-style: dashed;
+  color: var(--ink-faint);
+  background: transparent;
+}
+.v-grid__cell.is-empty b {
+  color: var(--line-strong);
+}
+
+/* --- 推開的下一層面板（router 的目的地）--------------------
+   左上角是「‹ 返回」不是分頁列——這就是 router 與 container 的差別。 */
+.v-panel {
+  border-top: 2px solid var(--accent);
+  background: var(--surface-sunk);
+  padding: 10px 11px;
+  font-family: var(--font-ui);
+}
+.v-panel__head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--ink);
+  margin-bottom: 8px;
+}
+.v-panel__hint {
+  font-weight: 400;
+  color: var(--ink-faint);
+  font-size: 10px;
+}
+.v-panel__row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 10.5px;
+  padding: 6px 2px;
+  border-bottom: 1px solid var(--line);
+  color: var(--ink-muted);
+}
+.v-panel__row:last-child {
+  border-bottom: none;
+}
+.v-panel__row b {
+  color: var(--ink);
+  font-weight: 600;
+}
+
+/* --- 可選項列（預設集清單、主題清單、供應商清單）-------- */
+.v-choice {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+  border: 1px solid var(--line);
+  background: var(--surface);
+  border-radius: var(--radius-sm);
+  padding: 9px 10px;
+  font-family: var(--font-ui);
+  font-size: 11px;
+  color: var(--ink);
+  cursor: pointer;
+}
+.v-choice.is-selected {
+  border: 2px solid var(--accent);
+  padding: 8px 9px;
+}
+.v-choice.is-disabled {
+  color: var(--ink-faint);
+  background: var(--surface-sunk);
+  pointer-events: none;
+}
+.v-choice__sub {
+  font-size: 9.5px;
+  color: var(--ink-faint);
+  margin-top: 2px;
+  font-weight: 400;
+}
+.v-choice--add {
+  color: var(--ink-muted);
+  border-style: dashed;
+}
+
+/* --- 開關（兩態）-------------------------------------------
+   🔴 注意區別：這是真正的兩態開關（顯示頭像：開／關）。
+   D17 世界書的三態覆寫不得用這個，要用 .v-toggle3——
+   「跟隨書」不是關，是第三種狀態，用 toggle 就看不見它。 */
+.v-switch {
+  width: 26px;
+  height: 14px;
+  border: 1px solid var(--line-strong);
+  background: var(--surface);
+  border-radius: var(--radius-full);
+  flex-shrink: 0;
+  position: relative;
+  cursor: pointer;
+}
+.v-switch::after {
+  content: "";
+  position: absolute;
+  top: 1px;
+  left: 1px;
+  width: 10px;
+  height: 10px;
+  border-radius: var(--radius-full);
+  background: var(--line-strong);
+}
+.v-switch.is-on {
+  background: var(--accent);
+  border-color: var(--accent);
+}
+.v-switch.is-on::after {
+  left: auto;
+  right: 1px;
+  background: var(--accent-ink);
+}
+.v-switch.is-disabled {
+  background: var(--surface-sunk);
+  border-color: var(--line);
+  pointer-events: none;
+}
+.v-switch.is-disabled::after {
+  background: var(--line);
+}
+
+/* --- 下拉選擇 ------------------------------------------------ */
+.v-select {
+  display: inline-flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  border: 1px solid var(--field-line);
+  background: var(--field-bg);
+  border-radius: var(--radius-sm);
+  padding: 3px 8px;
+  font-family: var(--font-ui);
+  font-size: 10.5px;
+  color: var(--ink);
+  min-width: 84px;
+  cursor: pointer;
+}
+.v-select::after {
+  content: "›";
+  color: var(--ink-faint);
+}
+.v-select.is-placeholder {
+  color: var(--ink-faint);
+}
+.v-select.is-disabled {
+  background: var(--surface-sunk);
+  color: var(--ink-faint);
+  pointer-events: none;
+}
+
+/* --- 設定列（左標籤右控制）------------------------------ */
+.v-settingrow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 7px 11px;
+  border-bottom: 1px solid var(--line);
+  background: var(--surface);
+  font-family: var(--font-ui);
+  font-size: 11px;
+  color: var(--ink);
+}
+.v-settingrow:last-child {
+  border-bottom: none;
+}
+.v-settingrow__hint {
+  display: block;
+  font-size: 9px;
+  color: var(--ink-faint);
+  margin-top: 1px;
+}
+/* 「⋯ 還有 N 項」那一列 */
+.v-settingrow.is-more {
+  color: var(--ink-muted);
+}
+
+/* 分組標題 */
+.v-group {
+  font-family: var(--font-ui);
+  font-size: 9px;
+  color: var(--ink-faint);
+  letter-spacing: 0.06em;
+  padding: 6px 10px;
+  background: var(--surface-sunk);
+  border-bottom: 1px solid var(--line);
+}
+
+/* ===== _components-group.css ===== */
+/* ============================================================
+   Vellum 元件庫 · 群組（GROUP）
+   群組是「列表」與「對話」的組合，所以自成一層。
+   同樣紀律：.v-* 會變成 code；不得字面 #RRGGBB。
+   ============================================================ */
+
+/* --- 疊頭像（群組在好友列表裡的樣子）-------------------
+   群組就是列表裡的一列，只是頭像疊起來、預覽帶發言者名字。
+   🔴 不另建層級。 */
+.v-avatar-stack {
+  display: flex;
+  flex-shrink: 0;
+}
+.v-avatar-stack .v-avatar {
+  margin-left: -8px;
+  border: 2px solid var(--surface);
+}
+.v-avatar-stack .v-avatar:first-child {
+  margin-left: 0;
+}
+
+/* --- 一輪＝一批（G2：batchId 從第一天就有）------------------
+   🔴 重生／刪除都以批為單位。
+   ST 的 gen_id 是事後補的，舊資料沒有 ⇒ 那些訊息永遠沒有批次邊界。 */
+.v-batch {
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  padding: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+}
+.v-batch__label {
+  font-family: var(--font-ui);
+  font-size: 9px;
+  color: var(--ink-faint);
+  letter-spacing: 0.06em;
+}
+.v-batch__actions {
+  display: flex;
+  gap: 5px;
+  justify-content: flex-end;
+}
+.v-batch.is-generating {
+  border-style: dashed;
+}
+
+/* --- 已移除的選項（機率點名這種）-------------------------
+   劃掉但仍顯示：告訴使用者「我們知道 ST 有這個，是故意不做」。 */
+.v-choice.is-removed {
+  color: var(--ink-faint);
+  background: var(--surface-sunk);
+  border-style: dashed;
+  text-decoration: line-through;
+}
+
+/* ===== _components-io.css ===== */
+/* ============================================================
+   Vellum 元件庫 · 匯入匯出（I/O）
+   資料進來與出去的元件。同樣紀律：.v-* 會變成 code；不得字面 #RRGGBB。
+   ============================================================ */
+
+/* --- 拖放區 ---------------------------------------------- */
+.v-dropzone {
+  border: 1px dashed var(--line-strong);
+  background: var(--surface);
+  border-radius: var(--radius-md);
+  padding: 24px 10px;
+  text-align: center;
+  font-family: var(--font-ui);
+  font-size: 11px;
+  color: var(--ink-muted);
+  line-height: 1.75;
+  cursor: pointer;
+}
+.v-dropzone b {
+  color: var(--ink);
+}
+.v-dropzone.is-active {
+  border-color: var(--accent);
+  background: var(--accent-wash);
+  color: var(--ink);
+}
+.v-dropzone.is-error {
+  border-color: var(--danger);
+  background: var(--danger-wash);
+  color: var(--danger);
+}
+
+/* --- 勾選框（多選）---------------------------------------
+   跟 .v-switch 不同：switch 是「開／關一個行為」，
+   checkbox 是「這一項要不要包含進來」。 */
+.v-checkbox {
+  width: 13px;
+  height: 13px;
+  border: 1px solid var(--line-strong);
+  border-radius: 2px;
+  background: var(--surface);
+  flex-shrink: 0;
+  position: relative;
+  cursor: pointer;
+}
+.v-checkbox.is-on {
+  background: var(--accent);
+  border-color: var(--accent);
+}
+.v-checkbox.is-on::after {
+  content: "✓";
+  position: absolute;
+  inset: 0;
+  color: var(--accent-ink);
+  font-size: 10px;
+  line-height: 13px;
+  text-align: center;
+}
+.v-checkbox.is-disabled {
+  background: var(--surface-sunk);
+  border-color: var(--line);
+  pointer-events: none;
+}
+
+/* 多選列：勾選框靠左，內容接著排（不是 .v-choice 的兩端對齊）*/
+.v-choice--multi {
+  justify-content: flex-start;
+  gap: 9px;
+}
+
+/* --- 取消封存（與封存相反的動作，不能跟封存同色）-------- */
+.v-swipe__action--unarchive {
+  background: var(--ink-muted);
+}
+
+/* ===== _components-rows.css ===== */
+/* ============================================================
+   Vellum 元件庫 · 列型元件（ROWS）
+   這些都是「一列」，但欄位結構彼此不同——不能互相代替。
+   參照：.v-listrow（好友列：頭像＋名稱＋預覽＋時間）在 _components.css
+           .v-settingrow（設定列：單標籤＋單控制）在 _components-grid.css
+   ============================================================ */
+
+/* --- 世界書條目列（合併檢視與管理頁共用）-----------------
+   五欄並排：觸發點 · 標題 · 來源 · 影響好友數 · 順序值。
+   🔴 兩組盤點 agent 獨立回報同一個缺口 ⇒ 確認是共用元件，不是單張圖的畫法。 */
+.v-entryrow {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--line);
+  background: var(--surface);
+  font-family: var(--font-ui);
+  font-size: 11px;
+  color: var(--ink);
+}
+.v-entryrow:last-child {
+  border-bottom: none;
+}
+.v-entryrow__dot {
+  width: 7px;
+  height: 7px;
+  border-radius: var(--radius-full);
+  background: var(--line-strong);
+  flex-shrink: 0;
+}
+.v-entryrow__title {
+  flex: 1;
+  min-width: 0;
+}
+.v-entryrow__src {
+  font-size: 9.5px;
+  color: var(--ink-faint);
+}
+.v-entryrow__ord {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--ink-faint);
+}
+/* 這一輪會觸發 ⇒ 實心點＋強調色 */
+.v-entryrow.is-active .v-entryrow__dot {
+  background: var(--accent);
+}
+.v-entryrow.is-active {
+  background: var(--accent-wash-subtle);
+}
+.v-entryrow.is-off {
+  color: var(--ink-faint);
+}
+.v-entryrow.is-off .v-entryrow__dot {
+  background: var(--line);
+}
+
+/* --- 導覽列（粗體標題＋多行說明＋尾端 chevron）-------------
+   .v-settingrow 只支援單行 hint 且無 chevron；.v-choice 有 chevron 但無多行說明。 */
+.v-navrow {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 11px 13px;
+  border-bottom: 1px solid var(--line);
+  background: var(--surface);
+  font-family: var(--font-ui);
+  cursor: pointer;
+}
+.v-navrow:last-child {
+  border-bottom: none;
+}
+.v-navrow__title {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--ink);
+}
+.v-navrow__desc {
+  font-size: 10px;
+  color: var(--ink-muted);
+  line-height: 1.6;
+  margin-top: 3px;
+}
+.v-navrow__go {
+  color: var(--ink-faint);
+  flex-shrink: 0;
+  align-self: center;
+}
+.v-navrow:hover,
+.v-navrow.is-hover {
+  background: var(--paper);
+}
+
+/* --- 個人檔案摘要列（設定頁頂部）------------------------- */
+.v-profilerow {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 13px;
+  border-bottom: 1px solid var(--line);
+  background: var(--surface);
+  font-family: var(--font-ui);
+  cursor: pointer;
+}
+.v-profilerow__name {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--ink);
+}
+.v-profilerow__sub {
+  font-size: 10.5px;
+  color: var(--ink-muted);
+  margin-top: 2px;
+}
+.v-profilerow__go {
+  margin-left: auto;
+  color: var(--ink-faint);
+}
+
+/* --- 搜尋結果列（S21：三種異質結果共用一種列）-------------
+   .v-listrow 是聊天預覽專用（固定 name/preview/time/dot），
+   無法表達「命中關鍵字加粗片段 × 跨類型結果」。 */
+.v-searchresult {
+  padding: 9px 12px;
+  border-bottom: 1px solid var(--line);
+  background: var(--surface);
+  font-family: var(--font-ui);
+  font-size: 11px;
+  color: var(--ink);
+  cursor: pointer;
+}
+.v-searchresult:last-child {
+  border-bottom: none;
+}
+.v-searchresult__snippet {
+  font-size: 10.5px;
+  color: var(--ink-muted);
+  line-height: 1.65;
+  margin-top: 3px;
+}
+/* 命中的字：強調底＋墨色，不用黃牌高亮 */
+.v-searchresult__hit {
+  background: var(--accent-wash);
+  color: var(--ink);
+  font-weight: 600;
+}
+.v-searchresult__meta {
+  font-size: 9.5px;
+  color: var(--ink-faint);
+  margin-top: 3px;
+}
+.v-searchresult.is-selected {
+  background: var(--accent-wash-subtle);
+}
+
+/* ===== _components-state.css ===== */
+/* ============================================================
+   Vellum 元件庫 · 狀態與判定（STATE）
+   告訴使用者「現在怎麼了」的元件。跟 .v-alert（靜態說明）不同，
+   這一批大多是「即時計算結果」或「常駐摘要」。
+   紀律：.v-* 會變成 code；不得字面 #RRGGBB。
+   ============================================================ */
+
+/* --- 釘頂預算條（編輯頁）-----------------------------------
+   跟 .v-statusbar 不同：那個在底部、點擊展開；這個釘在頂部、常駐摘要。
+   跟 .v-budget 也不同：那個是展開後的明細列，這個是一行總覽。 */
+.v-budgetbar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 13px;
+  background: var(--surface-sunk);
+  border-bottom: 1px solid var(--line);
+  font-family: var(--font-ui);
+  font-size: 10.5px;
+  color: var(--ink-muted);
+}
+.v-budgetbar__num {
+  font-family: var(--font-mono);
+  color: var(--ink);
+  font-weight: 600;
+}
+.v-budgetbar__mini {
+  flex: 1;
+  height: 3px;
+  background: var(--track);
+  border-radius: var(--radius-full);
+  overflow: hidden;
+  min-width: 40px;
+}
+.v-budgetbar__mini i {
+  display: block;
+  height: 100%;
+  background: var(--accent);
+}
+.v-budgetbar.is-warning {
+  color: var(--danger);
+}
+.v-budgetbar.is-warning .v-budgetbar__mini i {
+  background: var(--danger);
+}
+
+/* --- 即時判定（世界書：這一輪會不會觸發）-------------------
+   🔴 這是 ST 完全沒有的能力。不是靜態說明（.v-alert），
+   是依當下對話內容即時算出來的結論＋依據。 */
+.v-verdict {
+  display: flex;
+  align-items: flex-start;
+  gap: 9px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  padding: 9px 11px;
+  font-family: var(--font-ui);
+  font-size: 11px;
+  color: var(--ink);
+}
+.v-verdict::before {
+  content: "○";
+  color: var(--ink-faint);
+  flex-shrink: 0;
+  font-size: 10px;
+}
+.v-verdict__why {
+  display: block;
+  font-size: 9.5px;
+  color: var(--ink-faint);
+  line-height: 1.6;
+  margin-top: 3px;
+}
+.v-verdict.is-hit {
+  border-color: var(--accent);
+  background: var(--accent-wash-subtle);
+}
+.v-verdict.is-hit::before {
+  content: "●";
+  color: var(--accent);
+}
+.v-verdict.is-miss {
+  color: var(--ink-muted);
+}
+.v-verdict.is-miss::before {
+  content: "○";
+}
+/* 常駐（constant）：不靠關鍵字，永遠進來 */
+.v-verdict.is-always {
+  border-color: var(--line-strong);
+}
+.v-verdict.is-always::before {
+  content: "◆";
+  color: var(--ink-muted);
+}
+
+/* --- 唯讀鎖定橫幅（這個資源被幾個人共用）-------------------
+   跟 .v-banner（全域）、.v-alert（純說明）都不同：
+   它綁的是「共用資源」這個具體語意，且帶可點擊的跳轉動作。 */
+.v-lockband {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  border-left: 2px solid var(--line-strong);
+  background: var(--surface-sunk);
+  padding: 8px 11px;
+  font-family: var(--font-ui);
+  font-size: 10.5px;
+  color: var(--ink-muted);
+  line-height: 1.65;
+}
+.v-lockband b {
+  color: var(--ink);
+}
+.v-lockband__go {
+  margin-left: auto;
+  color: var(--accent);
+  white-space: nowrap;
+  cursor: pointer;
+}
+/* 無動作變體：只告知影響範圍，不提供跳轉 */
+.v-lockband--plain .v-lockband__go {
+  display: none;
+}
+
+/* --- 狀態帶（多開關 ＋ 數值組成一條）---------------------
+   世界書條目編輯器的第一層：它是狀態列，不是表單。
+   .v-settingrow 是單標籤＋單控制，裝不下這種多控制並列。 */
+.v-statebar {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  flex-wrap: wrap;
+  padding: 9px 11px;
+  background: var(--surface-sunk);
+  border-bottom: 1px solid var(--line);
+  font-family: var(--font-ui);
+  font-size: 10.5px;
+  color: var(--ink);
+}
+.v-statebar__item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.v-statebar__num {
+  font-family: var(--font-mono);
+  color: var(--ink);
+  border: 1px solid var(--line);
+  background: var(--surface);
+  border-radius: var(--radius-sm);
+  padding: 2px 7px;
+}
+
+/* --- 行內提示（畫面內的產品文案）---------------------------
+   🔴 跟 .dc-open 很像但完全不同：
+   .dc-open 是畫布註解（對讀者說話，不進 code）；
+   .v-hint 是產品畫面上真的會顯示的文字。兩者不得搞混。
+   .v-field-help 只依附於欄位，這個可以獨立用在列表下方。 */
+.v-hint {
+  font-family: var(--font-ui);
+  font-size: 10px;
+  color: var(--ink-faint);
+  line-height: 1.65;
+  padding: 7px 11px;
+}
+.v-hint b {
+  color: var(--ink-muted);
+}
+
+/* --- 貼底確認框（.v-modal 的位置變體）-----------------------
+   重用 .v-modal__title/__body/__actions，只是貼底而非置中。
+   跟 .v-sheet（動作清單彈層）用途不同——那個是選單，這個是確認框。 */
+.v-modal__scrim--bottom {
+  align-items: flex-end;
+}
+.v-modal--sheet {
+  width: 100%;
+  max-width: none;
+  border-radius: var(--radius-md) var(--radius-md) 0 0;
+  border-bottom: none;
+}
+
+/* ===== _components-touch.css （2026-08-25 新增）===== */
+/* 🔴 **觸控目標規範**：任何會被手指點的元件，命中區高度 ≥ 44px。
+   來源：Peter 2026-08-25「回上一頁的按鈕要符合設計，大小要符合人體手指的大小，
+   所有按鈕都應該被規範於此」。基準取 Apple HIG 44pt（Material 是 48dp，取較寬鬆者為下限）。
+   為什麼是規範不是個案：D1 已定案手機桌機並重，而實測 249 個可點容器有 127 個（51%）不足，
+   `.v-switch`／`.v-select`／`.v-chip`／`.v-checkbox`／`.v-msgaction` 是**整類全部**不合格
+   —— 那不是漏做幾個，是整套元件用桌機滑鼠的尺寸在畫。
+   🔴 **視覺大小與命中區分開**：開關看起來還是 16px，但它坐在 44px 的命中區裡。
+   把視覺放大會毀掉紙感的密度，把命中區放大不會。 */
+:root {
+  --tap-min: 44px;
+}
+
+.v-btn,
+.v-chip,
+.v-select,
+.v-checkbox,
+.v-switch,
+.v-msgaction,
+.v-fold__summary,
+.v-navrow,
+.v-guide-step,
+.v-swipe__action,
+.v-tab {
+  min-height: var(--tap-min);
+  display: inline-flex;
+  align-items: center;
+  box-sizing: border-box;
+}
+.v-navrow,
+.v-guide-step,
+.v-fold__summary,
+.v-swipe__action {
+  display: flex;
+}
+
+/* 返回鍵 —— 這是元件，不是塞進標題字串的 `‹` 字元。
+   有名字才拆得開：實作時 `.v-back` 一對一對應成 code，塞在文字裡的字元對應不到任何東西。 */
+.v-back {
+  min-width: var(--tap-min);
+  min-height: var(--tap-min);
+  margin-left: -10px; /* 抵銷 topbar 的 padding，讓視覺仍貼齊左緣 */
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 17px;
+  line-height: 1;
+  color: var(--ink);
+  cursor: pointer;
+  flex: none;
+}
+.v-back::before {
+  content: "‹";
+}
+.v-topbar__lead {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+}
+
+/* 🔴 有些按鈕的設計圖寫了 inline `min-height:auto` —— 那是刻意壓縮的視覺
+   （例：對話頁 topbar 的「編輯」、輸入列的「送出」，把它們撐到 44px 會毀掉那一列）。
+   ⇒ 不用 !important 去跟設計打架，改用**擴大命中區**：視覺不變，手指容錯變大。
+   這是「視覺大小 ≠ 命中區大小」那條規範的具體實作，不是例外。 */
+.v-btn {
+  position: relative;
+}
+.v-btn::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 50%;
+  height: var(--tap-min);
+  transform: translateY(-50%);
+  min-width: var(--tap-min);
+  /* 只擴大命中區，不畫任何東西 */
+}
+
+/* ===== _components-tabbar.css （2026-08-25 新增）===== */
+/* 🔴 **底部 tab bar** —— Peter 2026-08-25 定案：好友／聊天／世界書／設定（方案甲）。
+   來源：Peter「應該加入 bottom bar 像是 line 一樣」＋「這幾頁面都算是大主頁，不需要編輯」。
+   ⇒ **tab 根＝沒有返回鍵**。這不是兩條規則，是同一條：退無可退的地方就是頂層。
+      `build.py` 有閘門擋住「tab 根身上出現 `.v-back`」。
+
+   🔴 **為什麼拆「好友」與「聊天」**：ST 沒有聊天列表這個頁面（實查 localhost:8000，
+      它的 9 個頂欄入口是**抽屜不是目的地**，聊天列表藏在「角色管理」裡）。
+      Vellum 走 LINE 的分法，理由很實際：匯入 200 張卡但只聊過 5 個，混在一條列表裡找不到。
+
+   🔴 **這一版刻意沒有 icon**。icon 語彙還沒定，隨手挑的符號會在 P6 被當成設計決策來測，
+      量到的是「這個圖案是什麼意思」而不是「他找不找得到目的地」——後者才是這條 bar 要驗的。 */
+.v-tabbar {
+  margin-top: auto; /* .v-screen 是 flex column ⇒ 永遠貼底，不必算高度 */
+  display: flex;
+  flex: none;
+  border-top: 1px solid var(--line);
+  background: var(--surface-sunk);
+}
+.v-tabbar__item {
+  flex: 1;
+  min-height: var(--tap-min); /* 觸控規範，與 .v-back 共用同一個變數 */
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--font-ui);
+  font-size: 11.5px;
+  color: var(--ink-faint);
+  cursor: pointer;
+  border-top: 2px solid transparent;
+  margin-top: -1px;
+  box-sizing: border-box;
+}
+.v-tabbar__item.is-active {
+  color: var(--ink);
+  font-weight: 600;
+  border-top-color: var(--accent);
+  background: var(--paper);
+}
+/* 🔴 還沒畫的 tab 要**看得出來是還沒做，不是壞掉**。
+   藏起來會讓受測者以為產品沒有這個功能 —— 那是把設計缺口偽裝成設計決策，
+   而 P6 要量的正好是「他以為有沒有」。判準同 project_vellum_always_guide：誠實標示差別。 */
+.v-tabbar__item.is-undrawn {
+  opacity: 0.45;
+}
+.v-tabbar__item.is-undrawn::after {
+  content: "· 未畫";
+  font-size: 9px;
+  margin-left: 3px;
+  font-family: var(--font-mono);
+}
+
+/* --- 疊加式下拉 ------------------------------------------------
+   🔴 「點搜尋框跳出卡庫」是**疊在原畫面上**，不是換一張畫面。
+   所以 `.v-dropdown--overlay` 用絕對定位浮在表單之上，底下的內容不重排。
+   `.v-dropdown-anchor` 由 build.py 包在搜尋框外層，只為了給絕對定位一個座標原點。 */
+.v-dropdown-anchor {
+  position: relative;
+}
+.v-dropdown--overlay {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: calc(100% + 5px);
+  z-index: 5;
+}
+
+/* --- 可捲動的內容區 -------------------------------------------
+   🔴 `overflow-y:auto` **單獨用在 flex column 上是會騙人的**：
+   子項預設 `flex-shrink:1`，內容變多時它們被**擠扁**而不是把容器撐出捲軸 ——
+   看起來像跑版，實際上是內容被壓掉，而且捲不動（2026-08-25 實測踩到）。
+   ⇒ 子項一律 `flex:none`，容器才會真的產生捲動。
+   用法：畫面 = header（固定）＋ `.v-scroll`（捲）＋ footer（固定）。 */
+.v-scroll {
+  flex: 1;
+  overflow-y: auto;
+}
+.v-scroll > * {
+  flex: none;
+}

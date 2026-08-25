@@ -1,10 +1,11 @@
 import { useState } from 'react';
 import { Button } from '@/shared/ui/Button';
 import { canCreate, type Draft, emptyDraft } from '../model';
-import styles from './AddFriendForm.module.css';
 
 /**
- * 加入好友 —— **一份版面，三個狀態**（`First-Run--4 / --6 / --7`）。
+ * markup 逐字抄自 `First-Run--4`：
+ *   `v-field v-field--search`（卡庫入口）→ 頭像與名稱**同一列** → 描述 → 初始訊息 → 建立角色
+ *
  * D20b：表單只留 頭像・名稱・描述・初始訊息。進階定義、世界書、額外問候語都不在這裡。
  * 🔴 「建立角色」填完名稱才解鎖，按下去直接進對話串。
  */
@@ -15,42 +16,54 @@ export function AddFriendForm({ onCreate, busy }: { onCreate: (d: Draft) => void
 
   return (
     <>
-      <div className={styles.avatar}>頭像</div>
-
-      <label className={styles.label} htmlFor="ch-name">
-        名稱
-      </label>
+      {/* ⏸ 卡庫 dropdown 是 First-Run--6 的狀態，M2b 才接線 */}
       <input
-        id="ch-name"
-        className={styles.field}
-        value={draft.name}
-        onChange={set('name')}
-        placeholder="他叫什麼"
+        className="v-field v-field--search"
+        placeholder="搜尋已有角色或匯入角色"
+        aria-label="搜尋已有角色"
       />
 
-      <label className={styles.label} htmlFor="ch-desc">
-        描述
-      </label>
-      <textarea
-        id="ch-desc"
-        className={`${styles.field} ${styles.textarea}`}
-        value={draft.description}
-        onChange={set('description')}
-        placeholder="他是誰、說話的樣子、在意什麼"
-      />
+      <div className="vx-avatar-row">
+        <div className="v-avatar v-avatar--lg is-empty" />
+        <div className="vx-grow">
+          <div className="v-field-label">角色名稱</div>
+          <input
+            className="v-field v-field--block"
+            value={draft.name}
+            onChange={set('name')}
+            placeholder="為此角色命名"
+            aria-label="角色名稱"
+          />
+        </div>
+      </div>
 
-      <label className={styles.label} htmlFor="ch-first">
-        初始訊息
-      </label>
-      <textarea
-        id="ch-first"
-        className={`${styles.field} ${styles.textarea}`}
-        value={draft.firstMessage}
-        onChange={set('firstMessage')}
-        placeholder="他開口的第一句話"
-      />
+      <div>
+        <div className="v-field-label">角色描述</div>
+        <textarea
+          className="v-field v-field--block v-field--area"
+          value={draft.description}
+          onChange={set('description')}
+          placeholder="在此描述角色的身體和心理特徵。"
+          aria-label="角色描述"
+        />
+      </div>
 
-      <Button disabled={!canCreate(draft) || busy} onClick={() => onCreate(draft)}>
+      <div>
+        <div className="v-field-label">初始訊息</div>
+        <textarea
+          className="v-field v-field--block v-field--area"
+          value={draft.firstMessage}
+          onChange={set('firstMessage')}
+          placeholder="這將是每次聊天開始時角色傳送的第一則訊息。"
+          aria-label="初始訊息"
+        />
+      </div>
+
+      <Button
+        className="vx-push-bottom"
+        disabled={!canCreate(draft) || busy}
+        onClick={() => onCreate(draft)}
+      >
         {busy ? '建立中⋯' : '建立角色'}
       </Button>
     </>

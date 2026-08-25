@@ -16,9 +16,8 @@ import { join } from 'node:path';
 
 const ROOT = new URL('..', import.meta.url).pathname;
 const ROUTES = join(ROOT, 'src', 'app', 'routes');
-const SRC = join(ROOT, 'src');
 
-const routeFile = (r) =>
+const routeFile = (r: string): string | undefined =>
   [
     join(ROUTES, `${r}.tsx`),
     join(ROUTES, `${r.replaceAll('/', '.')}.tsx`),
@@ -33,15 +32,22 @@ const routeFile = (r) =>
  */
 const USE = /onBack=\{/;
 
-function check(manifest) {
+type Screen = { route: string; back?: string | null };
+type Manifest = { active: string; milestones?: Record<string, { screens?: Screen[] }> };
+type Result =
+  | { ok: false; fatal: string }
+  | { ok: true; checked: number; total: number; bad: [string, string][] };
+
+function check(manifest: Manifest): Result {
   const ms = manifest.milestones?.[manifest.active];
   const screens = ms?.screens ?? [];
-  if (!screens.length) return { fatal: '畫面清單是空的 —— 比對 0 個項目必然 PASS，那是假綠燈' };
+  if (!screens.length)
+    return { ok: false, fatal: '畫面清單是空的 —— 比對 0 個項目必然 PASS，那是假綠燈' };
 
-  const seen = new Map();
+  const seen = new Map<string, string | null | undefined>();
   for (const s of screens) if (!seen.has(s.route)) seen.set(s.route, s.back);
 
-  const bad = [];
+  const bad: [string, string][] = [];
   let checked = 0;
   for (const [route, back] of seen) {
     const f = routeFile(route);
@@ -57,23 +63,24 @@ function check(manifest) {
       bad.push([route, '設計正本說這頁刻意沒有返回（退無可退），但 route 接了 onBack']);
     if (back === '') bad.push([route, 'screens.json 沒有宣告 back —— 未宣告不算通過']);
   }
-  return { checked, total: seen.size, bad };
+  return { ok: true, checked, total: seen.size, bad };
 }
 
 if (process.argv.includes('--selftest')) {
   const a = check({ active: 'X', milestones: { X: { screens: [] } } });
-  console.log(a.fatal ? 'selftest PASS（空清單判 FAIL，不是綠燈）' : 'selftest FAIL');
-  process.exit(a.fatal ? 0 : 1);
+  console.log(!a.ok ? 'selftest PASS（空清單判 FAIL，不是綠燈）' : 'selftest FAIL');
+  process.exit(!a.ok ? 0 : 1);
 }
 
-const manifest = JSON.parse(readFileSync(join(ROOT, 'design', 'screens.json'), 'utf8'));
+const manifest = JSON.parse(readFileSync(join(ROOT, 'design', 'screens.json'), 'utf8')) as Manifest;
 const r = check(manifest);
-if (r.fatal) {
+if (!r.ok) {
   console.error(`gate:back FAIL — ${r.fatal}`);
   process.exit(1);
 }
 if (r.checked !== r.total) {
   console.error(`gate:back FAIL — 只檢查到 ${r.checked}/${r.total} 個 route`);
+  process.exit(1);
 }
 if (r.bad.length) {
   console.error(`gate:back FAIL — ${r.bad.length} 處（檢查了 ${r.checked} 個 route）`);

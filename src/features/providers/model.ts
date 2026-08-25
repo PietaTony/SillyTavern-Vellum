@@ -75,3 +75,25 @@ export function maskKey(value: string, visible = 4): string {
   if (v.length <= visible * 2 + 4) return '•'.repeat(v.length);
   return `${v.slice(0, visible)}${'•'.repeat(Math.min(v.length - visible * 2, 24))}${v.slice(-visible)}`;
 }
+
+/**
+ * 遮罩顯示狀態下的編輯還原。
+ *
+ * 🔴 金鑰**輸入當下就遮罩**（Peter 2026-08-25），所以輸入框顯示的是 `maskKey()` 的結果，
+ * 真值另外存。使用者改動時，`onChange` 拿到的是「改過的遮罩字串」，
+ * 要從差異推回真值 —— 這支就是那個推導。
+ *
+ * 判準（安全優先）：推不出來就**清空**，不要猜。
+ * 猜錯會產生一把「看起來對、其實是錯的」金鑰，而那比重貼一次糟得多。
+ */
+export function applyMaskedEdit(real: string, shown: string, next: string): string {
+  if (next === shown) return real;
+  // 完全不含遮罩字元 ⇒ 使用者貼上／重打了一整串
+  if (!next.includes('•')) return next;
+  // 在尾端接了東西
+  if (next.startsWith(shown)) return real + next.slice(shown.length);
+  // 從尾端刪掉了東西
+  if (shown.startsWith(next))
+    return real.slice(0, Math.max(0, real.length - (shown.length - next.length)));
+  return '';
+}

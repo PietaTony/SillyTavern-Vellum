@@ -60,7 +60,12 @@ function ChatPage() {
         <ErrorState
           title="找不到這段對話"
           detail={q.error instanceof Error ? q.error.message : ''}
-          action={{ label: '重新加一個好友', onAct: () => nav({ to: '/first-run/add-friend' }) }}
+          action={{
+            label: '重新加一個好友',
+            onAct: () => {
+              void nav({ to: '/first-run/add-friend' });
+            },
+          }}
         />
       </Screen>
     );
@@ -71,7 +76,10 @@ function ChatPage() {
       // 🔴 設計正本 back.json：Chat-Thread-Layout--5 → Friends-And-Cards--1（好友列表）。
       // 好友列表是 M3，還不存在 ⇒ 暫時退到「加入好友」——那是目前最接近的上一層，
       // 不是死路。M3 做好列表之後要改成 /friends。已記在 PLAN.md。
-      onBack={() => nav({ to: '/first-run/add-friend' })}
+      onBack={() => {
+        void nav({ to: '/first-run/add-friend' });
+      }}
+      scroll={false}
       footer={<Composer busy={streaming !== null} onSend={(t) => void send(t)} />}
     >
       <Thread messages={messages} streaming={streaming} />

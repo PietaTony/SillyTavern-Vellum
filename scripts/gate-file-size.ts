@@ -15,10 +15,13 @@ import { join, relative } from 'node:path';
 
 const ROOT = new URL('..', import.meta.url).pathname;
 const LIMIT = 150;
-const EXEMPT = /(__tests__\/)|(\.test\.[tj]sx?$)|(\.spec\.[tj]sx?$)|(routeTree\.gen\.ts$)/;
+// 豁免：測試（本來就長）、產生的路由樹、**抄自設計正本的樣式資產**
+// （tokens.css／components.css 是搬過來的，不是我們寫的 code，套 150 行沒有意義）
+const EXEMPT =
+  /(__tests__\/)|(\.test\.[tj]sx?$)|(\.spec\.[tj]sx?$)|(routeTree\.gen\.ts$)|(shared\/styles\/(tokens|components)\.css$)/;
 const TARGET = /\.(ts|tsx|css)$/;
 
-function walk(dir, out = []) {
+function walk(dir: string, out: string[] = []): string[] {
   for (const name of readdirSync(dir)) {
     const p = join(dir, name);
     if (statSync(p).isDirectory()) walk(p, out);
@@ -27,7 +30,7 @@ function walk(dir, out = []) {
   return out;
 }
 
-const over = (files) =>
+const over = (files: string[]) =>
   files
     .map((f) => ({ file: relative(ROOT, f), lines: readFileSync(f, 'utf8').split('\n').length }))
     .filter((x) => x.lines > LIMIT)
@@ -42,14 +45,14 @@ if (process.argv.includes('--selftest')) {
   writeFileSync(join(d, 'ok.ts'), 'x\n'.repeat(10));
   writeFileSync(join(d, '__tests__', 'huge.test.ts'), 'x\n'.repeat(500));
   const r = over(walk(d));
-  const ok = r.length === 1 && r[0].file.endsWith('big.ts');
+  const ok = r.length === 1 && (r[0]?.file ?? '').endsWith('big.ts');
   console.log(
     ok ? 'selftest PASS（超標被抓、測試豁免生效）' : `selftest FAIL: ${JSON.stringify(r)}`,
   );
   process.exit(ok ? 0 : 1);
 }
 
-let files = [];
+let files: string[] = [];
 try {
   files = walk(join(ROOT, 'src'));
 } catch {

@@ -15,15 +15,16 @@
     "test:watch": "vitest",
     "lint": "biome check .",
     "lint:fix": "biome check --write .",
-    "gate:boundaries": "node scripts/gate-boundaries.mjs",
-    "gate:no-hex": "node scripts/gate-no-hex.mjs",
-    "gate:file-size": "node scripts/gate-file-size.mjs",
-    "gate:screens": "node scripts/gate-screens-vs-routes.mjs",
-    "verify": "pnpm typecheck && pnpm test && pnpm lint && pnpm gate:selftest && pnpm gate:boundaries && pnpm gate:no-hex && pnpm gate:file-size && pnpm gate:screens && pnpm gate:back",
-    "gate:selftest": "for f in scripts/gate-*.mjs; do node \"$f\" --selftest || exit 1; done",
+    "gate:boundaries": "tsx scripts/gate-boundaries.ts",
+    "gate:no-hex": "tsx scripts/gate-no-hex.ts",
+    "gate:file-size": "tsx scripts/gate-file-size.ts",
+    "gate:screens": "tsx scripts/gate-screens-vs-routes.ts",
+    "verify": "pnpm typecheck && pnpm test && pnpm lint && pnpm gate:selftest && pnpm gate:boundaries && pnpm gate:no-hex && pnpm gate:file-size && pnpm gate:screens && pnpm gate:back && pnpm gate:classes",
+    "gate:selftest": "for f in scripts/gate-*.ts; do pnpm exec tsx \"$f\" --selftest || exit 1; done",
     "dev:server": "tsx watch server/index.ts",
     "server": "tsx server/index.ts",
-    "gate:back": "node scripts/gate-back.mjs"
+    "gate:back": "tsx scripts/gate-back.ts",
+    "gate:classes": "tsx scripts/gate-classes.ts"
   },
   "dependencies": {
     "@hono/node-server": "^2.1.1",

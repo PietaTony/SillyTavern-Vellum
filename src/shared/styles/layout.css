@@ -1,0 +1,115 @@
+/* ─────────────────────────────────────────────────────────────
+   `vx-*` ＝ **技術面的重新歸類**，不是新設計。
+
+   設計正本有些版面是寫成 inline style 的（線稿本來就會這樣）。
+   把它們命名成 class 是為了在 React 裡重複使用 ——
+   🔴 **宣告必須逐字等同正本的 inline style，視覺不得有任何改變。**
+   每一條都要註明抄自哪一張畫面的哪一段。
+
+   命名空間刻意與 `v-*` 分開：
+     `v-*`  ＝ 設計正本的，一個字都不准改、不准新增
+     `vx-*` ＝ 這裡的，只准把正本已有的樣子命名
+   `gate:classes` 兩邊分開檢查。
+   ───────────────────────────────────────────────────────────── */
+
+/* 抄自 First-Run--3 的最後一個 div：
+   style="flex:none;padding:9px 12px;border-top:1px solid var(--line);display:flex" */
+.vx-footerbar {
+  flex: none;
+  padding: 9px 12px;
+  border-top: 1px solid var(--line);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+/* 抄自 First-Run--1 的內容區：
+   style="flex:1;overflow:hidden;padding:10px 12px;display:flex;flex-direction:column;gap:8px"
+   ⚠️ 正本是 overflow:hidden（線稿不需要捲動）；實作要能捲 ⇒ 用 v-scroll，這裡只留間距。 */
+.vx-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+/* 抄自 First-Run--4：頭像與名稱同一列
+   style="display:flex;align-items:center;gap:10px;margin-top:2px" */
+.vx-avatar-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 2px;
+}
+
+/* 抄自 First-Run--4：名稱欄位那一格 style="flex:1;min-width:0" */
+.vx-grow {
+  flex: 1;
+  min-width: 0;
+}
+
+/* 抄自 First-Run--4：建立角色鈕 style="margin-top:auto" */
+.vx-push-bottom {
+  margin-top: auto;
+}
+
+/* 抄自 Chat-Thread-Layout--5：我的訊息那一列 style="display:flex" —— 靠右由 v-msg--mine 自己處理 */
+.vx-row {
+  display: flex;
+}
+
+/* ── 線稿框 → 真實 app 的版面 ────────────────────────────────
+   線稿的 .v-screen 是 inline style 給的固定框（width:336px;height:560px）。
+   實作要填滿視窗、桌機置中。**視覺仍是同一支手機版版面，沒有重新設計。** */
+.vx-app {
+  min-height: 100dvh;
+  display: flex;
+  justify-content: center;
+  background: var(--paper);
+}
+
+.vx-frame {
+  width: 100%;
+  max-width: 420px;
+  height: 100dvh;
+  display: flex;
+  flex-direction: column;
+}
+
+.vx-frame > .v-screen {
+  flex: 1;
+  min-height: 0;
+  border-top: 0;
+  border-bottom: 0;
+}
+
+/* 🔴 線稿在固定高的框裡不需要 min-height:0；實作是彈性高度 ⇒
+   flex 子項會被內容撐開，overflow-y:auto 就變成**假捲動**。原型踩過這個坑。 */
+.vx-frame .v-scroll,
+.vx-frame .v-thread {
+  min-height: 0;
+}
+.vx-frame .v-thread {
+  overflow-y: auto;
+}
+
+/* 抄自 First-Run--1／--3／--4 的捲動區 inline style：
+   padding:10px 12px;display:flex;flex-direction:column;gap:8px */
+.vx-scroll-body {
+  padding: 10px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+/* ── 🔴 補回設計正本被自己蓋掉的宣告 ──────────────────────────
+   `.v-choice--card` 定義在 `_components-form.css`（「設定頁專用」段），
+   而基礎的 `.v-choice` 定義在**更後面**的 `_components-grid.css` ⇒
+   同樣 0-1-0 的特異度下，**基礎類贏了修飾子**，`align-items: stretch` 被 `center` 蓋掉。
+   後果：卡片內容置中，`.v-choice__head` 的 `justify-content: space-between` 完全失效。
+
+   這是**串接順序造成的 bug，不是設計意圖** —— 修飾子與 `__head` 的宣告只有一起成立才說得通。
+   這裡把 `--card` 自己寫的值補回來，**不是改設計**。
+   ⏸ 待回寫設計正本（把 `.v-choice--card` 移到 `.v-choice` 之後，或提高特異度）。 */
+.vx-frame .v-choice--card {
+  align-items: stretch;
+}

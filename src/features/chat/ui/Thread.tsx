@@ -1,24 +1,38 @@
 import type { Message } from '../model';
-import styles from './Thread.module.css';
 
 /**
- * 我的訊息**描邊氣泡**靠右；他的回覆靠左**左豎線**，整則統一。
+ * markup 逐字抄自 `Chat-Thread-Layout--5`：
+ *   他的回覆 → `v-msg-group`（`v-avatar--sm` ＋ `v-msg-group__body`）> `v-msg v-msg--narration`
+ *   我的訊息 → `vx-row` > `v-msg v-msg--mine`
  *
- * 🔴 **`SPEC` D31 的「對白淡底塊」已實作但刻意未接線**（Peter 2026-08-25 判定體驗問題）。
- * 純函式在 `../blocks.ts`（7 個測試），要恢復只需把 `splitBlocks()` 接回來。
- * 原因與判準寫在 `docs/design/v1/SPEC.md §10`。
+ * 🔴 `v-msg--dialogue` 存在於設計正本，但 **D31 的兩區塊交錯已暫緩**
+ * （Peter 2026-08-25 判定體驗問題，見 `SPEC §10`）⇒ 他的回覆整則走 `v-msg--narration`。
+ * 切分規則仍在 `../blocks.ts`（7 個測試），要恢復把 `splitBlocks()` 接回來即可。
  */
+function AiTurn({ text }: { text: string }) {
+  return (
+    <div className="v-msg-group">
+      <div className="v-avatar v-avatar--sm is-empty" />
+      <div className="v-msg-group__body">
+        <div className="v-msg v-msg--narration">{text}</div>
+      </div>
+    </div>
+  );
+}
+
 export function Thread({ messages, streaming }: { messages: Message[]; streaming: string | null }) {
   return (
-    <div className={styles.list}>
-      {messages.map((m) => (
-        <div key={m.id} className={`${styles.text} ${m.role === 'user' ? styles.me : styles.them}`}>
-          {m.text}
-        </div>
-      ))}
-      {streaming !== null ? (
-        <div className={`${styles.text} ${styles.them} ${styles.caret}`}>{streaming}</div>
-      ) : null}
+    <div className="v-thread">
+      {messages.map((m) =>
+        m.role === 'user' ? (
+          <div className="vx-row" key={m.id}>
+            <div className="v-msg v-msg--mine">{m.text}</div>
+          </div>
+        ) : (
+          <AiTurn key={m.id} text={m.text} />
+        ),
+      )}
+      {streaming !== null ? <AiTurn text={streaming || '⋯'} /> : null}
     </div>
   );
 }

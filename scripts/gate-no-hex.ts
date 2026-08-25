@@ -17,7 +17,7 @@ const ROOT = new URL('..', import.meta.url).pathname;
 const HEX = /#[0-9a-fA-F]{3,8}\b/g;
 const TOKEN_SOURCE = /shared\/styles\/tokens\.css$/;
 
-function walk(dir, out = []) {
+function walk(dir: string, out: string[] = []): string[] {
   for (const name of readdirSync(dir)) {
     const p = join(dir, name);
     if (statSync(p).isDirectory()) walk(p, out);
@@ -26,8 +26,10 @@ function walk(dir, out = []) {
   return out;
 }
 
-function scan(files) {
-  const hits = [];
+type Hit = { file: string; line: number; found: string; text: string };
+
+function scan(files: string[]): Hit[] {
+  const hits: Hit[] = [];
   for (const f of files) {
     if (TOKEN_SOURCE.test(f)) continue;
     const lines = readFileSync(f, 'utf8').split('\n');
@@ -51,7 +53,7 @@ if (process.argv.includes('--selftest')) {
   writeFileSync(join(styles, 'tokens.css'), ':root{--paper:#F5F1E8}');
   writeFileSync(join(styles, 'other.css'), '.x{color:#ff0000}');
   const hits = scan(walk(d));
-  const ok = hits.length === 1 && hits[0].file.endsWith('other.css');
+  const ok = hits.length === 1 && (hits[0]?.file ?? '').endsWith('other.css');
   console.log(
     ok
       ? 'selftest PASS（tokens.css 豁免、元件檔被抓到）'
@@ -60,7 +62,7 @@ if (process.argv.includes('--selftest')) {
   process.exit(ok ? 0 : 1);
 }
 
-let files = [];
+let files: string[] = [];
 try {
   files = walk(join(ROOT, 'src'));
 } catch {

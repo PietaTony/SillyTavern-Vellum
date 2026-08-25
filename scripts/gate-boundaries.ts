@@ -22,7 +22,7 @@ const CODE = /\.(ts|tsx)$/;
 const SKIP = /(routeTree\.gen\.ts$)|(__tests__\/)|(\.test\.)|(\.spec\.)/;
 const IMPORT_RE = /(?:^|\n)\s*(?:import|export)[\s\S]*?from\s+['"]([^'"]+)['"]/g;
 
-const walk = (dir, out = []) => {
+const walk = (dir: string, out: string[] = []): string[] => {
   for (const n of readdirSync(dir)) {
     const p = join(dir, n);
     if (statSync(p).isDirectory()) walk(p, out);
@@ -31,14 +31,14 @@ const walk = (dir, out = []) => {
   return out;
 };
 
-const importsOf = (file) => {
+const importsOf = (file: string): string[] => {
   const src = readFileSync(file, 'utf8');
-  return [...src.matchAll(IMPORT_RE)].map((m) => m[1]);
+  return [...src.matchAll(IMPORT_RE)].map((m) => m[1] ?? '');
 };
 
 /** 把 '@/x' 或 './x' 解析成 src 相對路徑；外部套件回傳 null（保留原字串供規則比對） */
-function resolveLocal(file, spec) {
-  let abs = null;
+function resolveLocal(file: string, spec: string): string | null {
+  let abs: string | null = null;
   if (spec.startsWith('@/')) abs = join(SRC, spec.slice(2));
   else if (spec.startsWith('.')) abs = resolve(dirname(file), spec);
   if (!abs) return null;
@@ -48,16 +48,18 @@ function resolveLocal(file, spec) {
   return relative(SRC, abs);
 }
 
-const featureOf = (rel) => rel.match(/^features\/([^/]+)\//)?.[1] ?? null;
+const featureOf = (rel: string): string | null => rel.match(/^features\/([^/]+)\//)?.[1] ?? null;
 
-function analyse(files) {
-  const violations = [];
-  const graph = new Map();
+type Violation = [rule: string, file: string, spec: string, why: string];
+
+function analyse(files: string[]): { violations: Violation[]; modules: number } {
+  const violations: Violation[] = [];
+  const graph = new Map<string, string[]>();
 
   for (const f of files) {
     const rel = relative(SRC, f);
     const from = featureOf(rel);
-    const deps = [];
+    const deps: string[] = [];
 
     for (const spec of importsOf(f)) {
       const target = resolveLocal(f, spec);
@@ -86,9 +88,9 @@ function analyse(files) {
   }
 
   // A2 —— 循環相依
-  const state = new Map();
-  const stack = [];
-  const dfs = (n) => {
+  const state = new Map<string, 'open' | 'done'>();
+  const stack: string[] = [];
+  const dfs = (n: string): void => {
     if (state.get(n) === 'done') return;
     if (state.get(n) === 'open') {
       violations.push(['A2', n, stack.slice(stack.indexOf(n)).join(' → '), '循環相依']);

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { maskKey } from '../model';
+import { applyMaskedEdit, maskKey } from '../model';
 
 describe('金鑰遮罩顯示', () => {
   it('空字串回空字串', () => {
@@ -29,5 +29,30 @@ describe('金鑰遮罩顯示', () => {
     const v = 'AIzaSyABCDEFGHIJKLMNOP1234';
     maskKey(v);
     expect(v).toBe('AIzaSyABCDEFGHIJKLMNOP1234');
+  });
+});
+
+describe('遮罩狀態下的編輯還原', () => {
+  const real = 'AIzaSyABCDEFGHIJKLMNOP1234';
+  const shown = maskKey(real);
+
+  it('沒改動就不動真值', () => {
+    expect(applyMaskedEdit(real, shown, shown)).toBe(real);
+  });
+
+  it('貼上一整串新的（不含遮罩字元）⇒ 直接採用', () => {
+    expect(applyMaskedEdit(real, shown, 'AIzaNEWKEY0000')).toBe('AIzaNEWKEY0000');
+  });
+
+  it('在尾端接字 ⇒ 接到真值尾端', () => {
+    expect(applyMaskedEdit(real, shown, `${shown}XY`)).toBe(`${real}XY`);
+  });
+
+  it('從尾端刪字 ⇒ 真值也從尾端刪掉同樣數量', () => {
+    expect(applyMaskedEdit(real, shown, shown.slice(0, -3))).toBe(real.slice(0, -3));
+  });
+
+  it('🔴 推不出來就清空 —— 不猜。猜錯會產生一把「看起來對其實錯」的金鑰', () => {
+    expect(applyMaskedEdit(real, shown, 'X•••Y')).toBe('');
   });
 });

@@ -7,6 +7,7 @@ import { Screen } from '@/shared/ui/Screen';
 
 export const Route = createFileRoute('/first-run/add-friend')({ component: AddFriendPage });
 
+/** `First-Run--4 / --6 / --7` —— 一份版面三個狀態。 */
 function AddFriendPage() {
   const nav = useNavigate();
 
@@ -16,15 +17,18 @@ function AddFriendPage() {
       const ch = await createCharacter(d);
       return createChat(ch.id);
     },
-    onSuccess: (chat) => nav({ to: '/chat/$chatId', params: { chatId: chat.id } }),
+    onSuccess: (chat) => {
+      void nav({ to: '/chat/$chatId', params: { chatId: chat.id } });
+    },
   });
 
   return (
     <Screen
       title="加入好友"
-      lede="先給他一個名字就能開始。其餘之後都改得了。"
       // 返回落點來自設計正本 back.json：First-Run--4/6/7 → First-Run--3c（金鑰頁）
-      onBack={() => nav({ to: '/first-run/key' })}
+      onBack={() => {
+        void nav({ to: '/first-run/key' });
+      }}
     >
       {m.isError ? (
         <ErrorState

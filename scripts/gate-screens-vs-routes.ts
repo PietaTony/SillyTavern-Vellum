@@ -18,7 +18,7 @@ const ROOT = new URL('..', import.meta.url).pathname;
 const ROUTES_DIR = join(ROOT, 'src', 'app', 'routes');
 
 /** route 名稱 → 可接受的檔案路徑（TanStack Router 兩種寫法都算） */
-function routeFiles(route) {
+function routeFiles(route: string): string[] {
   return [
     join(ROUTES_DIR, `${route}.tsx`),
     join(ROUTES_DIR, `${route.replaceAll('/', '.')}.tsx`),
@@ -26,36 +26,53 @@ function routeFiles(route) {
   ];
 }
 
-function check(manifest) {
+type Manifest = {
+  active: string;
+  milestones?: Record<string, { title?: string; screens?: { route: string }[] }>;
+};
+type Result =
+  | { ok: false; fatal: string }
+  | { ok: true; active: string; title: string; screens: number; routes: number; missing: string[] };
+
+function check(manifest: Manifest): Result {
   const active = manifest.active;
   const ms = manifest.milestones?.[active];
-  if (!ms) return { fatal: `screens.json 的 active="${active}" 在 milestones 裡不存在` };
+  if (!ms) return { ok: false, fatal: `screens.json 的 active="${active}" 在 milestones 裡不存在` };
 
   const screens = ms.screens ?? [];
   // 🔴 守涵蓋率：0 張畫面必然 PASS ⇒ 明確視為失敗，不是綠燈
   if (screens.length === 0)
-    return { fatal: `里程碑 ${active} 的畫面清單是空的 —— 比對 0 個項目必然 PASS，這是假綠燈` };
+    return {
+      ok: false,
+      fatal: `里程碑 ${active} 的畫面清單是空的 —— 比對 0 個項目必然 PASS，這是假綠燈`,
+    };
 
   const routes = [...new Set(screens.map((s) => s.route))];
   const missing = routes.filter((r) => !routeFiles(r).some(existsSync));
-  return { active, title: ms.title, screens: screens.length, routes: routes.length, missing };
+  return {
+    ok: true,
+    active,
+    title: ms.title ?? active,
+    screens: screens.length,
+    routes: routes.length,
+    missing,
+  };
 }
 
 if (process.argv.includes('--selftest')) {
   const empty = check({ active: 'X', milestones: { X: { screens: [] } } });
   const noSuch = check({ active: 'Y', milestones: {} });
-  const ok = Boolean(empty.fatal) && Boolean(noSuch.fatal);
+  const ok = !empty.ok && !noSuch.ok;
   console.log(ok ? 'selftest PASS（空清單與不存在的里程碑都被判失敗，不是綠燈）' : 'selftest FAIL');
   process.exit(ok ? 0 : 1);
 }
 
-const manifest = JSON.parse(readFileSync(join(ROOT, 'design', 'screens.json'), 'utf8'));
+const manifest = JSON.parse(readFileSync(join(ROOT, 'design', 'screens.json'), 'utf8')) as Manifest;
 const r = check(manifest);
-if (r.fatal) {
+if (!r.ok) {
   console.error(`gate:screens FAIL — ${r.fatal}`);
   process.exit(1);
 }
-
 if (r.missing.length) {
   console.error(`gate:screens FAIL — 里程碑 ${r.active}「${r.title}」`);
   console.error(

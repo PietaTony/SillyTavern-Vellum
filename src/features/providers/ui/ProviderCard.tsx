@@ -1,10 +1,12 @@
 import type { ProviderInfo } from '../model';
-import styles from './ProviderCard.module.css';
 
 /**
+ * markup 逐字抄自 `First-Run--1`：
+ *   `v-choice v-choice--card` > `v-choice__head`（名稱 ＋ `v-tag`）＋ `v-choice__body`
+ *
  * 點卡片＝**選取**，不是直接進下一步（F1／`GAP-21`）——
  * 使用者要來得及比較兩家的差別，那正是這張畫面存在的理由。
- * 說明先隱藏、選取才展開、再點一次收回；但**徽章永遠顯示**（撞牆警告不准藏）。
+ * 🔴 `v-tag` 徽章**永遠顯示**：「有免費額度」／「需要先儲值」是撞牆警告，藏起來違反「誠實標示差別」。
  */
 export function ProviderCard({
   info,
@@ -18,15 +20,17 @@ export function ProviderCard({
   return (
     <button
       type="button"
-      className={`${styles.card} ${selected ? styles.selected : ''}`}
+      className={`v-choice v-choice--card ${selected ? 'is-selected' : ''}`}
       aria-pressed={selected}
       onClick={onToggle}
     >
-      <span className={styles.row}>
-        <span className={styles.name}>{info.name}</span>
-        <span className={`${styles.badge} ${styles[info.badgeTone]}`}>{info.badge}</span>
-      </span>
-      {selected ? <p className={styles.detail}>{info.detail}</p> : null}
+      <div className="v-choice__head">
+        <span>{info.name}</span>
+        <span className={info.badgeTone === 'good' ? 'v-tag v-tag--accent' : 'v-tag'}>
+          {info.badge}
+        </span>
+      </div>
+      {selected ? <div className="v-choice__body">{info.detail}</div> : null}
     </button>
   );
 }
