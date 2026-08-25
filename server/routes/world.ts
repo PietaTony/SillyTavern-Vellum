@@ -8,7 +8,9 @@
 import { Hono } from 'hono';
 import { z } from 'zod';
 import { driftFromOrigin, type CharWorld } from '../lib/charWorld.ts';
+import { applyLoreTags } from '../lib/greetingLore.ts';
 import { applyEntryEdit } from '../lib/wiEdit.ts';
+import { exclusiveOff, isLineActive, linesFromGreetings } from '../lib/wiLines.ts';
 import { safeId } from '../lib/ids.ts';
 import { readJson, writeJson } from '../lib/storage.ts';
 
@@ -46,6 +48,45 @@ export const charWorld = new Hono()
     if (!id) return c.json({ error: '找不到這個角色' }, 404);
     const world = await readJson<CharWorld | null>(`worlds/${id}.json`, null);
     return world ? c.json(world) : c.json({ error: '這個角色沒有世界書' }, 404);
+  })
+
+  /**
+   * 這個好友有哪幾條「線」（C5）＋ 現在套用中的是哪一條。
+   * 🔴 線路不是新資料，是**卡片作者已經寫在開場白裡的** `<!-- lore -->` 組，去重後列出來。
+   */
+  .get('/:id/lines', async (c) => {
+    const id = safeId(c.req.param('id'));
+    if (!id) return c.json({ error: '找不到這個角色' }, 404);
+    const ch = await readJson<{ greetings?: string[] } | null>(`characters/${id}.json`, null);
+    if (!ch) return c.json({ error: '找不到這個角色' }, 404);
+    const world = await readJson<CharWorld | null>(`worlds/${id}.json`, null);
+    const entries = world?.entries ?? [];
+    const lines = linesFromGreetings(ch.greetings ?? []).map((l) => ({
+      ...l,
+      active: isLineActive(l, entries),
+      // 指到不存在的條目 —— 卡片打錯字要看得見，不要靜靜忽略
+      dangling: [...l.include, ...l.exclude].filter((uid) => !entries.some((e) => e.uid === uid)),
+    }));
+    return c.json({ lines, hasWorld: world !== null });
+  })
+
+  /** 套用一條線。🔴 走的是**與挑開場白完全同一個引擎**（`applyLoreTags`）。 */
+  .post('/:id/lines/apply', async (c) => {
+    const id = safeId(c.req.param('id'));
+    if (!id) return c.json({ error: '找不到這個角色' }, 404);
+    const body = z.object({ key: z.string() }).safeParse(await c.req.json());
+    if (!body.success) return c.json({ error: '參數不合法' }, 400);
+    const ch = await readJson<{ greetings?: string[] } | null>(`characters/${id}.json`, null);
+    if (!ch) return c.json({ error: '找不到這個角色' }, 404);
+    const all = linesFromGreetings(ch.greetings ?? []);
+    const target = all.find((l) => l.key === body.data.key);
+    if (!target) return c.json({ error: '找不到這條線' }, 404);
+    // 🔴 **切換不是疊加**：開這條的、關「只屬於別條」的。理由見 `wiLines.ts`。
+    const applied = await applyLoreTags(id, {
+      include: target.include,
+      exclude: [...new Set([...target.exclude, ...exclusiveOff(target, all)])],
+    });
+    return c.json({ ...applied, turnedOff: exclusiveOff(target, all) });
   })
 
   /**

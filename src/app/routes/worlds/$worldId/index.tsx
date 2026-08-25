@@ -5,7 +5,16 @@ import Typography from '@mui/material/Typography';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { createFileRoute, useNavigate } from '@tanstack/react-router';
 import { useState } from 'react';
-import { EntryList, fetchWorld, groupByPosition, setEntryEnabled } from '@/features/worldbook';
+import {
+  applyLine,
+  EntryList,
+  fetchLines,
+  fetchWorld,
+  groupByPosition,
+  LineSwitcher,
+  setEntryEnabled,
+  type WiLine,
+} from '@/features/worldbook';
 import { Screen } from '@/shared/ui/Screen';
 
 export const Route = createFileRoute('/worlds/$worldId/')({ component: WorldPage });
@@ -37,6 +46,24 @@ function WorldPage() {
     },
   });
 
+  // C5：這本書有哪幾條線。**與條目列表同一頁** —— 切線就是改那些開關，
+  // 分成兩頁的話使用者要來回對照才知道切了什麼。
+  const linesQ = useQuery({
+    queryKey: ['worldLines', worldId],
+    queryFn: () => fetchLines(worldId),
+  });
+  const [busyKey, setBusyKey] = useState<string | null>(null);
+  const apply = useMutation({
+    mutationFn: (l: WiLine) => applyLine(worldId, l.key),
+    onMutate: (l) => setBusyKey(l.key),
+    onSettled: () => setBusyKey(null),
+    onSuccess: () => {
+      void q.refetch();
+      void linesQ.refetch();
+      void qc.invalidateQueries({ queryKey: ['worlds'] });
+    },
+  });
+
   const entries = q.data?.entries ?? [];
   const enabled = entries.filter((e) => e.enabled).length;
 
@@ -60,8 +87,18 @@ function WorldPage() {
           改不動：{toggle.error instanceof Error ? toggle.error.message : ''}
         </Alert>
       ) : null}
+      {apply.isError ? (
+        <Alert severity="warning" sx={{ mb: 1 }}>
+          切不過去：{apply.error instanceof Error ? apply.error.message : ''}
+        </Alert>
+      ) : null}
       {q.data ? (
         <>
+          <LineSwitcher
+            lines={linesQ.data?.lines ?? []}
+            busyKey={busyKey}
+            onApply={(l) => apply.mutate(l)}
+          />
           <Typography variant="body2" color="text.secondary" sx={{ px: 2, py: 1 }}>
             {entries.length} 條，目前啟用 {enabled} 條。
             {/*

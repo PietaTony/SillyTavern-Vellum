@@ -55,3 +55,36 @@ export type World = {
   entries: WbEntry[];
   origin?: { entries?: Record<string, { enabled: boolean; comment: string }> };
 };
+
+/** 四層綁定總覽（C4）。 */
+export type LayerFact = {
+  id: 'chat' | 'persona' | 'global' | 'character';
+  label: string;
+  /** 🔴 這一層真的會被組進 prompt 嗎。`false` ＝ 不給綁，而且要說得出「還沒接上」。 */
+  wired: boolean;
+  note: string;
+};
+
+export type Bindings = {
+  layers: LayerFact[];
+  friends: {
+    characterId: string;
+    name: string;
+    ownWorldId: string | null;
+    ownEntryCount: number;
+  }[];
+  personas: { id: string; name: string; lorebookId: string | null }[];
+};
+
+/** 一條「線」＝ 會被一起開關的一組條目（C5）。 */
+export type WiLine = {
+  key: string;
+  /** 🔴 **複數**：多則開場常共用同一條線。 */
+  titles: string[];
+  include: string[];
+  exclude: string[];
+  /** 該開的都開了、該關的都關了。**不是「完全相等」**。 */
+  active: boolean;
+  /** 指到不存在的條目 —— 卡片打錯字要看得見。 */
+  dangling: string[];
+};

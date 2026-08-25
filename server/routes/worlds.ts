@@ -11,6 +11,7 @@ import type { CharWorld } from '../lib/charWorld.ts';
 import type { Persona } from '../lib/persona.ts';
 import { safeId } from '../lib/ids.ts';
 import { listJson, listJsonMeta, readJson } from '../lib/storage.ts';
+import { friendBindings, LAYER_FACTS } from '../lib/wiBindings.ts';
 import { summarizeWorlds } from '../lib/worldList.ts';
 
 export const worlds = new Hono()
@@ -33,6 +34,34 @@ export const worlds = new Hono()
       await listJson<Persona>('personas'),
     ];
     return c.json(summarizeWorlds(rows, owners, personas));
+  })
+
+  /**
+   * 四層綁定總覽（C4）。
+   * 🔴 回的是**事實**：哪幾層真的會被組進 prompt、每位好友綁著什麼。
+   * 沒接上的層也要回，前端才說得出「還沒接上」而不是假裝我們只有兩層。
+   */
+  .get('/bindings', async (c) => {
+    const meta = await listJsonMeta('worlds');
+    const counts: { id: string; entryCount: number }[] = [];
+    for (const m of meta) {
+      const id = safeId(m.id);
+      if (!id) continue;
+      const w = await readJson<CharWorld | null>(`worlds/${id}.json`, null);
+      if (w) counts.push({ id, entryCount: w.entries.length });
+    }
+    const [owners, personas] = [
+      await listJson<Character>('characters'),
+      await listJson<Persona>('personas'),
+    ];
+    return c.json({
+      layers: LAYER_FACTS,
+      friends: friendBindings(owners, counts),
+      // persona 層綁了什麼 —— 只回沒封存的，封存的不該出現在「現在生效」的檢視裡。
+      personas: personas
+        .filter((p) => !p.archived)
+        .map((p) => ({ id: p.id, name: p.name, lorebookId: p.lorebookId ?? null })),
+    });
   })
 
   /** 單一本的完整內容。C2 條目列表用。 */

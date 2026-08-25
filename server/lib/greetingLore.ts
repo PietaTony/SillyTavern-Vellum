@@ -26,7 +26,21 @@ export type LoreApplied = {
 export async function applyGreetingLore(characterId: string, greeting: string): Promise<LoreApplied | null> {
   const tags = extractLoreTags(greeting);
   if (!hasLoreTags(tags)) return null;
+  return applyLoreTags(characterId, tags);
+}
 
+/**
+ * 套用一組標籤到這個好友的世界書副本。
+ *
+ * 🔴 **抽出來是為了讓 C5 線路切換器走同一條路。**
+ * 兩個入口（建立對話時挑開場、之後隨時切線）**必須是同一個引擎** ——
+ * 各寫一份的話，兩邊對「exclude 要不要真的關掉」這種細節遲早會分岔，
+ * 而那種分岔在畫面上完全看不出來。
+ */
+export async function applyLoreTags(
+  characterId: string,
+  tags: { include: string[]; exclude: string[] },
+): Promise<LoreApplied> {
   const world = await readJson<CharWorld | null>(`worlds/${characterId}.json`, null);
   if (!world) return { ...tags, changed: 0, dangling: [] };
 

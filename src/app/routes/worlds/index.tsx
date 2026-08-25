@@ -25,7 +25,17 @@ function WorldsPage() {
   const q = useQuery({ queryKey: ['worlds'], queryFn: fetchWorlds });
 
   return (
-    <Screen title="世界書" footer={<TabBar active="wi" />}>
+    <Screen
+      title="世界書"
+      action={
+        // 🔴 「怎麼套用」是這一頁最常被問的問題（為什麼這條會進場、為什麼是這個順序），
+        // 所以放在頂欄而不是埋在某一本書底下。
+        <Button size="small" onClick={() => void nav({ to: '/worlds/bindings' })}>
+          怎麼套用
+        </Button>
+      }
+      footer={<TabBar active="wi" />}
+    >
       {q.isPending ? <CircularProgress size={24} /> : null}
       {q.isError ? (
         <Alert

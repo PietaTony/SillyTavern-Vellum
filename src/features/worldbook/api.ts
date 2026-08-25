@@ -1,4 +1,4 @@
-import type { WbEntry, World, WorldSummary } from './types';
+import type { Bindings, WbEntry, WiLine, World, WorldSummary } from './types';
 
 /** 世界書的讀寫。型別在 `model.ts`（A4：model 不可以反過來引 api）。 */
 
@@ -48,4 +48,35 @@ export async function updateEntry(
     body: JSON.stringify(patch),
   });
   if (!r.ok) throw new Error('存不起來');
+}
+
+export async function fetchBindings(): Promise<Bindings> {
+  const r = await fetch('/api/worlds/bindings');
+  if (!r.ok) throw new Error('讀不到綁定總覽');
+  return (await r.json()) as Bindings;
+}
+
+export async function fetchLines(worldId: string): Promise<{ lines: WiLine[]; hasWorld: boolean }> {
+  const r = await fetch(`/api/characters/${worldId}/lines`);
+  if (!r.ok) throw new Error('讀不到線路');
+  return (await r.json()) as { lines: WiLine[]; hasWorld: boolean };
+}
+
+/**
+ * 切到某一條線。
+ * 🔴 **只送 `key`，讓後端自己算要關掉哪些** —— 切換不是疊加，
+ * 而「哪些只屬於別條線」是後端才知道的事（它有全部的線）。
+ * 前端自己算的話，兩邊遲早分岔。
+ */
+export async function applyLine(
+  worldId: string,
+  key: string,
+): Promise<{ changed: number; turnedOff: string[] }> {
+  const r = await fetch(`/api/characters/${worldId}/lines/apply`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ key }),
+  });
+  if (!r.ok) throw new Error('切不過去');
+  return (await r.json()) as { changed: number; turnedOff: string[] };
 }
