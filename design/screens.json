@@ -55,16 +55,28 @@
           "back": "first-run/key"
         },
         {
+          "id": "First-Run--4b",
+          "route": "add-friend",
+          "note": "加入好友 · 設定完成後從聊天列表進來。畫面與 First-Run--4 完全相同，只有返回落點不同",
+          "back": "chat-list"
+        },
+        {
+          "id": "Friends-And-Cards--1",
+          "route": "chat-list",
+          "note": "最近聊天列表（標題「聊天」，Peter 2026-08-25 改，正本寫「好友」）。⏸ 下拉搜尋（--1）／左滑封存刪除（--2）／右滑釘選（--3）未做",
+          "back": null
+        },
+        {
           "id": "Chat-Thread-Layout--5",
           "route": "chat/$chatId",
           "note": "對話串",
-          "back": "first-run/add-friend"
+          "back": "chat-list"
         },
         {
           "id": "Waiting-And-Thinking--1",
           "route": "chat/$chatId",
           "note": "等待／思考（對話串的狀態）",
-          "back": "first-run/add-friend"
+          "back": "chat-list"
         }
       ]
     },

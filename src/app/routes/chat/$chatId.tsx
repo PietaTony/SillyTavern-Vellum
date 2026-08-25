@@ -80,11 +80,10 @@ function ChatPage() {
   return (
     <Screen
       title={q.data.characterName}
-      // 🔴 設計正本 back.json：Chat-Thread-Layout--5 → Friends-And-Cards--1（好友列表）。
-      // 好友列表是 M3，還不存在 ⇒ 暫時退到「加入好友」——那是目前最接近的上一層，
-      // 不是死路。M3 做好列表之後要改成 /friends。已記在 PLAN.md。
+      // 設計正本 back.json：Chat-Thread-Layout--5 → Friends-And-Cards--1（好友列表）。
+      // 🔴 進得到對話串就代表首次設定已經結束（Peter 2026-08-25）⇒ 落點是列表，不是 first-run。
       onBack={() => {
-        void nav({ to: '/first-run/add-friend' });
+        void nav({ to: '/chat-list' });
       }}
       scroll={false}
       footer={<Composer busy={streaming !== null} onSend={(t) => void send(t)} />}

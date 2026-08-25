@@ -1,6 +1,7 @@
 import { get, post } from '@/shared/lib/http';
 import { type Chat, type Message, parseSse, type StreamEvent } from './model';
 
+export const fetchChats = (): Promise<Chat[]> => get<Chat[]>('/api/chats');
 export const fetchChat = (id: string): Promise<Chat> => get<Chat>(`/api/chats/${id}`);
 export const createChat = (characterId: string): Promise<Chat> =>
   post<Chat>('/api/chats', { characterId });

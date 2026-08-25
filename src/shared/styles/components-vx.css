@@ -82,3 +82,26 @@
   justify-content: space-between;
   gap: 8px;
 }
+
+/* 抄自 Friends-And-Cards--1：好友列是 <div class="v-listrow">。
+   實作要能鍵盤操作 ⇒ 改 <button>，UA 樣式（置中、外框、自己的字體）會漏出來，
+   這支只是把它擦掉回到正本的樣子。**視覺沒有改變。**
+   🔴 這是 `.v-back` 那個 bug 的同一種（設計正本 2 個 bug ①②，見 PLAN.md 待決）。 */
+.vx-rowbtn {
+  appearance: none;
+  width: 100%;
+  text-align: left;
+  border-top: 0;
+  border-left: 0;
+  border-right: 0;
+  font: inherit;
+  color: inherit;
+}
+
+/* 抄自 Friends-And-Cards--1：預覽是**一行**（正本寫死短句「訊息預覽⋯」）。
+   真實資料是整段開場白 ⇒ 不截斷就會把整列撐成八行，那不是正本的樣子。 */
+.vx-truncate {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}

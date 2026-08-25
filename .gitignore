@@ -11,3 +11,5 @@ src/app/routeTree.gen.ts
 # Playwright
 test-results/
 playwright-report/
+# 🔴 本機資料：角色卡、對話、金鑰。永遠不進版控
+data/
