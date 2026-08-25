@@ -1,0 +1,40 @@
+/* D31 元件定稿：我的訊息**描邊**、他的回覆**左豎線**。密度以長文為準（D6）。 */
+.list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-5, 20px);
+}
+
+.msg {
+  font-family: var(--font-content);
+  font-size: var(--fs-body, 15px);
+  line-height: 1.9;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.me {
+  align-self: flex-end;
+  max-width: 84%;
+  padding: var(--sp-3, 12px) var(--sp-4, 16px);
+  border: 1px solid var(--bubble-me-line, var(--line-strong));
+  border-radius: var(--radius-bubble);
+}
+
+.them {
+  align-self: flex-start;
+  max-width: 100%;
+  padding-left: var(--sp-4, 16px);
+  border-left: 2px solid var(--block-them-rule, var(--line-strong));
+}
+
+.caret::after {
+  content: "▍";
+  color: var(--ink-faint);
+}
+
+.waiting {
+  align-self: flex-start;
+  color: var(--ink-faint);
+  font-size: var(--fs-fine, 13px);
+}

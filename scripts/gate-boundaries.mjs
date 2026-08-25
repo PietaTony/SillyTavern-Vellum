@@ -17,6 +17,7 @@ import { dirname, join, relative, resolve } from 'node:path';
 
 const ROOT = new URL('..', import.meta.url).pathname;
 const SRC = join(ROOT, 'src');
+const SRV = join(ROOT, 'server');
 const CODE = /\.(ts|tsx)$/;
 const SKIP = /(routeTree\.gen\.ts$)|(__tests__\/)|(\.test\.)|(\.spec\.)/;
 const IMPORT_RE = /(?:^|\n)\s*(?:import|export)[\s\S]*?from\s+['"]([^'"]+)['"]/g;

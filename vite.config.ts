@@ -5,7 +5,7 @@ import { defineConfig } from 'vite';
 
 // 後端是 ST 原本的 Express（M1 搬過來），跑在 8000。
 // dev 時前端 5173，/api 與其他後端路由 proxy 過去。
-const BACKEND = 'http://localhost:8000';
+const BACKEND = 'http://localhost:8787';
 
 export default defineConfig({
   plugins: [
@@ -24,10 +24,6 @@ export default defineConfig({
     port: 5173,
     proxy: {
       '/api': { target: BACKEND, changeOrigin: true },
-      '/csrf-token': { target: BACKEND, changeOrigin: true },
-      '/thumbnail': { target: BACKEND, changeOrigin: true },
-      '/characters': { target: BACKEND, changeOrigin: true },
-      '/User': { target: BACKEND, changeOrigin: true },
     },
   },
 });

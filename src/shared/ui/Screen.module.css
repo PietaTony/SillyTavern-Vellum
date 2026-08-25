@@ -1,0 +1,49 @@
+/* 版面：header 固定 ＋ 可捲內容 ＋ footer 固定（F22–F28 定案的形狀） */
+.screen {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  max-width: 480px;
+  margin: 0 auto;
+  background: var(--surface);
+}
+
+.header {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2, 8px);
+  padding: var(--sp-3, 12px) var(--sp-4, 16px);
+  border-bottom: 1px solid var(--line);
+  background: var(--surface);
+}
+
+.title {
+  font-family: var(--font-content);
+  font-size: var(--fs-h2, 19px);
+  font-weight: 600;
+  margin: 0;
+}
+
+/* 🔴 .v-scroll 的教訓：flex 子項會被擠扁，overflow-y:auto 就變成假捲動。
+   min-height: 0 是讓它真的能捲的那一行。 */
+.body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  padding: var(--sp-4, 16px);
+}
+
+.footer {
+  flex: 0 0 auto;
+  padding: var(--sp-3, 12px) var(--sp-4, 16px);
+  border-top: 1px solid var(--line);
+  background: var(--surface);
+}
+
+.lede {
+  color: var(--ink-muted);
+  font-size: var(--fs-fine, 13px);
+  margin: 0 0 var(--sp-4, 16px);
+}

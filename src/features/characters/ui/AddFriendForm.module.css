@@ -1,0 +1,38 @@
+.field {
+  box-sizing: border-box;
+  width: 100%;
+  min-height: var(--hit-min);
+  padding: var(--sp-3, 12px);
+  margin-bottom: var(--sp-3, 12px);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-md);
+  background: var(--surface-sunk);
+  font-family: inherit;
+}
+
+.textarea {
+  min-height: 88px;
+  line-height: 1.8;
+  resize: vertical;
+}
+
+.label {
+  display: block;
+  font-size: var(--fs-fine, 12px);
+  color: var(--ink-faint);
+  margin-bottom: var(--sp-1, 4px);
+}
+
+.avatar {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 72px;
+  height: 72px;
+  margin-bottom: var(--sp-4, 16px);
+  border: 1px dashed var(--line-strong);
+  border-radius: var(--radius-full);
+  color: var(--ink-faint);
+  font-size: var(--fs-fine, 12px);
+  background: var(--surface-sunk);
+}

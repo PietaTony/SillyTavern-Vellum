@@ -1,0 +1,41 @@
+.steps {
+  margin: 0 0 var(--sp-4, 16px);
+  padding-left: var(--sp-5, 20px);
+  color: var(--ink-muted);
+  font-size: var(--fs-fine, 13px);
+  line-height: 1.9;
+}
+
+.link {
+  color: var(--code-ink);
+  font-weight: 600;
+}
+
+.field {
+  box-sizing: border-box;
+  width: 100%;
+  min-height: var(--hit-min);
+  padding: var(--sp-3, 12px);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-md);
+  background: var(--surface-sunk);
+  -webkit-text-security: disc;
+}
+
+.row {
+  display: flex;
+  gap: var(--sp-2, 8px);
+  margin-top: var(--sp-3, 12px);
+}
+
+.status {
+  margin: var(--sp-3, 12px) 0 0;
+  font-size: var(--fs-fine, 13px);
+  line-height: 1.7;
+}
+.ok {
+  color: var(--ok, var(--code-ink));
+}
+.bad {
+  color: var(--danger, var(--ink));
+}

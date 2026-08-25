@@ -3,22 +3,80 @@
   "active": "M2",
   "milestones": {
     "M2": {
-      "title": "T1 · 從零到第一次對話",
+      "title": "T1 · 從零到第一次對話（Gemini 優先）",
       "successCriterion": "送出了第一則訊息",
       "screens": [
-        { "id": "First-Run--1",  "route": "first-run/provider",    "note": "選供應商。點卡片＝選取；說明 focus 才展開，再點收回" },
-        { "id": "First-Run--3",  "route": "first-run/key",         "note": "金鑰頁 · 空白" },
-        { "id": "First-Run--3a", "route": "first-run/key",         "note": "金鑰頁 · 已貼上未測試" },
-        { "id": "First-Run--3b", "route": "first-run/key",         "note": "金鑰頁 · 測試失敗" },
-        { "id": "First-Run--3c", "route": "first-run/key",         "note": "金鑰頁 · 測試成功 → 解鎖下一步" },
-        { "id": "First-Run--4",  "route": "first-run/add-friend",  "note": "加入好友 · 空白" },
-        { "id": "First-Run--6",  "route": "first-run/add-friend",  "note": "加入好友 · 卡庫 dropdown（疊加）" },
-        { "id": "First-Run--7",  "route": "first-run/add-friend",  "note": "加入好友 · 已填寫（填值）" },
-        { "id": "Settings-Theme-Import--8", "route": "import/drop",     "note": "拖入角色卡 PNG" },
-        { "id": "Import-And-Archive--2",    "route": "import/scan",     "note": "掃描結果" },
-        { "id": "Import-And-Archive--3",    "route": "import/progress", "note": "匯入中（刻意沒有返回鍵）" },
-        { "id": "Chat-Thread-Layout--5",    "route": "chat/$chatId",    "note": "對話串" },
-        { "id": "Waiting-And-Thinking--1",  "route": "chat/$chatId",    "note": "等待／思考（對話串的狀態）" }
+        {
+          "id": "First-Run--1",
+          "route": "first-run/provider",
+          "note": "選供應商。點卡片＝選取；說明 focus 才展開，再點收回"
+        },
+        {
+          "id": "First-Run--3",
+          "route": "first-run/key",
+          "note": "金鑰頁 · 空白"
+        },
+        {
+          "id": "First-Run--3a",
+          "route": "first-run/key",
+          "note": "金鑰頁 · 已貼上未測試"
+        },
+        {
+          "id": "First-Run--3b",
+          "route": "first-run/key",
+          "note": "金鑰頁 · 測試失敗"
+        },
+        {
+          "id": "First-Run--3c",
+          "route": "first-run/key",
+          "note": "金鑰頁 · 測試成功 → 解鎖下一步"
+        },
+        {
+          "id": "First-Run--4",
+          "route": "first-run/add-friend",
+          "note": "加入好友 · 空白"
+        },
+        {
+          "id": "First-Run--6",
+          "route": "first-run/add-friend",
+          "note": "加入好友 · 卡庫 dropdown（疊加）"
+        },
+        {
+          "id": "First-Run--7",
+          "route": "first-run/add-friend",
+          "note": "加入好友 · 已填寫（填值）"
+        },
+        {
+          "id": "Chat-Thread-Layout--5",
+          "route": "chat/$chatId",
+          "note": "對話串"
+        },
+        {
+          "id": "Waiting-And-Thinking--1",
+          "route": "chat/$chatId",
+          "note": "等待／思考（對話串的狀態）"
+        }
+      ]
+    },
+    "M2b-import": {
+      "title": "T1 匯入角色卡 PNG 分支",
+      "successCriterion": "拖入 PNG → 掃描 → 匯入完成",
+      "screens": [
+        {
+          "id": "Settings-Theme-Import--8",
+          "route": "import/drop",
+          "note": "拖入角色卡 PNG"
+        },
+        {
+          "id": "Import-And-Archive--2",
+          "route": "import/scan",
+          "note": "掃描結果"
+        },
+        {
+          "id": "Import-And-Archive--3",
+          "route": "import/progress",
+          "note": "匯入中（刻意沒有返回鍵）"
+        }
       ]
     }
   },
@@ -28,5 +86,6 @@
     "建立角色只留四欄：頭像・名稱・描述・初始訊息",
     "有 tab bar ⇔ 沒有返回鍵（tab 根＝頂層）",
     "Import-And-Archive--3 刻意沒有返回鍵：進行中狀態，已有『取消』"
-  ]
+  ],
+  "_note_deferred": "M2b-import 尚未做：Peter 2026-08-25 指定先做 Gemini 主線到「聊天室看到 AI 說第一句話」。active 只指向 M2。"
 }

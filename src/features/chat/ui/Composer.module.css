@@ -1,0 +1,45 @@
+.wrap {
+  display: flex;
+  gap: var(--sp-2, 8px);
+  align-items: flex-end;
+}
+
+.input {
+  box-sizing: border-box;
+  flex: 1 1 auto;
+  min-height: var(--hit-min);
+  max-height: 140px;
+  padding: var(--sp-3, 12px);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-md);
+  background: var(--field-bg, var(--surface-sunk));
+  font-family: inherit;
+  line-height: 1.7;
+  resize: none;
+}
+
+/* 視覺尺寸壓縮，命中區用 ::after 撐到 44×44（GAP-24 的做法） */
+.send {
+  position: relative;
+  flex: 0 0 auto;
+  min-height: 0;
+  height: 40px;
+  padding: 0 var(--sp-4, 16px);
+  border: 0;
+  border-radius: var(--radius-md);
+  background: var(--accent);
+  color: var(--accent-ink);
+  font-weight: 600;
+  cursor: pointer;
+}
+.send::after {
+  content: "";
+  position: absolute;
+  inset: 50% 0 auto 0;
+  transform: translateY(-50%);
+  height: var(--hit-min);
+}
+.send:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
