@@ -17,5 +17,6 @@ jobs:
         with:
           node-version: "24"
           cache: pnpm
-      - run: pnpm install --frozen-lockfile
+      # 同 Dockerfile 的理由：這一步不做解析，裝的是本機審過的同一份 lockfile
+      - run: pnpm install --frozen-lockfile --config.minimumReleaseAge=0
       - run: pnpm verify
