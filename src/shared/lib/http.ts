@@ -27,7 +27,9 @@ function messageOf(body: unknown, status: number): string {
   if (body && typeof body === 'object') {
     if ('error' in body) return String((body as { error: unknown }).error);
     if ('__raw' in body) {
-      const raw = String((body as { __raw: unknown }).__raw).trim().slice(0, 160);
+      const raw = String((body as { __raw: unknown }).__raw)
+        .trim()
+        .slice(0, 160);
       return `HTTP ${status}：${raw}`;
     }
   }
