@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { shouldSubmitOnKey } from '../model';
 import styles from './Composer.module.css';
 
 /** S31：Enter 送出、Shift+Enter 換行。不做自訂快捷鍵。 */
@@ -20,10 +21,18 @@ export function Composer({ onSend, busy }: { onSend: (text: string) => void; bus
         placeholder="說點什麼⋯"
         onChange={(e) => setText(e.target.value)}
         onKeyDown={(e) => {
-          if (e.key === 'Enter' && !e.shiftKey) {
-            e.preventDefault();
-            submit();
-          }
+          // 🔴 組字中的 Enter 是「選字」不是「送出」。判斷抽在 model.ts，這裡只負責接線。
+          if (
+            !shouldSubmitOnKey({
+              key: e.key,
+              shiftKey: e.shiftKey,
+              isComposing: e.nativeEvent.isComposing,
+              keyCode: e.keyCode,
+            })
+          )
+            return;
+          e.preventDefault();
+          submit();
         }}
       />
       <button

@@ -50,5 +50,9 @@ export const PROVIDERS: ProviderInfo[] = [
   },
 ];
 
+/** fallback：找不到就回第一家。用 `?? PROVIDERS[0]` 會被 noUncheckedIndexedAccess 判成 undefined，
+ *  所以把「至少有一家」這件事寫成型別上成立的形狀。 */
+const [FIRST] = PROVIDERS as [ProviderInfo, ...ProviderInfo[]];
+
 export const providerById = (id: ProviderId): ProviderInfo =>
-  PROVIDERS.find((p) => p.id === id) ?? PROVIDERS[0]!;
+  PROVIDERS.find((p) => p.id === id) ?? FIRST;

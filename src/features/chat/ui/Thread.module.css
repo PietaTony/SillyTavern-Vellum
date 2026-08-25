@@ -1,11 +1,18 @@
-/* D31 元件定稿：我的訊息**描邊**、他的回覆**左豎線**。密度以長文為準（D6）。 */
+/* D31 元件定稿：我的訊息**描邊**／情境**左豎線**／對白**淡底塊**。
+   密度以長文為準（D6：正文 15px、行高 1.9、訊息間距 20px）。 */
 .list {
   display: flex;
   flex-direction: column;
   gap: var(--sp-5, 20px);
 }
 
-.msg {
+.turn {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2, 8px);
+}
+
+.text {
   font-family: var(--font-content);
   font-size: var(--fs-body, 15px);
   line-height: 1.9;
@@ -13,6 +20,7 @@
   word-break: break-word;
 }
 
+/* 我的訊息：靠右氣泡，描邊、透明底、圓角 14（S1 否決全氣泡的理由見 SPEC）*/
 .me {
   align-self: flex-end;
   max-width: 84%;
@@ -21,11 +29,25 @@
   border-radius: var(--radius-bubble);
 }
 
+/* 他的回覆：靠左半寬 */
 .them {
   align-self: flex-start;
   max-width: 100%;
+}
+
+/* 情境描寫：左豎線。也是未閉合引號的 fallback。 */
+.narration {
   padding-left: var(--sp-4, 16px);
   border-left: 2px solid var(--block-them-rule, var(--line-strong));
+  color: var(--ink-muted);
+}
+
+/* 角色對白：淡底塊 */
+.dialogue {
+  padding: var(--sp-3, 12px) var(--sp-4, 16px);
+  border-radius: var(--radius-bubble);
+  background: var(--surface-sunk);
+  color: var(--ink);
 }
 
 .caret::after {

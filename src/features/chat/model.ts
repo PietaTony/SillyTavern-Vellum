@@ -30,16 +30,43 @@ export function parseSse(buffer: string): { events: StreamEvent[]; rest: string 
       else if (line.startsWith('data: ')) data = line.slice(6);
     }
     if (!name || !data) continue;
-    const payload = JSON.parse(data) as Record<string, unknown>;
-    if (name === 'delta') events.push({ type: 'delta', text: String(payload['text'] ?? '') });
-    else if (name === 'done')
+    const payload = JSON.parse(data) as {
+      text?: string;
+      message?: Message | string;
+      finishReason?: string;
+    };
+    if (name === 'delta') events.push({ type: 'delta', text: payload.text ?? '' });
+    else if (name === 'done' && payload.message && typeof payload.message !== 'string')
       events.push({
         type: 'done',
-        message: payload['message'] as Message,
-        finishReason: String(payload['finishReason'] ?? 'STOP'),
+        message: payload.message,
+        finishReason: payload.finishReason ?? 'STOP',
       });
     else if (name === 'error')
-      events.push({ type: 'error', message: String(payload['message'] ?? '未知錯誤') });
+      events.push({ type: 'error', message: String(payload.message ?? '未知錯誤') });
   }
   return { events, rest };
+}
+
+/**
+ * 這次的 keydown 該不該送出。
+ *
+ * 🔴 中文輸入法用 **Enter 選字**，而 `keydown` 在組字期間照樣觸發。
+ * 不擋的話：按 Enter 選字 → 送出當下（不完整的）內容並清空 → IME 隨即把選中的字提交回來
+ * ⇒ **輸入框看起來沒清空，而且送出的是半截句子**。
+ *
+ * `isComposing` 是標準做法；`keyCode === 229` 是舊瀏覽器在組字期間的等價訊號，一起擋。
+ * ⚠️ 自動化測試打字是直接注入字元、不經過 IME，所以這個 bug **只有真人打得出來**。
+ */
+export function shouldSubmitOnKey(e: {
+  key: string;
+  shiftKey: boolean;
+  isComposing?: boolean;
+  keyCode?: number;
+}): boolean {
+  if (e.key !== 'Enter') return false;
+  if (e.shiftKey) return false; // Shift+Enter ＝ 換行（S31）
+  if (e.isComposing) return false;
+  if (e.keyCode === 229) return false;
+  return true;
 }

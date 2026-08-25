@@ -112,7 +112,7 @@ if (process.argv.includes('--selftest')) {
   process.exit(ok ? 0 : 1);
 }
 
-const files = existsSync(SRC) ? walk(SRC) : [];
+const files = [...(existsSync(SRC) ? walk(SRC) : []), ...(existsSync(SRV) ? walk(SRV) : [])];
 const { violations, modules } = analyse(files);
 
 // 🔴 這一段就是 dependency-cruiser 缺的那一句

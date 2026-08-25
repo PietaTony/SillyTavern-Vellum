@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { parseSse } from '../model';
+import { parseSse, shouldSubmitOnKey } from '../model';
 
 describe('SSE 解析', () => {
   it('切出完整事件，殘餘留給下一輪', () => {
@@ -27,5 +27,23 @@ describe('SSE 解析', () => {
   it('error 事件被認出來', () => {
     const { events } = parseSse('event: error\ndata: {"message":"炸了"}\n\n');
     expect(events[0]).toEqual({ type: 'error', message: '炸了' });
+  });
+});
+
+describe('Enter 送出的判斷（中文輸入法）', () => {
+  it('單獨 Enter 要送出', () => {
+    expect(shouldSubmitOnKey({ key: 'Enter', shiftKey: false })).toBe(true);
+  });
+  it('Shift+Enter 是換行不送出', () => {
+    expect(shouldSubmitOnKey({ key: 'Enter', shiftKey: true })).toBe(false);
+  });
+  it('🔴 組字中的 Enter 是「選字」，不可送出', () => {
+    expect(shouldSubmitOnKey({ key: 'Enter', shiftKey: false, isComposing: true })).toBe(false);
+  });
+  it('🔴 舊瀏覽器的組字訊號 keyCode 229 也要擋', () => {
+    expect(shouldSubmitOnKey({ key: 'Enter', shiftKey: false, keyCode: 229 })).toBe(false);
+  });
+  it('其他鍵不送出', () => {
+    expect(shouldSubmitOnKey({ key: 'a', shiftKey: false })).toBe(false);
   });
 });
