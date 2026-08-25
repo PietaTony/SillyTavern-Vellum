@@ -1,4 +1,5 @@
-export { fetchWorld, fetchWorlds, setEntryEnabled } from './api';
+export { fetchWorld, fetchWorlds, setEntryEnabled, updateEntry } from './api';
+export { DEAD_FIELDS, SELECTIVE_LOGIC } from './fields';
 export {
   changedLabel,
   entryHint,
@@ -9,6 +10,8 @@ export {
   WI_POSITION,
 } from './model';
 export type { WbEntry, World, WorldSummary } from './types';
+export { EntryEditor } from './ui/EntryEditor';
+export { EntryEditorAdvanced } from './ui/EntryEditorAdvanced';
 export { EntryList } from './ui/EntryList';
 export { WorldList } from './ui/WorldList';
 export { WorldPicker } from './ui/WorldPicker';

@@ -7,9 +7,37 @@
  */
 import { Hono } from 'hono';
 import { z } from 'zod';
-import { driftFromOrigin, setEntryEnabled, type CharWorld } from '../lib/charWorld.ts';
+import { driftFromOrigin, type CharWorld } from '../lib/charWorld.ts';
+import { applyEntryEdit } from '../lib/wiEdit.ts';
 import { safeId } from '../lib/ids.ts';
 import { readJson, writeJson } from '../lib/storage.ts';
+
+/**
+ * 🔴 **只收引擎會讀的欄位。** 這張表就是規格總則五的機械形式：
+ * 「畫面上每一個可操作的控制項，背後必須真的有引擎讀它」——
+ * 端點收不下的欄位，UI 自然也做不出可編輯的控制項。
+ */
+const EntryPatchBody = z
+  .object({
+    comment: z.string(),
+    content: z.string(),
+    keys: z.array(z.string()),
+    secondaryKeys: z.array(z.string()),
+    constant: z.boolean(),
+    enabled: z.boolean(),
+    selective: z.boolean(),
+    selectiveLogic: z.number().int(),
+    order: z.number().int(),
+    position: z.number().int().min(0).max(7),
+    depth: z.number().int().min(0),
+    role: z.number().int().nullable(),
+    caseSensitive: z.boolean(),
+    matchWholeWords: z.boolean(),
+    probability: z.number().int().min(0).max(100),
+    useProbability: z.boolean(),
+    ignoreBudget: z.boolean(),
+  })
+  .partial();
 
 export const charWorld = new Hono()
   /** 這個好友自己的世界書副本。改開關改的是這一份，不是卡片。 */
@@ -20,17 +48,29 @@ export const charWorld = new Hono()
     return world ? c.json(world) : c.json({ error: '這個角色沒有世界書' }, 404);
   })
 
-  /** 開關某一條。🔴 只動副本 —— 卡片與出廠快照都不碰。 */
+  /**
+   * 編輯某一條。🔴 只動副本 —— 卡片與出廠快照都不碰。
+   *
+   * 🔴 **欄位白名單就是「引擎真的會讀的那些」**（規格總則五）。
+   * `sticky`／`cooldown`／`delay`／`triggers`／`characterFilter`／`group` 引擎完全不理，
+   * 所以這裡**收不下**它們 —— 收下來會讓使用者以為改了有用。
+   * 它們仍然原樣留在 `raw` 裡跟著匯出走（無資訊遺失），只是改不動。
+   */
   .patch('/:id/world/:uid', async (c) => {
     const id = safeId(c.req.param('id'));
     if (!id) return c.json({ error: '找不到這個角色' }, 404);
-    const body = z.object({ enabled: z.boolean() }).safeParse(await c.req.json());
-    if (!body.success) return c.json({ error: '參數不合法' }, 400);
+    const body = EntryPatchBody.safeParse(await c.req.json());
+    if (!body.success) return c.json({ error: '參數不合法', detail: body.error.issues }, 400);
     const world = await readJson<CharWorld | null>(`worlds/${id}.json`, null);
     if (!world) return c.json({ error: '這個角色沒有世界書' }, 404);
     const uid = c.req.param('uid');
-    if (!world.entries.some((e) => e.uid === uid)) return c.json({ error: '找不到這個條目' }, 404);
-    const next = setEntryEnabled(world, uid, body.data.enabled);
+    const target = world.entries.find((e) => e.uid === uid);
+    if (!target) return c.json({ error: '找不到這個條目' }, 404);
+    const next: CharWorld = {
+      ...world,
+      entries: world.entries.map((e) => (e.uid === uid ? applyEntryEdit(e, body.data) : e)),
+    };
     await writeJson(`worlds/${id}.json`, next);
-    return c.json({ uid, enabled: body.data.enabled, drift: driftFromOrigin(next).length });
+    const updated = next.entries.find((e) => e.uid === uid);
+    return c.json({ uid, entry: updated, drift: driftFromOrigin(next).length });
   });

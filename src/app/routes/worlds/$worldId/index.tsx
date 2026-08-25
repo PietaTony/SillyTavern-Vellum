@@ -8,7 +8,7 @@ import { useState } from 'react';
 import { EntryList, fetchWorld, groupByPosition, setEntryEnabled } from '@/features/worldbook';
 import { Screen } from '@/shared/ui/Screen';
 
-export const Route = createFileRoute('/worlds/$worldId')({ component: WorldPage });
+export const Route = createFileRoute('/worlds/$worldId/')({ component: WorldPage });
 
 /**
  * 單本世界書的條目列表（階段八 C2）。
@@ -75,6 +75,7 @@ function WorldPage() {
             groups={groupByPosition(entries)}
             busyUid={busyUid}
             onToggle={(uid, next) => toggle.mutate({ uid, enabled: next })}
+            onOpen={(uid) => void nav({ to: '/worlds/$worldId/$uid', params: { worldId, uid } })}
           />
         </>
       ) : null}

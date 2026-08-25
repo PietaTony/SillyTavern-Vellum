@@ -28,13 +28,25 @@ export type WbEntry = {
   constant: boolean;
   enabled: boolean;
   selective: boolean;
+  /** 次要關鍵字怎麼配。值對齊 ST；選項表在 `fields.ts`。 */
+  selectiveLogic: number;
   order: number;
   position: number;
   depth: number;
   role: number | null;
   probability: number;
   useProbability: boolean;
+  caseSensitive: boolean;
+  matchWholeWords: boolean;
+  /** true ＝ 不計入 token 預算，也不受「預算已爆」阻擋。 */
+  ignoreBudget: boolean;
+  /** 互斥群組。⚠️ **引擎不理它**（總則五，見 `fields.ts`）。 */
   group: string;
+  /**
+   * 原始那一筆，一個欄位都沒動。**匯出走這份。**
+   * 🔴 那些引擎不理的欄位（sticky／cooldown／delay…）只活在這裡。
+   */
+  raw?: Record<string, unknown>;
 };
 
 export type World = {

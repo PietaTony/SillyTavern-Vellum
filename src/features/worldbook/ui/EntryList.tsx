@@ -1,5 +1,6 @@
 import Chip from '@mui/material/Chip';
 import List from '@mui/material/List';
+import ListItemButton from '@mui/material/ListItemButton';
 import ListItemText from '@mui/material/ListItemText';
 import ListSubheader from '@mui/material/ListSubheader';
 import Stack from '@mui/material/Stack';
@@ -21,10 +22,13 @@ import type { WbEntry } from '../types';
 export function EntryList({
   groups,
   onToggle,
+  onOpen,
   busyUid,
 }: {
   groups: { position: number; entries: WbEntry[] }[];
   onToggle: (uid: string, enabled: boolean) => void;
+  /** 點條目本體 → 進編輯器（C3）。開關不算，它要就地生效。 */
+  onOpen: (uid: string) => void;
   /** 正在送出的那一條 —— 開關要當場鎖住，不然連點會送出互相打架的請求。 */
   busyUid: string | null;
 }) {
@@ -61,23 +65,34 @@ export function EntryList({
               direction="row"
               sx={{ alignItems: 'center', px: 2, py: 0.5, gap: 1 }}
             >
-              <ListItemText
-                primary={
-                  <Stack direction="row" sx={{ alignItems: 'center', gap: 0.75 }}>
-                    <Typography variant="body2" sx={{ fontWeight: 500 }}>
-                      {/* 沒寫 comment 的條目要有可辨識的名字，不能是空白一行 */}
-                      {e.comment || `（未命名 · ${e.uid}）`}
-                    </Typography>
-                    {e.constant ? <Chip size="small" label="常駐" /> : null}
-                  </Stack>
-                }
-                secondary={`${entryHint(e)} · 順序 ${e.order}`}
-                slotProps={{ secondary: { variant: 'caption' } }}
-              />
+              {/*
+               * 🔴 **點文字進編輯器、點開關就地切**。兩個動作在同一列，
+               * 所以開關要自己吃掉點擊（`stopPropagation`），
+               * 不然切一下開關會順便跳頁 —— 那是最惱人的一種誤觸。
+               */}
+              <ListItemButton
+                onClick={() => onOpen(e.uid)}
+                sx={{ flex: 1, minWidth: 0, borderRadius: 1, px: 1 }}
+              >
+                <ListItemText
+                  primary={
+                    <Stack direction="row" sx={{ alignItems: 'center', gap: 0.75 }}>
+                      <Typography variant="body2" sx={{ fontWeight: 500 }}>
+                        {/* 沒寫 comment 的條目要有可辨識的名字，不能是空白一行 */}
+                        {e.comment || `（未命名 · ${e.uid}）`}
+                      </Typography>
+                      {e.constant ? <Chip size="small" label="常駐" /> : null}
+                    </Stack>
+                  }
+                  secondary={`${entryHint(e)} · 順序 ${e.order}`}
+                  slotProps={{ secondary: { variant: 'caption' } }}
+                />
+              </ListItemButton>
               <Switch
                 size="small"
                 checked={e.enabled}
                 disabled={busyUid === e.uid}
+                onClick={(ev) => ev.stopPropagation()}
                 onChange={(ev) => onToggle(e.uid, ev.target.checked)}
                 slotProps={{ input: { 'aria-label': `啟用「${e.comment || e.uid}」` } }}
               />
