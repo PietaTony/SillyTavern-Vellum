@@ -61,6 +61,12 @@
           "back": "chat-list"
         },
         {
+          "id": "Tab-Friends--undrawn",
+          "route": "friends",
+          "note": "好友 tab 的根＝全部角色卡（含從未聊過）。🔴 設計正本沒有這張，用既有 v-listrow 拼的，待補圖",
+          "back": null
+        },
+        {
           "id": "Friends-And-Cards--1",
           "route": "chat-list",
           "note": "最近聊天列表（標題「聊天」，Peter 2026-08-25 改，正本寫「好友」）。⏸ 下拉搜尋（--1）／左滑封存刪除（--2）／右滑釘選（--3）未做",

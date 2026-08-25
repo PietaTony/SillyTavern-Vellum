@@ -19,16 +19,19 @@
     "gate:no-hex": "tsx scripts/gate-no-hex.ts",
     "gate:file-size": "tsx scripts/gate-file-size.ts",
     "gate:screens": "tsx scripts/gate-screens-vs-routes.ts",
-    "verify": "pnpm typecheck && pnpm test && pnpm lint && pnpm gate:selftest && pnpm gate:boundaries && pnpm gate:no-hex && pnpm gate:file-size && pnpm gate:screens && pnpm gate:back && pnpm gate:classes",
+    "verify": "pnpm typecheck && pnpm test && pnpm lint && pnpm gate:selftest && pnpm gate:boundaries && pnpm gate:no-hex && pnpm gate:file-size && pnpm gate:screens && pnpm gate:back",
     "gate:selftest": "for f in scripts/gate-*.ts; do pnpm exec tsx \"$f\" --selftest || exit 1; done",
     "dev:server": "tsx watch server/index.ts",
     "server": "tsx server/index.ts",
-    "gate:back": "tsx scripts/gate-back.ts",
-    "gate:classes": "tsx scripts/gate-classes.ts"
+    "gate:back": "tsx scripts/gate-back.ts"
   },
   "dependencies": {
+    "@emotion/react": "^11.14.0",
+    "@emotion/styled": "^11.14.1",
     "@hono/node-server": "^2.1.1",
     "@hookform/resolvers": "^5.9.1",
+    "@mui/icons-material": "^9.3.1",
+    "@mui/material": "^9.3.1",
     "@tanstack/react-query": "^5.102.3",
     "@tanstack/react-router": "^1.170.32",
     "@xstate/react": "^6.1.0",

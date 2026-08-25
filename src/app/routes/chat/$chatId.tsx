@@ -1,6 +1,10 @@
+import Alert from '@mui/material/Alert';
+import Button from '@mui/material/Button';
+import CircularProgress from '@mui/material/CircularProgress';
 import { useQuery } from '@tanstack/react-query';
 import { createFileRoute, useNavigate } from '@tanstack/react-router';
 import { useRef, useState } from 'react';
+import { useBack } from '@/app/screens/useBack';
 import { fetchCharacter } from '@/features/characters';
 import {
   appendMessage,
@@ -10,7 +14,6 @@ import {
   streamGenerate,
   Thread,
 } from '@/features/chat';
-import { ErrorState } from '@/shared/ui/ErrorState';
 import { Screen } from '@/shared/ui/Screen';
 
 export const Route = createFileRoute('/chat/$chatId')({ component: ChatPage });
@@ -18,6 +21,7 @@ export const Route = createFileRoute('/chat/$chatId')({ component: ChatPage });
 function ChatPage() {
   const { chatId } = Route.useParams();
   const nav = useNavigate();
+  const onBack = useBack();
   const q = useQuery({ queryKey: ['chat', chatId], queryFn: () => fetchChat(chatId) });
   // 頭像從角色現取，不複製進對話（避免每段對話多帶一份 base64，也避免換圖後過期）
   const char = useQuery({
@@ -60,31 +64,32 @@ function ChatPage() {
     );
   }
 
-  if (q.isPending) return <Screen title="⋯">載入中</Screen>;
+  if (q.isPending)
+    return (
+      <Screen title="⋯">
+        <CircularProgress size={24} />
+      </Screen>
+    );
   if (q.isError)
     return (
-      <Screen title="打不開這段對話">
-        <ErrorState
-          title="找不到這段對話"
-          detail={q.error instanceof Error ? q.error.message : ''}
-          action={{
-            label: '重新加一個好友',
-            onAct: () => {
-              void nav({ to: '/first-run/add-friend' });
-            },
-          }}
-        />
+      <Screen title="打不開這段對話" onBack={onBack}>
+        <Alert
+          severity="warning"
+          action={
+            <Button size="small" onClick={() => void nav({ to: '/add-friend' })}>
+              重新加一個好友
+            </Button>
+          }
+        >
+          找不到這段對話：{q.error instanceof Error ? q.error.message : ''}
+        </Alert>
       </Screen>
     );
 
   return (
     <Screen
       title={q.data.characterName}
-      // 設計正本 back.json：Chat-Thread-Layout--5 → Friends-And-Cards--1（好友列表）。
-      // 🔴 進得到對話串就代表首次設定已經結束（Peter 2026-08-25）⇒ 落點是列表，不是 first-run。
-      onBack={() => {
-        void nav({ to: '/chat-list' });
-      }}
+      onBack={onBack}
       scroll={false}
       footer={<Composer busy={streaming !== null} onSend={(t) => void send(t)} />}
     >
@@ -95,11 +100,16 @@ function ChatPage() {
         name={q.data.characterName}
       />
       {failure ? (
-        <ErrorState
-          title="這一輪沒有生成成功"
-          detail={failure}
-          action={{ label: '重新送出上一句', onAct: () => setFailure(null) }}
-        />
+        <Alert
+          severity="warning"
+          action={
+            <Button size="small" onClick={() => setFailure(null)}>
+              重新送出上一句
+            </Button>
+          }
+        >
+          這一輪沒有生成成功：{failure}
+        </Alert>
       ) : null}
     </Screen>
   );

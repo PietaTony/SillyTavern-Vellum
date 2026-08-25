@@ -1,13 +1,17 @@
+import ArrowBackIcon from '@mui/icons-material/ArrowBack';
+import AppBar from '@mui/material/AppBar';
+import Box from '@mui/material/Box';
+import IconButton from '@mui/material/IconButton';
+import Toolbar from '@mui/material/Toolbar';
+import Typography from '@mui/material/Typography';
 import type { ReactNode } from 'react';
 
 /**
- * 畫面外殼。**markup 逐字抄自設計正本**
- * （`plans/ui/prototype/proto/screens/`，class 定義在 `shared/styles/components.css`）。
+ * 畫面外殼：頂欄 ＋ 捲動區 ＋ 固定底部。**三層是刻意的** —— 頂欄與底部不跟著捲。
  *
- * 結構：`v-screen` > `v-topbar`（`v-topbar__lead` ＝ `v-back` ＋ `v-topbar__title`，右側可放動作）
- *        ＋ 捲動區 ＋ 固定 footer。
- * 🔴 三層是刻意的（設計正本原文）：**header 與 footer 在捲動區外**。
- * 🔴 不要在這裡發明 class —— `gate:classes` 會擋。
+ * 🔴 這是**組合**，不是自造元件（Peter 2026-08-25：「有現成的直接用，自己不造了」）——
+ * 裡面每一塊都是 MUI 的 `AppBar`／`Toolbar`／`IconButton`。
+ * RWD 交給 MUI：桌機時把手機版版面置中在 `sm` 寬度內，不再自己算 zoom。
  */
 export function Screen({
   title,
@@ -18,31 +22,43 @@ export function Screen({
   scroll = true,
 }: {
   title: string;
-  /** topbar 右側的動作（例：選供應商的「下一步」、對話頁的「編輯」）*/
+  /** 頂欄右側的動作（例：選供應商的「下一步」、列表的「＋ 加入好友」）*/
   action?: ReactNode;
   onBack?: () => void;
   children: ReactNode;
   footer?: ReactNode;
-  /** 對話串自己管捲動（`v-thread`），這時關掉外層的 `v-scroll` */
+  /** 對話串自己管捲動，這時關掉外層 */
   scroll?: boolean;
 }) {
   return (
-    <div className="vx-app">
-      <div className="vx-frame">
-        <div className="v-screen">
-          <div className="v-topbar">
-            <div className="v-topbar__lead">
-              {onBack ? (
-                <button type="button" className="v-back" aria-label="回上一頁" onClick={onBack} />
-              ) : null}
-              <div className="v-topbar__title">{title}</div>
-            </div>
+    <Box sx={{ display: 'flex', justifyContent: 'center', bgcolor: 'background.default' }}>
+      <Box
+        sx={{
+          width: '100%',
+          maxWidth: 'sm',
+          height: '100dvh',
+          display: 'flex',
+          flexDirection: 'column',
+        }}
+      >
+        <AppBar position="static" color="default" elevation={0} enableColorOnDark>
+          <Toolbar variant="dense" sx={{ gap: 1 }}>
+            {onBack ? (
+              <IconButton edge="start" aria-label="回上一頁" onClick={onBack}>
+                <ArrowBackIcon />
+              </IconButton>
+            ) : null}
+            <Typography variant="h6" component="h1" sx={{ flexGrow: 1, fontSize: '1.05rem' }}>
+              {title}
+            </Typography>
             {action}
-          </div>
-          {scroll ? <div className="v-scroll vx-scroll-body">{children}</div> : children}
-          {footer}
-        </div>
-      </div>
-    </div>
+          </Toolbar>
+        </AppBar>
+        <Box sx={{ flex: 1, minHeight: 0, ...(scroll ? { overflowY: 'auto', p: 2 } : {}) }}>
+          {children}
+        </Box>
+        {footer}
+      </Box>
+    </Box>
   );
 }

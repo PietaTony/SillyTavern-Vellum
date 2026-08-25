@@ -1,6 +1,8 @@
+import Alert from '@mui/material/Alert';
+import Button from '@mui/material/Button';
 import { createFileRoute, useNavigate } from '@tanstack/react-router';
+import { useBack } from '@/app/screens/useBack';
 import { KeyGate, providerById, useProviderChoice } from '@/features/providers';
-import { ErrorState } from '@/shared/ui/ErrorState';
 import { Screen } from '@/shared/ui/Screen';
 
 export const Route = createFileRoute('/first-run/key')({ component: KeyPage });
@@ -8,18 +10,22 @@ export const Route = createFileRoute('/first-run/key')({ component: KeyPage });
 function KeyPage() {
   const nav = useNavigate();
   const selected = useProviderChoice((s) => s.selected);
-  // 返回落點來自設計正本 back.json：First-Run--3 → First-Run--1
-  const back = () => nav({ to: '/first-run/provider' });
+  const back = useBack();
 
-  // M3「永遠引導」：沒有選過供應商就直接進來 → 給出口，不是給死路
+  // 「永遠引導」：沒有選過供應商就直接進來 → 給出口，不是給死路
   if (!selected) {
     return (
       <Screen title="取得金鑰" onBack={back}>
-        <ErrorState
-          title="還沒選供應商"
-          detail="要先知道你用哪一家，才知道該教你去哪裡拿金鑰。"
-          action={{ label: '回去選供應商', onAct: back }}
-        />
+        <Alert
+          severity="warning"
+          action={
+            <Button size="small" onClick={() => void nav({ to: '/first-run/provider' })}>
+              回去選供應商
+            </Button>
+          }
+        >
+          還沒選供應商 —— 要先知道你用哪一家，才知道該教你去哪裡拿金鑰。
+        </Alert>
       </Screen>
     );
   }
@@ -28,7 +34,7 @@ function KeyPage() {
     <KeyGate
       info={providerById(selected)}
       onBack={back}
-      onPassed={() => nav({ to: '/first-run/add-friend' })}
+      onPassed={() => void nav({ to: '/first-run/add-friend' })}
     />
   );
 }

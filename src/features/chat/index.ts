@@ -1,5 +1,5 @@
 export { appendMessage, createChat, fetchChat, fetchChats, streamGenerate } from './api';
-export { byRecency, lastActivityAt, previewOf, relativeTime } from './list';
+export { byRecency, lastActivityAt, latestChatOf, previewOf, relativeTime } from './list';
 export { type Chat, type Message, parseSse, type StreamEvent } from './model';
 export { ChatList, type ChatListItem } from './ui/ChatList';
 export { Composer } from './ui/Composer';

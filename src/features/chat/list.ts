@@ -43,3 +43,11 @@ export function relativeTime(iso: string, now: Date): string {
 export function byRecency(chats: readonly Chat[]): Chat[] {
   return [...chats].sort((a, b) => lastActivityAt(b).localeCompare(lastActivityAt(a)));
 }
+
+/**
+ * 這個角色最近的那段對話（沒聊過就是 undefined）。
+ * 好友清單要靠它決定「點下去是開既有對話還是開新的」。
+ */
+export function latestChatOf(chats: readonly Chat[], characterId: string): Chat | undefined {
+  return byRecency(chats).find((c) => c.characterId === characterId);
+}

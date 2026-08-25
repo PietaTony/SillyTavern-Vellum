@@ -1,27 +1,32 @@
 /**
- * 這支在守什麼：元件樣式裡不得出現字面色碼。
+ * 這支在守什麼：畫面程式碼裡不得出現字面色碼。
  *
- * 為什麼：視覺系統是三層 token（Base 三個變數 → Derived → Semantic），
- * 元件只能引用 Semantic 層。漏一個字面 #RRGGBB，換主題時就有一塊不跟著變 ——
+ * 為什麼：改用 MUI 之後（2026-08-25），顏色的正本是 `src/app/theme.ts` 的 theme，
+ * 元件只能引用語意色（`primary.main`／`text.secondary`／`divider`…）。
+ * 在 `sx` 裡寫死一個 `#RRGGBB`，深色模式或改主題時就有一塊不跟著變 ——
  * 那種 bug 人眼很難發現，AI agent 更不可能。
  *
- * 守備範圍：src/**\/*.module.css 與 src/shared/styles 底下除 tokens.css 外的檔案。
- * 不守：tokens.css（那是色碼的正本，本來就該有字面值）。
+ * 🔴 **守備範圍換過一次**：舊版掃 `src/**\/*.css`。CSS 全刪之後那個範圍變成 0 個檔，
+ * 而舊版對 0 個檔是 `exit 0` ⇒ **永久假綠燈**。所以範圍改成 `.ts`／`.tsx`，
+ * 而且 0 個檔一律 FAIL。
  *
- * 自證：node scripts/gate-no-hex.mjs --selftest
+ * 豁免：`src/app/theme.ts`（色碼正本，本來就該有字面值）。
+ *
+ * 自證：pnpm exec tsx scripts/gate-no-hex.ts --selftest
  */
 import { readdirSync, readFileSync, statSync } from 'node:fs';
 import { join, relative } from 'node:path';
 
 const ROOT = new URL('..', import.meta.url).pathname;
 const HEX = /#[0-9a-fA-F]{3,8}\b/g;
-const TOKEN_SOURCE = /shared\/styles\/tokens\.css$/;
+const EXEMPT = /app\/theme\.ts$/;
+const SKIP = /(routeTree\.gen\.ts$)|(__tests__\/)|(\.test\.)/;
 
 function walk(dir: string, out: string[] = []): string[] {
   for (const name of readdirSync(dir)) {
     const p = join(dir, name);
     if (statSync(p).isDirectory()) walk(p, out);
-    else if (p.endsWith('.css')) out.push(p);
+    else if (/\.tsx?$/.test(p) && !SKIP.test(p)) out.push(p);
   }
   return out;
 }
@@ -31,55 +36,58 @@ type Hit = { file: string; line: number; found: string; text: string };
 function scan(files: string[]): Hit[] {
   const hits: Hit[] = [];
   for (const f of files) {
-    if (TOKEN_SOURCE.test(f)) continue;
-    const lines = readFileSync(f, 'utf8').split('\n');
-    lines.forEach((line, i) => {
-      if (line.trimStart().startsWith('/*') || line.trimStart().startsWith('*')) return;
-      const m = line.match(HEX);
-      if (m)
-        hits.push({ file: relative(ROOT, f), line: i + 1, found: m.join(' '), text: line.trim() });
-    });
+    if (EXEMPT.test(f)) continue;
+    readFileSync(f, 'utf8')
+      .split('\n')
+      .forEach((line, i) => {
+        const t = line.trimStart();
+        if (t.startsWith('//') || t.startsWith('/*') || t.startsWith('*')) return;
+        const m = line.match(HEX);
+        if (m)
+          hits.push({
+            file: relative(ROOT, f),
+            line: i + 1,
+            found: m.join(' '),
+            text: t.slice(0, 90),
+          });
+      });
   }
   return hits;
 }
 
 if (process.argv.includes('--selftest')) {
-  // 正例：token 正本可以有字面色碼；負例：元件檔不可以。
-  const { writeFileSync, mkdtempSync } = await import('node:fs');
+  const { writeFileSync, mkdtempSync, mkdirSync } = await import('node:fs');
   const { tmpdir } = await import('node:os');
   const d = mkdtempSync(join(tmpdir(), 'nohex-'));
-  const styles = join(d, 'shared', 'styles');
-  await import('node:fs').then((fs) => fs.mkdirSync(styles, { recursive: true }));
-  writeFileSync(join(styles, 'tokens.css'), ':root{--paper:#F5F1E8}');
-  writeFileSync(join(styles, 'other.css'), '.x{color:#ff0000}');
+  mkdirSync(join(d, 'app'), { recursive: true });
+  // 正例：theme.ts 可以有字面色碼；負例：元件檔不可以；且註解裡的不算
+  writeFileSync(join(d, 'app', 'theme.ts'), "createTheme({ palette: { primary: '#F5F1E8' } })");
+  writeFileSync(join(d, 'Bad.tsx'), "// #comment0\n<Box sx={{ color: '#ff0000' }} />");
   const hits = scan(walk(d));
-  const ok = hits.length === 1 && (hits[0]?.file ?? '').endsWith('other.css');
+  const ok = hits.length === 1 && (hits[0]?.file ?? '').endsWith('Bad.tsx') && hits[0]?.line === 2;
   console.log(
     ok
-      ? 'selftest PASS（tokens.css 豁免、元件檔被抓到）'
+      ? 'selftest PASS（theme.ts 豁免、註解不算、元件檔被抓到）'
       : `selftest FAIL: ${JSON.stringify(hits)}`,
   );
   process.exit(ok ? 0 : 1);
 }
 
-let files: string[] = [];
-try {
-  files = walk(join(ROOT, 'src'));
-} catch {
-  files = [];
-}
+const files = walk(join(ROOT, 'src'));
 
-// 🔴 守涵蓋率不是守有沒有資料：0 個檔必然 PASS，那是假綠燈。
+// 🔴 守涵蓋率不是守有沒有資料：0 個檔必然 PASS，那是假綠燈。舊版對 0 個檔是 exit 0，被這次改版抓到。
 if (files.length === 0) {
-  console.log('gate:no-hex — 掃到 0 個 .css，尚無樣式檔，跳過（不是 PASS）');
-  process.exit(0);
+  console.error('gate:no-hex FAIL — 掃到 0 個 .ts/.tsx，尺壞了（比對 0 個項目必然通過）');
+  process.exit(1);
 }
 
 const hits = scan(files);
 if (hits.length) {
-  console.error(`gate:no-hex FAIL — ${hits.length} 處字面色碼（掃了 ${files.length} 個 .css）`);
+  console.error(`gate:no-hex FAIL — ${hits.length} 處字面色碼（掃了 ${files.length} 個檔）`);
   for (const h of hits) console.error(`  ${h.file}:${h.line}  ${h.found}   ${h.text}`);
-  console.error('  改法：用 var(--semantic-token)。色碼的正本只有 src/shared/styles/tokens.css');
+  console.error(
+    '  改法：用 theme 的語意色（primary.main／text.secondary／divider…）。色碼正本只有 src/app/theme.ts',
+  );
   process.exit(1);
 }
-console.log(`gate:no-hex PASS — ${files.length} 個 .css，0 處字面色碼`);
+console.log(`gate:no-hex PASS — ${files.length} 個 .ts/.tsx，0 處字面色碼`);

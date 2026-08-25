@@ -9,3 +9,4 @@ export {
 } from './api';
 export { canCreate, type Draft, emptyDraft } from './model';
 export { AddFriendForm } from './ui/AddFriendForm';
+export { type FriendItem, FriendList } from './ui/FriendList';
