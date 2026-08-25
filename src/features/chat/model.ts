@@ -1,5 +1,13 @@
 /** 純函式（A4）。SSE 事件的解析與訊息串的規則。 */
-export type Message = { id: string; role: 'user' | 'model'; text: string; at: string };
+export type Message = {
+  id: string;
+  role: 'user' | 'model';
+  text: string;
+  at: string;
+  /** 同一則的其他候選（開場白有 9 則）。沒有候選的訊息**不會有這個欄位**。 */
+  swipes?: string[];
+  swipeIndex?: number;
+};
 export type Chat = {
   id: string;
   characterId: string;

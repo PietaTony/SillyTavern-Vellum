@@ -1,10 +1,32 @@
-import { get, post } from '@/shared/lib/http';
+import { get, patch, post } from '@/shared/lib/http';
 import { type Chat, type Message, parseSse, type StreamEvent } from './model';
 
 export const fetchChats = (): Promise<Chat[]> => get<Chat[]>('/api/chats');
 export const fetchChat = (id: string): Promise<Chat> => get<Chat>(`/api/chats/${id}`);
-export const createChat = (characterId: string): Promise<Chat> =>
-  post<Chat>('/api/chats', { characterId });
+/** `greetingIndex` ＝ 用哪一則開場白開場（Peter：進對話前要能挑）。省略＝第一則。 */
+export const createChat = (characterId: string, greetingIndex?: number): Promise<Chat> =>
+  post<Chat>('/api/chats', {
+    characterId,
+    ...(greetingIndex === undefined ? {} : { greetingIndex }),
+  });
+
+/**
+ * 切換某則訊息的候選。
+ * 🔴 **回傳帶 `lore`**：開場白切換會連帶重算世界書開關（驗收 B3），
+ * 呼叫端要看得到「這一切真的有作用」，不然使用者只會覺得「字換了而已」。
+ */
+export type SwipeResult = {
+  id: string;
+  swipeIndex: number;
+  text: string;
+  lore: { include: string[]; exclude: string[]; changed: number; dangling: string[] } | null;
+};
+export const swipeMessage = (
+  chatId: string,
+  messageId: string,
+  index: number,
+): Promise<SwipeResult> =>
+  patch<SwipeResult>(`/api/chats/${chatId}/messages/${messageId}/swipe`, { index });
 export const appendMessage = (
   chatId: string,
   role: 'user' | 'model',

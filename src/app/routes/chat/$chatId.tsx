@@ -1,7 +1,7 @@
 import Alert from '@mui/material/Alert';
 import Button from '@mui/material/Button';
 import CircularProgress from '@mui/material/CircularProgress';
-import { useQuery } from '@tanstack/react-query';
+import { useMutation, useQuery } from '@tanstack/react-query';
 import { createFileRoute, useNavigate } from '@tanstack/react-router';
 import { useRef, useState } from 'react';
 import { useBack } from '@/app/screens/useBack';
@@ -12,6 +12,7 @@ import {
   fetchChat,
   type Message,
   streamGenerate,
+  swipeMessage,
   Thread,
 } from '@/features/chat';
 import { Screen } from '@/shared/ui/Screen';
@@ -34,6 +35,18 @@ function ChatPage() {
   const [streaming, setStreaming] = useState<string | null>(null);
   const [failure, setFailure] = useState<string | null>(null);
   const abortRef = useRef<AbortController | null>(null);
+
+  /**
+   * 切換開場白的候選。**成功之後要重讀對話**（文字換了）**也要重讀世界書**——
+   * 🔴 切開場白會連帶重算世界書開關，那是驗收 B3 的完整路徑。
+   */
+  const swipe = useMutation({
+    mutationFn: ({ messageId, index }: { messageId: string; index: number }) =>
+      swipeMessage(chatId, messageId, index),
+    onSuccess: () => {
+      void q.refetch();
+    },
+  });
 
   const messages = local ?? q.data?.messages ?? [];
 
@@ -98,6 +111,7 @@ function ChatPage() {
         streaming={streaming}
         avatar={char.data?.avatar || undefined}
         name={q.data.characterName}
+        onSwipe={(messageId, index) => void swipe.mutate({ messageId, index })}
       />
       {failure ? (
         <Alert

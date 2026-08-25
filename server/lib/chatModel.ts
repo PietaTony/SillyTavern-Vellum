@@ -1,0 +1,34 @@
+/**
+ * 對話的資料模型。**放在 lib/ 而不是 route 裡**：渲染層與 route 都要用它，
+ * 放在 route 會讓 lib 反過來 import route ——那就是循環相依（`gate:boundaries` 會擋）。
+ */
+import { z } from 'zod';
+
+export const MessageSchema = z.object({
+  id: z.string(),
+  role: z.enum(['user', 'model']),
+  text: z.string(),
+  at: z.string(),
+  /**
+   * 同一則訊息的多個候選（開場白有 9 則）。
+   * 🔴 **沒有候選的訊息不要偽造成 `[text]`** —— 那會讓「有沒有重生成過」這件事失真。
+   */
+  swipes: z.array(z.string()).optional(),
+  swipeIndex: z.number().optional(),
+});
+export type Message = z.infer<typeof MessageSchema>;
+
+export const ChatSchema = z.object({
+  id: z.string(),
+  characterId: z.string(),
+  characterName: z.string(),
+  messages: z.array(MessageSchema),
+  createdAt: z.string(),
+  /**
+   * 🔴 **匯入的對話，正本是那個 `.jsonl` 檔。**
+   * `messages` 只是投影：實測 ST 的對話檔每一行鍵集都不同（`extra` 的子鍵 6 行 6 種），
+   * 照我們的四個欄位重建會把其餘的全部丟掉。匯出一律從 `.jsonl` 重建。
+   */
+  source: z.string().optional(),
+});
+export type Chat = z.infer<typeof ChatSchema>;

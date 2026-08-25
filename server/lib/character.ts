@@ -18,6 +18,18 @@ export const CharacterSchema = z.object({
    */
   displayName: z.string().optional(),
   /**
+   * 所有開場白候選（`first_mes` ＋ `alternate_greetings`）。
+   * 🔴 **以前只存 `firstMessage`，8 則額外問候在匯入時被丟掉** —— 而那張卡真正的開場頁
+   * 全在額外問候裡，只留第一則等於「匯進來了但看不到內容」。
+   */
+  greetings: z.array(z.string()).optional(),
+  /**
+   * P6 輸出後處理規則（從卡片的 `regex_scripts` 轉出來）。
+   * 🔴 **存在這裡而不是每次去讀卡**：那張卡 6.8 MB、兩份各 3 MB base64，
+   * 每開一次對話就解一次等於把讀取成本綁在每一次瀏覽上。
+   */
+  outputRules: z.array(z.unknown()).optional(),
+  /**
    * 🔴 **匯入的卡片，正本是那個 PNG 檔，不是這份 JSON。**
    * 上面四個欄位只是投影出來給列表用的視圖；卡片本體（幾十個我們還沒實作的欄位、
    * 世界書、regex、別人的擴充資料）原樣留在 `characters/<id>.png` 的 tEXt 裡。

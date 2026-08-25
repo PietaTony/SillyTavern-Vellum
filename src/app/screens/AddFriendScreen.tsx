@@ -65,7 +65,15 @@ export function AddFriendScreen({ onBack }: { onBack: () => void }) {
        * 🔴 **匯入成功不跳走。** 跳走的話那句「已加入誰」永遠看不到，
        * 而且要連續匯入好幾張時每次都得再走回來。留在原頁，讓好友列表失效就好。
        */}
-      <ImportCardBox onImported={() => void qc.invalidateQueries({ queryKey: ['characters'] })} />
+      <ImportCardBox
+        onImported={(c) => {
+          void qc.invalidateQueries({ queryKey: ['characters'] });
+          // 🔴 有多則開場白就直接帶去挑 —— **選哪一則決定世界書開哪幾條**，
+          // 那是「要玩哪一條線」的選擇，不該等使用者自己發現。
+          if ((c.greetings?.length ?? 0) > 1)
+            void nav({ to: '/pick-greeting/$characterId', params: { characterId: c.id } });
+        }}
+      />
       <AddFriendForm draft={draft} setDraft={setDraft} />
     </Screen>
   );

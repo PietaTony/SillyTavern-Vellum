@@ -1,4 +1,12 @@
-export { appendMessage, createChat, fetchChat, fetchChats, streamGenerate } from './api';
+export {
+  appendMessage,
+  createChat,
+  fetchChat,
+  fetchChats,
+  type SwipeResult,
+  streamGenerate,
+  swipeMessage,
+} from './api';
 export { byRecency, lastActivityAt, latestChatOf, previewOf, relativeTime } from './list';
 export { type Chat, type Message, parseSse, type StreamEvent } from './model';
 export { ChatList, type ChatListItem } from './ui/ChatList';

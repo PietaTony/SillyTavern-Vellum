@@ -12,6 +12,7 @@ import { worldFromCard, type CharWorld } from './charWorld.ts';
 import { spriteBytes, spriteExt, spritesInCard } from './sprite.ts';
 import { listJson, writeBin, writeJson } from './storage.ts';
 import { displayNameOf, uniqueDisplayName } from './displayName.ts';
+import { fromRegexScripts } from './outputRules.ts';
 import type { Character } from './character.ts';
 
 export type ImportedAsset = { path: string; mime: string; bytes: number; from: string };
@@ -76,6 +77,12 @@ export async function intoCharacter(png: Buffer) {
     ...(displayName !== base ? { displayName } : {}),
     description: view.description,
     firstMessage: view.firstMessage,
+    // 🔴 全部候選都存下來。選哪一則是使用者的事（Peter：進對話前要能挑）。
+    greetings: [view.firstMessage, ...view.alternateGreetings].filter((g) => g.trim() !== ''),
+    outputRules: fromRegexScripts(
+      ((imported.card.payloads[imported.card.primary] as { data?: { extensions?: { regex_scripts?: unknown } } }).data
+        ?.extensions?.regex_scripts) ?? [],
+    ),
     // 相對路徑：dev 由 Vite 代理到後端、Docker 是同一個 process，兩邊都通。
     avatar: `/api/characters/${id}/avatar.png`,
     createdAt: new Date().toISOString(),

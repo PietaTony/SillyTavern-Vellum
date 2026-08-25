@@ -12,6 +12,7 @@ import { secrets } from './routes/secrets.ts';
 import { characters } from './routes/characters.ts';
 import { charWorld } from './routes/world.ts';
 import { chats } from './routes/chats.ts';
+import { chatImport } from './routes/chatImport.ts';
 import { generate } from './routes/generate.ts';
 import { update } from './routes/update.ts';
 import { currentVersion } from './lib/version.ts';
@@ -39,6 +40,7 @@ const app = new Hono()
   // 同一個前綴掛兩支：角色本體與世界書副本是兩種節奏的東西，分開比較好讀。
   .route('/api/characters', charWorld)
   .route('/api/chats', chats)
+  .route('/api/chats', chatImport)
   .route('/api/generate', generate)
   .route('/api/update', update);
 

@@ -6,6 +6,7 @@ import { embedCard, readCard } from '../lib/card.ts';
 import { intoCharacter } from '../lib/importCard.ts';
 import { BadCardUrl, fetchCardBytes } from '../lib/fetchCard.ts';
 import { readChunks, writeChunks } from '../lib/png.ts';
+import { extractLoreTags, stripLoreTags, titleOfGreeting } from '../lib/loreTags.ts';
 import { getKey, redact } from '../lib/secrets.ts';
 import { draftFromImage } from '../lib/gemini.ts';
 import { safeId } from '../lib/ids.ts';
@@ -14,6 +15,21 @@ const CreateBody = CharacterSchema.omit({ id: true, createdAt: true });
 
 export const characters = new Hono()
   .get('/', async (c) => c.json(await listJson<Character>('characters')))
+
+  /** 開場白清單（含各自的名字）。挑開場那一頁用。 */
+  .get('/:id/greetings', async (c) => {
+    const id = safeId(c.req.param('id'));
+    if (!id) return c.json({ error: '找不到這個角色' }, 404);
+    const ch = await readJson<Character | null>(`characters/${id}.json`, null);
+    if (!ch) return c.json({ error: '找不到這個角色' }, 404);
+    const list = (ch.greetings ?? []).map((g, i) => ({
+      index: i,
+      title: titleOfGreeting(g),
+      preview: stripLoreTags(g).slice(0, 300),
+      lore: extractLoreTags(g).include.length,
+    }));
+    return c.json(list);
+  })
 
   .get('/:id', async (c) => {
     // 🔴 id 會被接進檔案路徑 ⇒ 先過白名單（見 lib/ids.ts）

@@ -10,6 +10,8 @@ export type Character = {
   firstMessage: string;
   avatar: string;
   createdAt: string;
+  /** 所有開場白候選。>1 時，進對話前要先讓使用者挑（Peter 指定的落點）。 */
+  greetings?: string[];
 };
 
 export type NewCharacter = Omit<Character, 'id' | 'createdAt'>;
@@ -33,6 +35,14 @@ export const nameOf = (c: { name: string; displayName?: string }): string =>
 
 export const fetchCharacter = (id: string): Promise<Character> =>
   get<Character>(`/api/characters/${id}`);
+
+/**
+ * 開場白清單。**帶各自的名字**（卡片自己在 `<!-- title: … -->` 裡寫的）——
+ * 「第 1 種／第 2 種」對使用者沒有意義，「大一．同班初遇」才有。
+ */
+export type GreetingChoice = { index: number; title: string | null; preview: string; lore: number };
+export const fetchGreetings = (id: string): Promise<GreetingChoice[]> =>
+  get<GreetingChoice[]>(`/api/characters/${id}/greetings`);
 
 /**
  * 匯入角色卡。

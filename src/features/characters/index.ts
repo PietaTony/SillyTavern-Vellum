@@ -4,6 +4,8 @@ export {
   draftFromImage,
   fetchCharacter,
   fetchCharacters,
+  fetchGreetings,
+  type GreetingChoice,
   type ImageDraft,
   type ImportedCharacter,
   importCardByUrl,

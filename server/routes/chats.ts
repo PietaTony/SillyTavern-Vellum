@@ -1,50 +1,40 @@
 import { Hono } from 'hono';
 import { z } from 'zod';
+import type { Chat, Message } from '../lib/chatModel.ts';
 import { safeId } from '../lib/ids.ts';
-import { listJson, readJson, writeJson, readBin, writeBin } from '../lib/storage.ts';
-import { parseChatJsonl, viewOfEntry, viewOfHeader, writeChatJsonl } from '../lib/chatFile.ts';
+import { listJson, readJson, writeJson } from '../lib/storage.ts';
+import { applyGreetingLore } from '../lib/greetingLore.ts';
+import { stripLoreTags } from '../lib/loreTags.ts';
 import { readJson as read } from '../lib/storage.ts';
 import type { Character } from '../lib/character.ts';
 import { displayNameOf } from '../lib/displayName.ts';
-
-export const MessageSchema = z.object({
-  id: z.string(),
-  role: z.enum(['user', 'model']),
-  text: z.string(),
-  at: z.string(),
-});
-export type Message = z.infer<typeof MessageSchema>;
-
-export const ChatSchema = z.object({
-  id: z.string(),
-  characterId: z.string(),
-  characterName: z.string(),
-  messages: z.array(MessageSchema),
-  createdAt: z.string(),
-  /**
-   * 🔴 **匯入的對話，正本是那個 `.jsonl` 檔。**
-   * `messages` 只是投影：實測 ST 的對話檔每一行鍵集都不同（`extra` 的子鍵 6 行 6 種），
-   * 照我們的四個欄位重建會把其餘的全部丟掉。匯出一律從 `.jsonl` 重建。
-   */
-  source: z.string().optional(),
-});
-export type Chat = z.infer<typeof ChatSchema>;
+import { renderMessages, rulesOf } from '../lib/renderChat.ts';
 
 export const chats = new Hono()
   .get('/', async (c) => c.json(await listJson<Chat>('chats')))
 
+  /**
+   * 🔴 讀出來時才套 P6 的**顯示規則** —— 卡片的狀態欄要排版、變數更新區塊要藏起來。
+   * 存的仍然是原文（送回模型的版本要用它）。
+   */
   .get('/:id', async (c) => {
     // 🔴 id 會被接進檔案路徑 ⇒ 先過白名單。不合法一律當「找不到」，
     // 不要回不一樣的訊息 —— 那會告訴攻擊者他猜對了形狀。
     const id = safeId(c.req.param('id'));
     if (!id) return c.json({ error: '找不到這段對話' }, 404);
     const chat = await readJson<Chat | null>(`chats/${id}.json`, null);
-    return chat ? c.json(chat) : c.json({ error: '找不到這段對話' }, 404);
+    if (!chat) return c.json({ error: '找不到這段對話' }, 404);
+    const ch = await read<Character | null>(`characters/${chat.characterId}.json`, null);
+    // ⚠️ `user` 目前寫死「你」—— persona（使用者角色）還沒做，見 PLAN。
+    const names = { char: chat.characterName, user: '你' };
+    return c.json({ ...chat, messages: renderMessages(chat.messages, rulesOf(ch), names) });
   })
 
   /** M1：一段對話＝一個好友。建立對話時把角色的初始訊息當第一則寫進去。 */
   .post('/', async (c) => {
-    const body = z.object({ characterId: z.string() }).safeParse(await c.req.json());
+    const body = z
+      .object({ characterId: z.string(), greetingIndex: z.number().optional() })
+      .safeParse(await c.req.json());
     if (!body.success) return c.json({ error: '參數不合法' }, 400);
 
     const cid = safeId(body.data.characterId);
@@ -53,63 +43,55 @@ export const chats = new Hono()
     if (!ch) return c.json({ error: '找不到這個角色' }, 404);
 
     const now = new Date().toISOString();
+    const greetings = ch.greetings?.length ? ch.greetings : ch.firstMessage ? [ch.firstMessage] : [];
+    const idx = Math.min(Math.max(body.data.greetingIndex ?? 0, 0), Math.max(greetings.length - 1, 0));
+    const opening = greetings[idx];
     const chat: Chat = {
       id: crypto.randomUUID(),
       characterId: ch.id,
       characterName: displayNameOf(ch),
-      messages: ch.firstMessage
-        ? [{ id: crypto.randomUUID(), role: 'model', text: ch.firstMessage, at: now }]
+      messages: opening
+        ? [
+            {
+              id: crypto.randomUUID(),
+              role: 'model',
+              // 🔴 `<!-- lore -->` 是給引擎看的，不要端到畫面上（也不會送進 prompt）。
+              text: stripLoreTags(opening),
+              at: now,
+              ...(greetings.length > 1 ? { swipes: greetings.map(stripLoreTags), swipeIndex: idx } : {}),
+            },
+          ]
         : [],
       createdAt: now,
     };
     await writeJson(`chats/${chat.id}.json`, chat);
-    return c.json(chat, 201);
+    // ④ 選定的那一則決定世界書開哪幾條（B3 的完整路徑）。
+    const lore = opening ? await applyGreetingLore(ch.id, opening) : null;
+    return c.json({ ...chat, lore }, 201);
   })
 
   /**
-   * 匯入 ST 的對話檔（JSONL 原文當 body）。`?characterId=` 指定掛在哪個角色底下。
-   * 🔴 原文先落檔再寫索引 —— 反過來會留下指向不存在檔案的紀錄。
+   * 切換某則訊息的候選（swipe）。**開場白切換會連帶重算世界書開關**。
+   * 🔴 這是驗收 B3 的觸發點：在此之前引擎做好了，但沒有任何動作叫得動它。
    */
-  .post('/import', async (c) => {
-    const cid = safeId(c.req.query('characterId') ?? '');
-    if (!cid) return c.json({ error: '要指定 characterId' }, 400);
-    const ch = await read<Character | null>(`characters/${cid}.json`, null);
-    if (!ch) return c.json({ error: '找不到這個角色' }, 404);
-
-    let file;
-    try {
-      file = parseChatJsonl(await c.req.text());
-    } catch (e) {
-      return c.json({ error: e instanceof Error ? e.message : '這不是對話檔' }, 400);
-    }
-
-    const id = crypto.randomUUID();
-    await writeBin(`chats/${id}.jsonl`, Buffer.from(writeChatJsonl(file), 'utf8'));
-    const head = viewOfHeader(file.header);
-    const chat: Chat = {
-      id,
-      characterId: ch.id,
-      characterName: head.characterName || displayNameOf(ch),
-      messages: file.entries.map((e) => {
-        const v = viewOfEntry(e);
-        return { id: crypto.randomUUID(), role: v.role, text: v.text, at: v.sentAt };
-      }),
-      createdAt: new Date().toISOString(),
-      source: `${id}.jsonl`,
-    };
-    await writeJson(`chats/${id}.json`, chat);
-    return c.json({ ...chat, swipeCounts: file.entries.map((e) => viewOfEntry(e).swipes.length) }, 201);
-  })
-
-  /** 匯出：從 `.jsonl` 原文重建，**不是**從 `messages` 那四個欄位重建。 */
-  .get('/:id/export.jsonl', async (c) => {
+  .patch('/:id/messages/:messageId/swipe', async (c) => {
     const id = safeId(c.req.param('id'));
     if (!id) return c.json({ error: '找不到這段對話' }, 404);
-    const raw = await readBin(`chats/${id}.jsonl`);
-    if (!raw) return c.json({ error: '這段對話不是匯入的' }, 404);
-    return new Response(writeChatJsonl(parseChatJsonl(raw.toString('utf8'))), {
-      headers: { 'Content-Type': 'application/jsonl; charset=utf-8' },
-    });
+    const body = z.object({ index: z.number() }).safeParse(await c.req.json());
+    if (!body.success) return c.json({ error: '參數不合法' }, 400);
+    const chat = await readJson<Chat | null>(`chats/${id}.json`, null);
+    if (!chat) return c.json({ error: '找不到這段對話' }, 404);
+    const msg = chat.messages.find((m) => m.id === c.req.param('messageId'));
+    if (!msg?.swipes?.length) return c.json({ error: '這則訊息沒有其他候選' }, 404);
+    const idx = Math.min(Math.max(body.data.index, 0), msg.swipes.length - 1);
+    msg.swipeIndex = idx;
+    msg.text = msg.swipes[idx] ?? msg.text;
+    await writeJson(`chats/${id}.json`, chat);
+
+    const ch = await read<Character | null>(`characters/${chat.characterId}.json`, null);
+    const raw = ch?.greetings?.[idx];
+    const lore = raw ? await applyGreetingLore(chat.characterId, raw) : null;
+    return c.json({ id: msg.id, swipeIndex: idx, text: msg.text, lore });
   })
 
   .post('/:id/messages', async (c) => {

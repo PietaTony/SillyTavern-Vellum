@@ -37,7 +37,19 @@ function FriendsPage() {
 
   // 點好友＝進他的對話。沒聊過就當場開一段，不讓他撞到死路。
   const open = async (characterId: string) => {
-    const chat = latestChatOf(chats.data ?? [], characterId) ?? (await createChat(characterId));
+    const existing = latestChatOf(chats.data ?? [], characterId);
+    if (existing) {
+      void nav({ to: '/chat/$chatId', params: { chatId: existing.id } });
+      return;
+    }
+    // 🔴 還沒聊過、而且有多種開場 ⇒ **先挑再進去**（Peter 指定的落點）。
+    // 不同的開場會開啟不同的世界書設定，進去之後才發現選錯，前面聊的都白費了。
+    const character = (chars.data ?? []).find((c) => c.id === characterId);
+    if ((character?.greetings?.length ?? 0) > 1) {
+      void nav({ to: '/pick-greeting/$characterId', params: { characterId } });
+      return;
+    }
+    const chat = await createChat(characterId);
     void nav({ to: '/chat/$chatId', params: { chatId: chat.id } });
   };
 

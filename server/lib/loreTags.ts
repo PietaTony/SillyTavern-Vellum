@@ -31,9 +31,23 @@ export function extractLoreTags(text: string): LoreTags {
   return { include: collect(text, 'lore'), exclude: collect(text, 'exclude') };
 }
 
-/** 把標籤從文字裡拿掉（送 prompt 前用）。 */
+/**
+ * 把**所有** HTML 註解從文字裡拿掉。
+ *
+ * 🔴 **不能只剝 `lore`／`exclude`。** 實測這張卡的開場白還帶 `<!-- title: … -->`，
+ * 只剝兩種的話它會**當成內容顯示在對話裡**——在 ST 上看不到是因為那邊走 markdown→HTML
+ * 渲染，註解自然隱形；我們直接印純文字，不剝就會露出來。
+ * ⇒ 判準是「HTML 註解一律是給引擎看的」，不是「列舉我認得的那幾種」。
+ */
 export const stripLoreTags = (text: string): string =>
-  text.replace(/<!--\s*(?:lore|exclude)\s*[:：][^>]*?-->\s*/gi, '');
+  text.replace(/<!--[\s\S]*?-->\s*/g, '');
+
+/** 開場白自己帶的名字（`<!-- title: … -->`）。沒有就 null，由呼叫端決定顯示什麼。 */
+export function titleOfGreeting(text: string): string | null {
+  const m = /<!--\s*title\s*[:：]\s*([^>]*?)\s*-->/i.exec(text);
+  const t = (m?.[1] ?? '').trim();
+  return t === '' ? null : t;
+}
 
 /** 有沒有任何標籤 —— 用來判斷「這張卡有沒有在用這個機制」。 */
 export const hasLoreTags = (t: LoreTags): boolean => t.include.length > 0 || t.exclude.length > 0;

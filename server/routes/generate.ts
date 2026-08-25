@@ -13,7 +13,7 @@ import { getKey, redact } from '../lib/secrets.ts';
 import { safeId } from '../lib/ids.ts';
 import { readJson, writeJson } from '../lib/storage.ts';
 import { DEFAULT_MODEL, buildBody, parseChunk, streamGenerate, type GeminiChunk } from '../lib/gemini.ts';
-import type { Chat, Message } from './chats.ts';
+import type { Chat, Message } from '../lib/chatModel.ts';
 
 const Body = z.object({
   chatId: z.string(),
