@@ -2,6 +2,7 @@ import { Hono } from 'hono';
 import { z } from 'zod';
 import { listJson, writeJson, readJson, readBin, writeBin } from '../lib/storage.ts';
 import { embedCard, readCard, viewOf } from '../lib/card.ts';
+import { readChunks, writeChunks } from '../lib/png.ts';
 import { getKey, redact } from '../lib/secrets.ts';
 import { draftFromImage } from '../lib/gemini.ts';
 import { safeId } from '../lib/ids.ts';
@@ -75,12 +76,31 @@ export const characters = new Hono()
       name: view.name || '未命名角色',
       description: view.description,
       firstMessage: view.firstMessage,
-      avatar: '',
+      // 相對路徑：dev 由 Vite 代理到後端、Docker 是同一個 process，兩邊都通。
+      avatar: `/api/characters/${id}/avatar.png`,
       createdAt: new Date().toISOString(),
       card: `${id}.png`,
     };
     await writeJson(`characters/${id}.json`, ch);
     return c.json({ ...ch, alternateGreetings: view.alternateGreetings.length }, 201);
+  })
+
+  /**
+   * 匯入的卡片本身就是頭像圖。不轉檔、不縮圖，但 **`tEXt` 要剝掉**。
+   *
+   * 🔴 不剝的話一張 512×768 的頭像會是 **6.8 MB** —— 卡片資料（兩份各 3 MB 的 base64）
+   * 跟著每次列表渲染一起下載。實測剝掉之後剩約 770 KB，畫面一模一樣。
+   * ⚠️ 剝的是**回應**，不是存下來的檔：磁碟上那份仍然完整，匯出走的是那一份。
+   */
+  .get('/:id/avatar.png', async (c) => {
+    const id = safeId(c.req.param('id'));
+    if (!id) return c.json({ error: '找不到這個角色' }, 404);
+    const png = await readBin(`characters/${id}.png`);
+    if (!png) return c.json({ error: '這個角色沒有卡片圖' }, 404);
+    const slim = writeChunks(readChunks(png).filter((ch) => ch.type !== 'tEXt'));
+    return new Response(new Uint8Array(slim), {
+      headers: { 'Content-Type': 'image/png', 'Cache-Control': 'public, max-age=3600' },
+    });
   })
 
   /** 匯出：從存下來的 PNG 重建，**不是**從索引那四個欄位重建（那會丟掉其餘欄位）。 */
