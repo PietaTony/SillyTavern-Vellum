@@ -2,10 +2,10 @@ import Alert from '@mui/material/Alert';
 import Avatar from '@mui/material/Avatar';
 import Button from '@mui/material/Button';
 import Stack from '@mui/material/Stack';
-import TextField from '@mui/material/TextField';
 import Typography from '@mui/material/Typography';
 import { useState } from 'react';
 import { readImageScaled } from '@/shared/lib/image';
+import { DraftField } from '@/shared/ui/DraftField';
 import type { PersonaDraft } from '../api';
 
 /**
@@ -14,6 +14,12 @@ import type { PersonaDraft } from '../api';
  * 🔴 **名字與自我介紹是兩條不同的路**：名字驅動 `{{user}}`（對方怎麼稱呼你），
  * 自我介紹會整段進 prompt（對方知道你是什麼樣的人）。分開說明，不要合成一句。
  */
+/** 🔴 還原在 `me.tsx`（父層）做 —— 兩個欄位各自在 effect 裡還原會互相蓋掉。 */
+export const PERSONA_DRAFT = {
+  name: 'vellum.draft.persona.name',
+  description: 'vellum.draft.persona.description',
+} as const;
+
 export function PersonaEditor({
   value,
   onChange,
@@ -29,8 +35,7 @@ export function PersonaEditor({
   renamed?: boolean;
 }) {
   const [busy, setBusy] = useState(false);
-  const set = (k: keyof PersonaDraft) => (e: { target: { value: string } }) =>
-    onChange({ ...value, [k]: e.target.value });
+  const set = (k: keyof PersonaDraft) => (next: string) => onChange({ ...value, [k]: next });
 
   return (
     <Stack spacing={2}>
@@ -54,7 +59,8 @@ export function PersonaEditor({
             }}
           />
         </Button>
-        <TextField
+        <DraftField
+          draftKey={PERSONA_DRAFT.name}
           fullWidth
           size="small"
           label="你的名字"
@@ -70,7 +76,9 @@ export function PersonaEditor({
         </Alert>
       ) : null}
 
-      <TextField
+      {/* 🔴 這是全站**唯一會打很長**的欄位（金鑰跟名字掉了重貼就好，這個掉了很痛）。 */}
+      <DraftField
+        draftKey={PERSONA_DRAFT.description}
         fullWidth
         multiline
         minRows={3}

@@ -2,11 +2,12 @@ import Alert from '@mui/material/Alert';
 import Button from '@mui/material/Button';
 import Paper from '@mui/material/Paper';
 import Stack from '@mui/material/Stack';
-import TextField from '@mui/material/TextField';
 import Typography from '@mui/material/Typography';
 import { useMutation } from '@tanstack/react-query';
 import { useState } from 'react';
+import { readDraft } from '@/shared/lib/draftStore';
 import { readImageScaled } from '@/shared/lib/image';
+import { DraftField } from '@/shared/ui/DraftField';
 import { type ImportedCharacter, importCardByUrl, importCardFile } from '../api';
 
 /**
@@ -17,6 +18,9 @@ import { type ImportedCharacter, importCardByUrl, importCardFile } from '../api'
  *
  * ⚠️ 外觀是粗胚，階段八會重做。**現在的判準是「功能真的通」**。
  */
+/** 貼進來的網址常常很長（含 query string），打一半被殺掉要救得回來。 */
+const URL_DRAFT = 'vellum.draft.import-card.url';
+
 export function ImportCardBox({
   onImported,
   onUseAsAvatar,
@@ -25,7 +29,8 @@ export function ImportCardBox({
   /** 🔴 **死路要有出口**：不是卡片的圖，就讓它變成頭像，不要只留一句錯誤訊息。 */
   onUseAsAvatar?: ((dataUrl: string) => void) | undefined;
 }) {
-  const [url, setUrl] = useState('');
+  // 還原在 initializer 同步做完（`useDraftWriter` 檔頭寫了為什麼不放在 effect）。
+  const [url, setUrl] = useState<string>(() => readDraft<string>(URL_DRAFT) ?? '');
   const [lastFile, setLastFile] = useState<File | null>(null);
   const m = useMutation({
     mutationFn: (input: string | ArrayBuffer) =>
@@ -42,12 +47,13 @@ export function ImportCardBox({
         已經有角色卡？貼上網址或選檔案
       </Typography>
       <Stack direction="row" spacing={1}>
-        <TextField
+        <DraftField
+          draftKey={URL_DRAFT}
           fullWidth
           size="small"
           label="角色卡網址"
           value={url}
-          onChange={(e) => setUrl(e.target.value)}
+          onChange={setUrl}
           placeholder="https://…/角色卡.png"
           disabled={m.isPending}
         />

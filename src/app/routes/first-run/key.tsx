@@ -42,7 +42,7 @@ function KeyPage() {
       // 🔴 中間多這一步是 Peter 的 P-1：讓人知道「我是誰」這件事存在。**那一步可以跳過。**
       onPassed={() => {
         void queryClient.invalidateQueries({ queryKey: KEY_STATUS_QUERY.queryKey });
-        void nav({ to: '/me', search: { setup: true } });
+        void nav({ to: '/profile', search: { setup: true } });
       }}
     />
   );

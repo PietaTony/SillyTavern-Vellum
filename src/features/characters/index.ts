@@ -14,8 +14,9 @@ export {
   type NewCharacter,
   nameOf,
 } from './api';
+export { loadAddFriendDraft } from './draftMigration';
 export { canCreate, type Draft, emptyDraft } from './model';
-export { AddFriendForm } from './ui/AddFriendForm';
+export { ADD_FRIEND_DRAFT, AddFriendForm } from './ui/AddFriendForm';
 export { AddFriendSubmit } from './ui/AddFriendSubmit';
 export { type FriendItem, FriendList } from './ui/FriendList';
 export { ImportCardBox } from './ui/ImportCardBox';

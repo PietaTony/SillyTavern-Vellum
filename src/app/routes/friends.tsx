@@ -77,7 +77,7 @@ function FriendsPage() {
        * 放在清單裡而不是另開一個設定頁：使用者不會想到「我自己」是一個設定項。
        */}
       <List disablePadding>
-        <ListItemButton onClick={() => void nav({ to: '/me' })}>
+        <ListItemButton onClick={() => void nav({ to: '/profile' })}>
           <ListItemAvatar>
             <Avatar src={myPersona?.avatar || undefined}>我</Avatar>
           </ListItemAvatar>

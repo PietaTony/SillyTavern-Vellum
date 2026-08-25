@@ -2,10 +2,10 @@ import Alert from '@mui/material/Alert';
 import Box from '@mui/material/Box';
 import Button from '@mui/material/Button';
 import Stack from '@mui/material/Stack';
-import TextField from '@mui/material/TextField';
 import Typography from '@mui/material/Typography';
 import { useMachine } from '@xstate/react';
 import { fromPromise } from 'xstate';
+import { DraftField } from '@/shared/ui/DraftField';
 import { Screen } from '@/shared/ui/Screen';
 import { testKey } from '../api';
 import { keyGateMachine, type TestOutcome } from '../keyGate.machine';
@@ -73,7 +73,16 @@ export function KeyGate({
           ))}
         </Stack>
 
-        <TextField
+        <DraftField
+          /**
+           * 🔴 **金鑰刻意不存草稿**（規格 24 §4 層四的白名單，白名單一定要寫理由）：
+           * 存進 `localStorage` 就是把 API 金鑰寫成明碼、留在磁碟上，而且**任何同源的
+           * script 都讀得到** —— 那是把「打到一半掉字」換成一個安全問題，不划算。
+           * ⚠️ 這個框顯示的還是 `maskKey()` 的遮罩字串，真值在 machine 的 context 裡，
+           * 存進去也只會存到一串圓點，本來就救不回來。
+           * 金鑰掉了重貼一次就好 —— 這是少數「掉了不痛」的輸入。
+           */
+          noDraft="API 金鑰不落地：存明碼到 localStorage 的風險大於重貼一次的成本"
           fullWidth
           label="API 金鑰"
           placeholder={`貼上金鑰（${info.keyHint}）`}
@@ -82,8 +91,8 @@ export function KeyGate({
           slotProps={{ htmlInput: { autoCapitalize: 'none', autoCorrect: 'off' } }}
           // 🔴 **輸入當下就遮罩**，永遠只露前四後四。真值在 machine 的 context 裡。
           value={maskKey(value)}
-          onChange={(e) =>
-            send({ type: 'CHANGE', value: applyMaskedEdit(value, maskKey(value), e.target.value) })
+          onChange={(next) =>
+            send({ type: 'CHANGE', value: applyMaskedEdit(value, maskKey(value), next) })
           }
         />
 

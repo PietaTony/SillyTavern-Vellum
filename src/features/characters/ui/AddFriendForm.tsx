@@ -2,10 +2,10 @@ import Alert from '@mui/material/Alert';
 import Avatar from '@mui/material/Avatar';
 import Button from '@mui/material/Button';
 import Stack from '@mui/material/Stack';
-import TextField from '@mui/material/TextField';
 import Typography from '@mui/material/Typography';
 import { useMutation } from '@tanstack/react-query';
 import { readImageScaled } from '@/shared/lib/image';
+import { DraftField } from '@/shared/ui/DraftField';
 import { draftFromImage } from '../api';
 import type { Draft } from '../model';
 
@@ -16,6 +16,9 @@ import type { Draft } from '../model';
  * 🔴 **草稿不住在這裡**，住在畫面層 —— 因為送出鈕釘在 footer、不在捲動區內，
  * 兩邊要看同一份值。
  */
+/** 🔴 還原在 `AddFriendScreen`（父層）做 —— 三個欄位各自在 effect 裡還原會互相蓋掉。 */
+export const ADD_FRIEND_DRAFT = 'vellum.draft.add-friend.';
+
 export function AddFriendForm({
   draft,
   setDraft,
@@ -40,8 +43,7 @@ export function AddFriendForm({
       }),
   });
 
-  const set = (k: keyof Draft) => (e: { target: { value: string } }) =>
-    setDraft({ ...draft, [k]: e.target.value });
+  const set = (k: keyof Draft) => (next: string) => setDraft({ ...draft, [k]: next });
 
   async function pickImage(file: File | undefined) {
     if (!file) return;
@@ -64,7 +66,8 @@ export function AddFriendForm({
             onChange={(e) => void pickImage(e.target.files?.[0])}
           />
         </Button>
-        <TextField
+        <DraftField
+          draftKey={`${ADD_FRIEND_DRAFT}name`}
           fullWidth
           size="small"
           label="角色名稱"
@@ -105,7 +108,8 @@ export function AddFriendForm({
         </Alert>
       ) : null}
 
-      <TextField
+      <DraftField
+        draftKey={`${ADD_FRIEND_DRAFT}description`}
         fullWidth
         multiline
         minRows={3}
@@ -114,7 +118,8 @@ export function AddFriendForm({
         onChange={set('description')}
         placeholder="在此描述角色的身體和心理特徵。"
       />
-      <TextField
+      <DraftField
+        draftKey={`${ADD_FRIEND_DRAFT}firstMessage`}
         fullWidth
         multiline
         minRows={3}

@@ -53,7 +53,15 @@ function ChatPage() {
 
   async function send(text: string) {
     setFailure(null);
-    const mine = await appendMessage(chatId, 'user', text);
+    // 🔴 **這一步失敗就把例外丟回去給 `Composer`**，它才知道「沒送出去，字要留著」。
+    // 在此之前 `Composer` 是先清空再送 —— 網路一斷，打過的字就真的沒了。
+    let mine: Message;
+    try {
+      mine = await appendMessage(chatId, 'user', text);
+    } catch (e) {
+      setFailure(e instanceof Error ? e.message : '送不出去');
+      throw e;
+    }
     setLocal([...messages, mine]);
     setStreaming('');
 
@@ -108,7 +116,7 @@ function ChatPage() {
         <ChatPersona chatId={chatId} persona={q.data.persona} onChanged={() => void q.refetch()} />
       }
       scroll={false}
-      footer={<Composer chatId={chatId} busy={streaming !== null} onSend={(t) => void send(t)} />}
+      footer={<Composer chatId={chatId} busy={streaming !== null} onSend={send} />}
     >
       <Thread
         messages={messages}

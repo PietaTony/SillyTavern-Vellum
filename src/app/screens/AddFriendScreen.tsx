@@ -4,6 +4,7 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from '@tanstack/react-router';
 import { useState } from 'react';
 import {
+  ADD_FRIEND_DRAFT,
   AddFriendForm,
   AddFriendSubmit,
   createCharacter,
@@ -11,9 +12,10 @@ import {
   emptyDraft,
   ImportCardBox,
   type ImportedCharacter,
+  loadAddFriendDraft,
 } from '@/features/characters';
 import { createChat } from '@/features/chat';
-import { useDraft } from '@/shared/lib/useDraft';
+import { clearDraftPrefix, writeDraft } from '@/shared/lib/draftStore';
 import { Screen } from '@/shared/ui/Screen';
 
 /**
@@ -28,7 +30,20 @@ import { Screen } from '@/shared/ui/Screen';
 export function AddFriendScreen({ onBack }: { onBack: () => void }) {
   const nav = useNavigate();
   const qc = useQueryClient();
-  const [draft, setDraft, clearDraft] = useDraft<Draft>('vellum.draft.add-friend', emptyDraft);
+  // 🔴 還原（含舊 key 的一次性搬遷）在 initializer **同步**做完，不在 effect 裡：
+  // 三個 `DraftField` 若各自在 mount effect 裡還原，看到的是同一份 `draft`，
+  // **第二個會蓋掉第一個**。同步初始化沒有這個競態。
+  const [draft, setDraftState] = useState<Draft>(loadAddFriendDraft);
+
+  /**
+   * 三個文字欄由 `DraftField` 自己存；**頭像不是文字輸入**，閘門管不到它，
+   * 所以在這裡明寫一次。存的是縮圖過的 data URL。
+   */
+  const setDraft = (d: Draft) => {
+    setDraftState(d);
+    if (d.avatar) writeDraft(`${ADD_FRIEND_DRAFT}avatar`, d.avatar);
+  };
+  const clearAllDrafts = () => clearDraftPrefix(ADD_FRIEND_DRAFT);
   /** 剛匯入的那一位。有值時這一頁的意義從「建立」變成「確認並開始」。 */
   const [imported, setImported] = useState<ImportedCharacter | null>(null);
 
@@ -40,7 +55,8 @@ export function AddFriendScreen({ onBack }: { onBack: () => void }) {
     },
     // 🔴 **建立成功之後才清草稿。** 失敗就留著 —— 打過的字不可以因為送出失敗而消失。
     onSuccess: (chat) => {
-      clearDraft();
+      clearAllDrafts();
+      setDraftState(emptyDraft);
       void nav({ to: '/chat/$chatId', params: { chatId: chat.id } });
     },
   });
@@ -58,7 +74,7 @@ export function AddFriendScreen({ onBack }: { onBack: () => void }) {
           onCreate={() => {
             // 匯入的角色**已經建立好了** —— 這顆鈕的意義是「開始聊天」，不是再建一個。
             if (imported) {
-              clearDraft();
+              clearAllDrafts();
               if ((imported.greetings?.length ?? 0) > 1)
                 void nav({
                   to: '/pick-greeting/$characterId',
