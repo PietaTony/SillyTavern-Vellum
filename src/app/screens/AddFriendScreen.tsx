@@ -17,11 +17,15 @@ export function AddFriendScreen({ onBack }: { onBack: () => void }) {
 
   // 建立角色 → 直接開對話 → 進對話串（F22–F28：按下去直接開始對話）
   const m = useMutation({
-    mutationFn: async (d: Draft) => {
-      const ch = await createCharacter(d);
+    mutationFn: async ({ draft }: { draft: Draft; clearDraft: () => void }) => {
+      const ch = await createCharacter(draft);
       return createChat(ch.id);
     },
-    onSuccess: (chat) => void nav({ to: '/chat/$chatId', params: { chatId: chat.id } }),
+    // 🔴 **建立成功之後才清草稿。** 失敗就留著 —— 打過的字不可以因為送出失敗而消失。
+    onSuccess: (chat, { clearDraft }) => {
+      clearDraft();
+      void nav({ to: '/chat/$chatId', params: { chatId: chat.id } });
+    },
   });
 
   return (
@@ -39,7 +43,10 @@ export function AddFriendScreen({ onBack }: { onBack: () => void }) {
           建立失敗：{m.error instanceof Error ? m.error.message : '未知錯誤'}
         </Alert>
       ) : null}
-      <AddFriendForm busy={m.isPending} onCreate={(d) => m.mutate(d)} />
+      <AddFriendForm
+        busy={m.isPending}
+        onCreate={(draft, clearDraft) => m.mutate({ draft, clearDraft })}
+      />
     </Screen>
   );
 }

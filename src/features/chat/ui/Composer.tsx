@@ -3,7 +3,7 @@ import Box from '@mui/material/Box';
 import IconButton from '@mui/material/IconButton';
 import Stack from '@mui/material/Stack';
 import TextField from '@mui/material/TextField';
-import { useState } from 'react';
+import { useDraft } from '@/shared/lib/useDraft';
 import { shouldSubmitOnKey } from '../model';
 
 /**
@@ -11,12 +11,21 @@ import { shouldSubmitOnKey } from '../model';
  * 🔴 組字中的 Enter 是「選字」不是「送出」—— 判斷在 `model.ts`，這裡只接線。
  *    ⚠️ 自動化測試打字不經過 IME，這個 bug **只有真人打得出來**。
  */
-export function Composer({ onSend, busy }: { onSend: (text: string) => void; busy: boolean }) {
-  const [text, setText] = useState('');
+export function Composer({
+  onSend,
+  busy,
+  chatId,
+}: {
+  onSend: (text: string) => void;
+  busy: boolean;
+  chatId: string;
+}) {
+  // 🔴 每段對話各自一份草稿。iOS 把背景分頁重載之後，打到一半的話要還在。
+  const [text, setText, clearText] = useDraft(`vellum.draft.chat.${chatId}`, '');
   const submit = () => {
     const t = text.trim();
     if (!t || busy) return;
-    setText('');
+    clearText();
     onSend(t);
   };
   return (

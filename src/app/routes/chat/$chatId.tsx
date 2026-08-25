@@ -91,7 +91,7 @@ function ChatPage() {
       title={q.data.characterName}
       onBack={onBack}
       scroll={false}
-      footer={<Composer busy={streaming !== null} onSend={(t) => void send(t)} />}
+      footer={<Composer chatId={chatId} busy={streaming !== null} onSend={(t) => void send(t)} />}
     >
       <Thread
         messages={messages}

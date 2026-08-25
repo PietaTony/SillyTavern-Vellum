@@ -5,8 +5,8 @@ import Stack from '@mui/material/Stack';
 import TextField from '@mui/material/TextField';
 import Typography from '@mui/material/Typography';
 import { useMutation } from '@tanstack/react-query';
-import { useState } from 'react';
 import { readImageScaled } from '@/shared/lib/image';
+import { useDraft } from '@/shared/lib/useDraft';
 import { draftFromImage } from '../api';
 import { canCreate, type Draft, emptyDraft } from '../model';
 
@@ -14,26 +14,33 @@ import { canCreate, type Draft, emptyDraft } from '../model';
  * D20b：表單只留 頭像・名稱・描述・初始訊息。
  * 🔴 「透過圖片自動生成內容」是**新功能，ST 沒有**（實查 202 個檔零命中）。
  */
-export function AddFriendForm({ onCreate, busy }: { onCreate: (d: Draft) => void; busy: boolean }) {
-  const [draft, setDraft] = useState<Draft>(emptyDraft);
+export function AddFriendForm({
+  onCreate,
+  busy,
+}: {
+  onCreate: (d: Draft, clearDraft: () => void) => void;
+  busy: boolean;
+}) {
+  // 🔴 草稿存進 localStorage —— iOS 把背景分頁重載之後，打過的字要還在
+  const [draft, setDraft, clearDraft] = useDraft<Draft>('vellum.draft.add-friend', emptyDraft);
   const set = (k: keyof Draft) => (e: { target: { value: string } }) =>
-    setDraft((d) => ({ ...d, [k]: e.target.value }));
+    setDraft({ ...draft, [k]: e.target.value });
 
   const gen = useMutation({
     mutationFn: (dataUrl: string) => draftFromImage(dataUrl),
     onSuccess: (r) =>
-      setDraft((d) => ({
-        ...d,
+      setDraft({
+        ...draft,
         name: r.name,
         description: r.description,
         firstMessage: r.firstMessage,
-      })),
+      }),
   });
 
   async function pickImage(file: File | undefined) {
     if (!file) return;
     const avatar = await readImageScaled(file);
-    setDraft((d) => ({ ...d, avatar }));
+    setDraft({ ...draft, avatar });
   }
 
   return (
@@ -112,7 +119,7 @@ export function AddFriendForm({ onCreate, busy }: { onCreate: (d: Draft) => void
         size="large"
         loading={busy}
         disabled={!canCreate(draft)}
-        onClick={() => onCreate(draft)}
+        onClick={() => onCreate(draft, clearDraft)}
       >
         建立角色
       </Button>
