@@ -1,0 +1,32 @@
+{
+  "_readme": "設計畫面 ↔ 路由的對照正本。畫面正本在 AI Agent 家的 plans/ui/prototype/proto/screens/ 與 docs/design/v1/SPEC.md。gate:screens 只檢查 active 里程碑。",
+  "active": "M2",
+  "milestones": {
+    "M2": {
+      "title": "T1 · 從零到第一次對話",
+      "successCriterion": "送出了第一則訊息",
+      "screens": [
+        { "id": "First-Run--1",  "route": "first-run/provider",    "note": "選供應商。點卡片＝選取；說明 focus 才展開，再點收回" },
+        { "id": "First-Run--3",  "route": "first-run/key",         "note": "金鑰頁 · 空白" },
+        { "id": "First-Run--3a", "route": "first-run/key",         "note": "金鑰頁 · 已貼上未測試" },
+        { "id": "First-Run--3b", "route": "first-run/key",         "note": "金鑰頁 · 測試失敗" },
+        { "id": "First-Run--3c", "route": "first-run/key",         "note": "金鑰頁 · 測試成功 → 解鎖下一步" },
+        { "id": "First-Run--4",  "route": "first-run/add-friend",  "note": "加入好友 · 空白" },
+        { "id": "First-Run--6",  "route": "first-run/add-friend",  "note": "加入好友 · 卡庫 dropdown（疊加）" },
+        { "id": "First-Run--7",  "route": "first-run/add-friend",  "note": "加入好友 · 已填寫（填值）" },
+        { "id": "Settings-Theme-Import--8", "route": "import/drop",     "note": "拖入角色卡 PNG" },
+        { "id": "Import-And-Archive--2",    "route": "import/scan",     "note": "掃描結果" },
+        { "id": "Import-And-Archive--3",    "route": "import/progress", "note": "匯入中（刻意沒有返回鍵）" },
+        { "id": "Chat-Thread-Layout--5",    "route": "chat/$chatId",    "note": "對話串" },
+        { "id": "Waiting-And-Thinking--1",  "route": "chat/$chatId",    "note": "等待／思考（對話串的狀態）" }
+      ]
+    }
+  },
+  "_invariants": [
+    "金鑰頁四個狀態共用一份版面 —— 測試成功前『下一步』停用",
+    "加入好友三個狀態共用一份版面 —— 空白／dropdown 疊加／填值",
+    "建立角色只留四欄：頭像・名稱・描述・初始訊息",
+    "有 tab bar ⇔ 沒有返回鍵（tab 根＝頂層）",
+    "Import-And-Archive--3 刻意沒有返回鍵：進行中狀態，已有『取消』"
+  ]
+}

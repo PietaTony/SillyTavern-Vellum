@@ -1,0 +1,39 @@
+/* 最小重置。色彩一律走 tokens.css 的 semantic 層，本檔不得出現字面色碼。 */
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  background: var(--paper);
+  color: var(--ink);
+  font-family: var(--font-ui);
+  font-size: var(--fs-body, 15px);
+  line-height: var(--lh-body, 1.9);
+  -webkit-font-smoothing: antialiased;
+}
+
+button,
+input,
+textarea,
+select {
+  font: inherit;
+  color: inherit;
+}
+
+/* 觸控目標下限（D31／GAP-24）。視覺尺寸與命中區分開：
+   壓縮過的按鈕用 ::after 擴大命中區，不用 !important 硬壓視覺。 */
+button,
+[role="button"],
+a[href] {
+  min-height: var(--hit-min);
+  min-width: var(--hit-min);
+}

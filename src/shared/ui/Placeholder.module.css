@@ -1,0 +1,25 @@
+.wrap {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3, 12px);
+  align-items: flex-start;
+  padding: var(--sp-6, 24px);
+  max-width: 62ch;
+}
+
+.title {
+  font-family: var(--font-content);
+  font-size: var(--fs-h2, 21px);
+  font-weight: 600;
+  margin: 0;
+}
+
+.screens {
+  font-family: var(--font-mono, monospace);
+  font-size: var(--fs-fine, 12px);
+  color: var(--ink-muted);
+  background: var(--surface-sunk);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  padding: var(--sp-2, 8px) var(--sp-3, 12px);
+}
