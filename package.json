@@ -20,7 +20,7 @@
     "gate:no-hex": "tsx scripts/gate-no-hex.ts",
     "gate:file-size": "tsx scripts/gate-file-size.ts",
     "gate:screens": "tsx scripts/gate-screens-vs-routes.ts",
-    "verify": "pnpm build && pnpm test && pnpm lint && pnpm gate:selftest && pnpm gate:boundaries && pnpm gate:no-hex && pnpm gate:file-size && pnpm gate:screens && pnpm gate:back",
+    "verify": "pnpm build && pnpm test && pnpm lint && pnpm gate:selftest && pnpm gate:boundaries && pnpm gate:no-hex && pnpm gate:file-size && pnpm gate:screens && pnpm gate:back && pnpm gate:no-eval",
     "gate:selftest": "for f in scripts/gate-*.ts; do pnpm exec tsx \"$f\" --selftest || exit 1; done",
     "dev:server": "PORT=8521 tsx watch server/index.ts",
     "server": "PORT=8521 tsx server/index.ts",
@@ -30,7 +30,10 @@
     "verify:card": "tsx scripts/verify-card-roundtrip.ts",
     "verify:chat": "tsx scripts/verify-chat-roundtrip.ts",
     "verify:card:e2e": "tsx scripts/verify-card-e2e.ts",
-    "verify:wi": "tsx scripts/verify-worldbook.ts"
+    "verify:wi": "tsx scripts/verify-worldbook.ts",
+    "verify:rules": "tsx scripts/verify-output-rules.ts",
+    "verify:vars": "tsx scripts/verify-vars.ts",
+    "gate:no-eval": "tsx scripts/gate-no-eval.ts"
   },
   "dependencies": {
     "@emotion/react": "^11.14.0",
