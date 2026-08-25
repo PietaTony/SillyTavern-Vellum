@@ -41,7 +41,12 @@ export function Screen({
           flexDirection: 'column',
         }}
       >
-        <AppBar position="static" color="default" elevation={0} enableColorOnDark>
+        <AppBar
+          position="static"
+          color="default"
+          enableColorOnDark
+          sx={{ borderBottom: 1, borderColor: 'divider' }}
+        >
           <Toolbar variant="dense" sx={{ gap: 1 }}>
             {onBack ? (
               <IconButton edge="start" aria-label="回上一頁" onClick={onBack}>

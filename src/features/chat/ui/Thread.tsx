@@ -3,6 +3,7 @@ import Box from '@mui/material/Box';
 import Paper from '@mui/material/Paper';
 import Stack from '@mui/material/Stack';
 import Typography from '@mui/material/Typography';
+import { SERIF } from '@/app/theme';
 import type { Message } from '../model';
 
 /**
@@ -25,7 +26,10 @@ function Bubble({ text, mine }: { text: string; mine: boolean }) {
         color: mine ? 'primary.contrastText' : 'text.primary',
       }}
     >
-      <Typography variant="body2">{text}</Typography>
+      {/* 乙案：**內容襯線，介面無襯線** */}
+      <Typography variant="body1" sx={{ fontFamily: SERIF }}>
+        {text}
+      </Typography>
     </Paper>
   );
 }
