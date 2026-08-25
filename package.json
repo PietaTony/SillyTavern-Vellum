@@ -1,14 +1,14 @@
 {
   "name": "sillytavern-vellum",
   "private": true,
-  "version": "0.0.0",
+  "version": "0.1.0",
   "type": "module",
   "engines": {
     "node": ">=20.19"
   },
   "scripts": {
     "dev": "vite",
-    "build": "tsc --noEmit && vite build",
+    "build": "tsc --noEmit && vite build && pnpm build:server",
     "preview": "vite preview",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
@@ -24,7 +24,8 @@
     "dev:server": "tsx watch server/index.ts",
     "server": "tsx server/index.ts",
     "gate:back": "tsx scripts/gate-back.ts",
-    "start": "pnpm build && pnpm server"
+    "start": "pnpm build && node dist-server/index.js",
+    "build:server": "esbuild server/index.ts --bundle --platform=node --format=esm --target=node20 --packages=external --outfile=dist-server/index.js"
   },
   "dependencies": {
     "@emotion/react": "^11.14.0",

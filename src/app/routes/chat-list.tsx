@@ -9,6 +9,7 @@ import { createFileRoute, useNavigate } from '@tanstack/react-router';
 import { TabBar } from '@/app/screens/TabBar';
 import { fetchCharacters } from '@/features/characters';
 import { ChatList, type ChatListItem, fetchChats } from '@/features/chat';
+import { UpdateBanner } from '@/features/update';
 import { Screen } from '@/shared/ui/Screen';
 
 export const Route = createFileRoute('/chat-list')({ component: ChatListPage });
@@ -40,6 +41,7 @@ function ChatListPage() {
       }
       footer={<TabBar active="chats" />}
     >
+      <UpdateBanner />
       {chats.isPending ? <CircularProgress size={24} /> : null}
       {chats.isError ? (
         <Alert

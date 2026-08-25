@@ -1,0 +1,57 @@
+# 打了 tag 才發佈。🔴 push 到 main 不會發版 —— 發版要是刻意的動作。
+#
+# 用法：
+#   1. 改 package.json 的 version
+#   2. git tag v0.1.0 && git push origin v0.1.0
+#   3. 這支會建 image 推到 ghcr.io，並開一個 GitHub Release
+#
+# 🔴 image 要出 amd64 與 arm64 兩種：Apple Silicon 與一般 PC 不同架構，
+#    只出一種的話另一邊會用模擬跑，慢到像壞掉。
+name: release
+
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: write # 開 Release
+  packages: write # 推 ghcr.io
+
+jobs:
+  image:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: docker/setup-qemu-action@v3
+      - uses: docker/setup-buildx-action@v3
+
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ghcr.io/${{ github.repository }}
+          # v0.1.0 → 0.1.0、0.1、latest
+          tags: |
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=raw,value=latest
+
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - uses: softprops/action-gh-release@v2
+        with:
+          generate_release_notes: true

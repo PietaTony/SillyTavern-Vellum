@@ -1,0 +1,21 @@
+# 每次 push 與 PR 都跑同一組閘門。
+# 🔴 這是本專案第一個 CI —— 在此之前「沒人會幫你跑」，全靠人記得下指令。
+name: verify
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  gates:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm verify

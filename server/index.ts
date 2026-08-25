@@ -10,13 +10,17 @@ import { secrets } from './routes/secrets.ts';
 import { characters } from './routes/characters.ts';
 import { chats } from './routes/chats.ts';
 import { generate } from './routes/generate.ts';
+import { update } from './routes/update.ts';
+import { currentVersion } from './lib/version.ts';
+import { describeData } from './lib/storage.ts';
 
 const app = new Hono()
-  .get('/api/version', (c) => c.json({ ok: true, name: 'vellum', milestone: 'M2' }))
+  .get('/api/version', (c) => c.json({ ok: true, name: 'vellum', version: currentVersion() }))
   .route('/api/secrets', secrets)
   .route('/api/characters', characters)
   .route('/api/chats', chats)
-  .route('/api/generate', generate);
+  .route('/api/generate', generate)
+  .route('/api/update', update);
 
 export type AppType = typeof app;
 
@@ -32,7 +36,9 @@ const port = Number(process.env['PORT'] ?? 8787);
 const hostname = process.env['HOST'] ?? '127.0.0.1';
 serve({ fetch: app.fetch, port, hostname }, (info) => {
   const where = distExists() ? '整個 app' : '只有 API（前端請跑 pnpm dev）';
-  console.log(`[vellum] http://${hostname}:${info.port}  —— ${where}`);
+  console.log(`[vellum] v${currentVersion()}  http://${hostname}:${info.port}  —— ${where}`);
+  // 🔴 資料在哪、有多少 —— 忘記掛 volume 的話這一行會顯示 0，不會靜靜地假裝正常
+  void describeData().then((d) => console.log(`[vellum] ${d}`));
   if (hostname === '127.0.0.1')
     console.log('[vellum] 只有這台電腦連得到。要讓手機／平板連進來：HOST=0.0.0.0 pnpm start');
 });
