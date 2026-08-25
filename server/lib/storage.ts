@@ -4,7 +4,7 @@
  * 為什麼是檔案不是 DB：ST 用檔案系統，而「匯入匯出保真」是我們的契約之一。
  * 走同一種形狀，之後對接 ST 的 data 目錄時不必再轉一層。
  */
-import { mkdir, readFile, writeFile, readdir } from 'node:fs/promises';
+import { mkdir, readFile, writeFile, readdir, stat } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import { dirname, join, resolve, sep } from 'node:path';
 
@@ -73,6 +73,24 @@ export async function writeJson(rel: string, value: unknown): Promise<void> {
   const file = pathFor(rel);
   await ensureDir(file);
   await writeFile(file, `${JSON.stringify(value, null, 2)}\n`, 'utf8');
+}
+
+/**
+ * 目錄底下每個 `.json` 的**檔名（去掉副檔名）與最後修改時間**。
+ *
+ * 為什麼不併進 `listJson`：呼叫端多半只要內容，多讀一次 `stat` 是白花的 IO。
+ * 世界書清單需要「最近修改」，而那個資訊不在檔案內容裡。
+ */
+export async function listJsonMeta(relDir: string): Promise<{ id: string; updatedAt: string }[]> {
+  const dir = pathFor(relDir);
+  if (!existsSync(dir)) return [];
+  const names = (await readdir(dir)).filter((n) => n.endsWith('.json'));
+  const out: { id: string; updatedAt: string }[] = [];
+  for (const n of names) {
+    const s = await stat(join(dir, n));
+    out.push({ id: n.slice(0, -'.json'.length), updatedAt: s.mtime.toISOString() });
+  }
+  return out;
 }
 
 export async function listJson<T>(relDir: string): Promise<T[]> {
