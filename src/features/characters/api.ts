@@ -16,7 +16,13 @@ export type Character = {
 
 export type NewCharacter = Omit<Character, 'id' | 'createdAt'>;
 
-export const fetchCharacters = (): Promise<Character[]> => get<Character[]>('/api/characters');
+/**
+ * 清單只拿摘要。🔴 **不要在這裡拿 `greetings` 與 `outputRules`** ——
+ * 一張卡的開場白＋替換字串就上百 KB，九個好友就是 1 MB，畫面會被卡住（實測過）。
+ */
+export type CharacterSummary = Omit<Character, 'greetings'> & { greetingCount: number };
+export const fetchCharacters = (): Promise<CharacterSummary[]> =>
+  get<CharacterSummary[]>('/api/characters');
 export const createCharacter = (c: NewCharacter): Promise<Character> =>
   post<Character>('/api/characters', c);
 

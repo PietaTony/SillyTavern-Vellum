@@ -1,11 +1,9 @@
 import { Hono } from 'hono';
 import { z } from 'zod';
 import { CharacterSchema, type Character } from '../lib/character.ts';
-import { listJson, writeJson, readJson, readBin } from '../lib/storage.ts';
-import { embedCard, readCard } from '../lib/card.ts';
+import { listJson, writeJson, readJson } from '../lib/storage.ts';
 import { intoCharacter } from '../lib/importCard.ts';
 import { BadCardUrl, fetchCardBytes } from '../lib/fetchCard.ts';
-import { readChunks, writeChunks } from '../lib/png.ts';
 import { extractLoreTags, stripLoreTags, titleOfGreeting } from '../lib/loreTags.ts';
 import { getKey, redact } from '../lib/secrets.ts';
 import { draftFromImage } from '../lib/gemini.ts';
@@ -14,7 +12,29 @@ import { safeId } from '../lib/ids.ts';
 const CreateBody = CharacterSchema.omit({ id: true, createdAt: true });
 
 export const characters = new Hono()
-  .get('/', async (c) => c.json(await listJson<Character>('characters')))
+  /**
+   * 好友清單。🔴 **只回摘要，不回整包。**
+   * 匯入的卡片會帶 `greetings`（9 則開場白）與 `outputRules`（其中一條的替換字串就
+   * 17,862 字元）—— 全部吐出來的話這個端點會變成 **1 MB**，而好友列表每次進來都要吞一次。
+   * 實測就是這樣把畫面卡住的。要完整內容請打 `/:id`。
+   */
+  .get('/', async (c) => {
+    const rows = await listJson<Character>('characters');
+    return c.json(
+      rows.map((r) => ({
+        id: r.id,
+        name: r.name,
+        ...(r.displayName ? { displayName: r.displayName } : {}),
+        description: r.description,
+        // 🔴 **清單不夾 base64 頭像。** 自己建立的角色把頭像存成 data URL（一張上百 KB），
+        // 九個好友就是接近 1 MB —— 實測會把畫面卡住。一律改成指向端點，由它去端圖。
+        avatar: r.avatar.startsWith('data:') ? `/api/characters/${r.id}/avatar.png` : r.avatar,
+        createdAt: r.createdAt,
+        // 清單只需要「有幾則」，不需要內容本身。
+        greetingCount: r.greetings?.length ?? (r.firstMessage ? 1 : 0),
+      })),
+    );
+  })
 
   /** 開場白清單（含各自的名字）。挑開場那一頁用。 */
   .get('/:id/greetings', async (c) => {
@@ -83,37 +103,6 @@ export const characters = new Hono()
     } catch (e) {
       return c.json({ error: e instanceof Error ? e.message : '這張圖不是角色卡' }, 400);
     }
-  })
-
-  /**
-   * 匯入的卡片本身就是頭像圖。不轉檔、不縮圖，但 **`tEXt` 要剝掉**。
-   *
-   * 🔴 不剝的話一張 512×768 的頭像會是 **6.8 MB** —— 卡片資料（兩份各 3 MB 的 base64）
-   * 跟著每次列表渲染一起下載。實測剝掉之後剩約 770 KB，畫面一模一樣。
-   * ⚠️ 剝的是**回應**，不是存下來的檔：磁碟上那份仍然完整，匯出走的是那一份。
-   */
-  .get('/:id/avatar.png', async (c) => {
-    const id = safeId(c.req.param('id'));
-    if (!id) return c.json({ error: '找不到這個角色' }, 404);
-    const png = await readBin(`characters/${id}.png`);
-    if (!png) return c.json({ error: '這個角色沒有卡片圖' }, 404);
-    const slim = writeChunks(readChunks(png).filter((ch) => ch.type !== 'tEXt'));
-    return new Response(new Uint8Array(slim), {
-      headers: { 'Content-Type': 'image/png', 'Cache-Control': 'public, max-age=3600' },
-    });
-  })
-
-  /** 匯出：從存下來的 PNG 重建，**不是**從索引那四個欄位重建（那會丟掉其餘欄位）。 */
-  .get('/:id/card.png', async (c) => {
-    const id = safeId(c.req.param('id'));
-    if (!id) return c.json({ error: '找不到這個角色' }, 404);
-    const png = await readBin(`characters/${id}.png`);
-    if (!png) return c.json({ error: '這個角色不是匯入的卡片' }, 404);
-    const out = embedCard(png, readCard(png));
-    // Buffer 不是 Hono 認得的 body 型別；轉成 Uint8Array（不複製底層記憶體）。
-    return new Response(new Uint8Array(out), {
-      headers: { 'Content-Type': 'image/png', 'Content-Disposition': `attachment; filename="${id}.png"` },
-    });
   })
 
   .post('/', async (c) => {

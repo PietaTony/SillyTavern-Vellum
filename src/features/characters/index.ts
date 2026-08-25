@@ -1,5 +1,6 @@
 export {
   type Character,
+  type CharacterSummary,
   createCharacter,
   draftFromImage,
   fetchCharacter,

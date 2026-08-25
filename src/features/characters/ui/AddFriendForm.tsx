@@ -120,10 +120,15 @@ export function AddFriendSubmit({
   draft,
   busy,
   onCreate,
+  imported = false,
+  greetings = 0,
 }: {
   draft: Draft;
   busy: boolean;
   onCreate: () => void;
+  /** 🔴 匯入的角色**已經建立好了**，這顆鈕的意義變成「開始聊天」。 */
+  imported?: boolean;
+  greetings?: number;
 }) {
   return (
     <Box sx={{ flex: 'none', p: 2, borderTop: 1, borderColor: 'divider' }}>
@@ -132,10 +137,10 @@ export function AddFriendSubmit({
         variant="contained"
         size="large"
         loading={busy}
-        disabled={!canCreate(draft)}
+        disabled={!imported && !canCreate(draft)}
         onClick={onCreate}
       >
-        建立角色
+        {imported ? (greetings > 1 ? '選一個開場，開始聊天' : '開始聊天') : '建立角色'}
       </Button>
     </Box>
   );

@@ -45,7 +45,7 @@ function FriendsPage() {
     // 🔴 還沒聊過、而且有多種開場 ⇒ **先挑再進去**（Peter 指定的落點）。
     // 不同的開場會開啟不同的世界書設定，進去之後才發現選錯，前面聊的都白費了。
     const character = (chars.data ?? []).find((c) => c.id === characterId);
-    if ((character?.greetings?.length ?? 0) > 1) {
+    if ((character?.greetingCount ?? 0) > 1) {
       void nav({ to: '/pick-greeting/$characterId', params: { characterId } });
       return;
     }

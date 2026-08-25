@@ -2,6 +2,7 @@ import Alert from '@mui/material/Alert';
 import Button from '@mui/material/Button';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from '@tanstack/react-router';
+import { useState } from 'react';
 import {
   AddFriendForm,
   AddFriendSubmit,
@@ -9,6 +10,7 @@ import {
   type Draft,
   emptyDraft,
   ImportCardBox,
+  type ImportedCharacter,
 } from '@/features/characters';
 import { createChat } from '@/features/chat';
 import { useDraft } from '@/shared/lib/useDraft';
@@ -27,6 +29,8 @@ export function AddFriendScreen({ onBack }: { onBack: () => void }) {
   const nav = useNavigate();
   const qc = useQueryClient();
   const [draft, setDraft, clearDraft] = useDraft<Draft>('vellum.draft.add-friend', emptyDraft);
+  /** 剛匯入的那一位。有值時這一頁的意義從「建立」變成「確認並開始」。 */
+  const [imported, setImported] = useState<ImportedCharacter | null>(null);
 
   // 建立角色 → 直接開對話 → 進對話串（F22–F28：按下去直接開始對話）
   const m = useMutation({
@@ -45,7 +49,28 @@ export function AddFriendScreen({ onBack }: { onBack: () => void }) {
     <Screen
       title="加入好友"
       onBack={onBack}
-      footer={<AddFriendSubmit draft={draft} busy={m.isPending} onCreate={() => m.mutate(draft)} />}
+      footer={
+        <AddFriendSubmit
+          draft={draft}
+          busy={m.isPending}
+          imported={imported !== null}
+          greetings={imported?.greetings?.length ?? 0}
+          onCreate={() => {
+            // 匯入的角色**已經建立好了** —— 這顆鈕的意義是「開始聊天」，不是再建一個。
+            if (imported) {
+              clearDraft();
+              if ((imported.greetings?.length ?? 0) > 1)
+                void nav({
+                  to: '/pick-greeting/$characterId',
+                  params: { characterId: imported.id },
+                });
+              else void nav({ to: '/friends' });
+              return;
+            }
+            m.mutate(draft);
+          }}
+        />
+      }
     >
       {m.isError ? (
         <Alert
@@ -67,12 +92,19 @@ export function AddFriendScreen({ onBack }: { onBack: () => void }) {
        */}
       <ImportCardBox
         onUseAsAvatar={(avatar) => setDraft({ ...draft, avatar })}
+        /**
+         * 🔴 **匯入成功不跳走，把資料填進下面既有的欄位**（Peter 2026-08-25）。
+         * 那四個框本來就在，再做一張預覽卡等於同一份資料有兩個長相。
+         */
         onImported={(c) => {
           void qc.invalidateQueries({ queryKey: ['characters'] });
-          // 🔴 有多則開場白就直接帶去挑 —— **選哪一則決定世界書開哪幾條**，
-          // 那是「要玩哪一條線」的選擇，不該等使用者自己發現。
-          if ((c.greetings?.length ?? 0) > 1)
-            void nav({ to: '/pick-greeting/$characterId', params: { characterId: c.id } });
+          setImported(c);
+          setDraft({
+            name: c.displayName ?? c.name,
+            description: c.description,
+            firstMessage: c.firstMessage,
+            avatar: c.avatar,
+          });
         }}
       />
       <AddFriendForm draft={draft} setDraft={setDraft} />

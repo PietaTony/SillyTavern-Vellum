@@ -99,12 +99,14 @@ export function ImportCardBox({
           {m.error instanceof Error ? m.error.message : '匯入失敗'}
         </Alert>
       ) : null}
+      {/*
+       * 🔴 **匯入完不跳走、也不另外做一張預覽卡**（Peter 2026-08-25）：
+       * 下面本來就有頭像／名稱／描述／初始訊息四個欄位，**填進去就好**。
+       * 多做一個框等於同一份資料有兩個長相，使用者還要對照哪個才算數。
+       */}
       {m.isSuccess ? (
         <Alert severity="success" sx={{ mt: 1 }}>
-          已加入「{m.data.name}」
-          {m.data.world
-            ? `｜世界書 ${m.data.world.entries} 條（出廠關閉 ${m.data.world.disabledAtFactory} 條）`
-            : ''}
+          已加入「{m.data.displayName ?? m.data.name}」，內容已經填在下面
         </Alert>
       ) : null}
     </Paper>
