@@ -26,7 +26,10 @@
     "server": "PORT=8521 tsx server/index.ts",
     "gate:back": "tsx scripts/gate-back.ts",
     "start": "pnpm build && NODE_ENV=production node dist-server/index.js",
-    "build:server": "esbuild server/index.ts --bundle --platform=node --format=esm --target=node20 --packages=external --outfile=dist-server/index.js"
+    "build:server": "esbuild server/index.ts --bundle --platform=node --format=esm --target=node20 --packages=external --outfile=dist-server/index.js",
+    "verify:card": "tsx scripts/verify-card-roundtrip.ts",
+    "verify:chat": "tsx scripts/verify-chat-roundtrip.ts",
+    "verify:card:e2e": "tsx scripts/verify-card-e2e.ts"
   },
   "dependencies": {
     "@emotion/react": "^11.14.0",

@@ -24,6 +24,14 @@ import { describeData } from './lib/storage.ts';
 const app = new Hono()
   .use('*', hostGuard())
   .use('/api/*', bodyLimit({ maxSize: 8 * 1024 * 1024 }))
+  /**
+   * 🔴 **匯入角色卡另給一條上限。** 8 MB 對卡片來說不夠 ——
+   * 實測一張真卡就 6.8 MB，而卡片作者把桌寵貼圖（近 200 萬字元 base64）塞在卡裡是常態。
+   * 卡進不來的話「完整匯入」整件事就是假的。這條路徑不落成無限：仍然有上限，只是放大。
+   */
+  .use('/api/characters/import', bodyLimit({ maxSize: 64 * 1024 * 1024 }))
+  // 對話檔同理：長期對話的 JSONL 動輒數 MB，8 MB 對它也不夠。
+  .use('/api/chats/import', bodyLimit({ maxSize: 64 * 1024 * 1024 }))
   .get('/api/version', (c) => c.json({ ok: true, name: 'vellum', version: currentVersion() }))
   .route('/api/secrets', secrets)
   .route('/api/characters', characters)

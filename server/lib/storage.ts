@@ -83,3 +83,19 @@ export async function listJson<T>(relDir: string): Promise<T[]> {
   for (const n of names) out.push(JSON.parse(await readFile(join(dir, n), 'utf8')) as T);
   return out;
 }
+
+/**
+ * 二進位讀寫。角色卡是 PNG，**不能走 JSON 那條路**——base64 進 JSON 會膨脹 ~33%，
+ * 一張 6.8 MB 的卡會變成 9 MB，直接撞上 body 上限，而且落檔後佔的空間更大。
+ */
+export async function readBin(rel: string): Promise<Buffer | null> {
+  const file = pathFor(rel);
+  if (!existsSync(file)) return null;
+  return readFile(file);
+}
+
+export async function writeBin(rel: string, data: Buffer): Promise<void> {
+  const file = pathFor(rel);
+  await ensureDir(file);
+  await writeFile(file, data);
+}

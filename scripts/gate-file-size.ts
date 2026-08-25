@@ -1,5 +1,5 @@
 /**
- * 這支在守什麼：src/ 底下單檔 150 行上限（A5）。
+ * 這支在守什麼：src/ 與 server/ 底下單檔 150 行上限（A5）。
  *
  * 為什麼：這份 code 由 AI agent 撰寫維護。agent 一次讀得完的檔案才改得動、
  * diff 才 review 得動。ST 的 script.js 12,599 行就是反例 —— 不是「舊」的問題，
@@ -7,6 +7,10 @@
  *
  * 豁免：__tests__/ 與 *.test.*（測試本來就長）、routeTree.gen.ts（產生的）。
  * 不守 scripts/ 與設定檔 —— 它們用「單一入口＋檔頭寫明在解什麼問題」那組判準。
+ *
+ * 🔴 **2026-08-25 補洞：原本只掃 `src/`，`server/` 是無人看守區。**
+ * 發現的方式是加了三個檔進 `server/` 之後，這支回報的檔數**一個都沒變**
+ * ——「數字沒動」才是閘門失效的徵兆，PASS 不是。
  *
  * 自證：node scripts/gate-file-size.mjs --selftest
  */
@@ -52,14 +56,17 @@ if (process.argv.includes('--selftest')) {
   process.exit(ok ? 0 : 1);
 }
 
-let files: string[] = [];
-try {
-  files = walk(join(ROOT, 'src'));
-} catch {
-  files = [];
+const ROOTS = ['src', 'server'];
+const files: string[] = [];
+for (const r of ROOTS) {
+  try {
+    files.push(...walk(join(ROOT, r)));
+  } catch {
+    // 該目錄不存在就跳過；下面的 0 檔檢查會擋住「全部都掃不到」。
+  }
 }
 if (files.length === 0) {
-  console.log('gate:file-size — src/ 掃到 0 個檔，跳過（不是 PASS）');
+  console.log(`gate:file-size — ${ROOTS.join('／')} 掃到 0 個檔，跳過（不是 PASS）`);
   process.exit(0);
 }
 const bad = over(files);

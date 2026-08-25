@@ -1,6 +1,7 @@
 import { Hono } from 'hono';
 import { z } from 'zod';
-import { listJson, writeJson, readJson } from '../lib/storage.ts';
+import { listJson, writeJson, readJson, readBin, writeBin } from '../lib/storage.ts';
+import { embedCard, readCard, viewOf } from '../lib/card.ts';
 import { getKey, redact } from '../lib/secrets.ts';
 import { draftFromImage } from '../lib/gemini.ts';
 import { safeId } from '../lib/ids.ts';
@@ -13,6 +14,13 @@ export const CharacterSchema = z.object({
   firstMessage: z.string().default(''),
   avatar: z.string().default(''),
   createdAt: z.string(),
+  /**
+   * 🔴 **匯入的卡片，正本是那個 PNG 檔，不是這份 JSON。**
+   * 上面四個欄位只是投影出來給列表用的視圖；卡片本體（幾十個我們還沒實作的欄位、
+   * 世界書、regex、別人的擴充資料）原樣留在 `characters/<id>.png` 的 tEXt 裡。
+   * ⇒ 匯出時從那個檔重建，**不是**從這四個欄位重建。
+   */
+  card: z.string().optional(),
 });
 export type Character = z.infer<typeof CharacterSchema>;
 
@@ -45,6 +53,47 @@ export const characters = new Hono()
 
     const r = await draftFromImage(key, m[1], m[2]);
     return r.ok ? c.json(r.draft) : c.json({ error: redact(r.message, [key]) }, 502);
+  })
+
+  /**
+   * 匯入 TavernCard PNG。body 是**原始 PNG bytes**（`application/octet-stream`），
+   * 不是 base64 JSON —— 見 `lib/storage.ts` 的 `writeBin` 註解。
+   */
+  .post('/import', async (c) => {
+    const png = Buffer.from(await c.req.arrayBuffer());
+    let view;
+    try {
+      view = viewOf(readCard(png));
+    } catch (e) {
+      return c.json({ error: e instanceof Error ? e.message : '這張圖不是角色卡' }, 400);
+    }
+    const id = crypto.randomUUID();
+    // 🔴 先寫卡再寫索引：反過來的話中途失敗會留下一筆指向不存在的卡的紀錄。
+    await writeBin(`characters/${id}.png`, png);
+    const ch: Character = {
+      id,
+      name: view.name || '未命名角色',
+      description: view.description,
+      firstMessage: view.firstMessage,
+      avatar: '',
+      createdAt: new Date().toISOString(),
+      card: `${id}.png`,
+    };
+    await writeJson(`characters/${id}.json`, ch);
+    return c.json({ ...ch, alternateGreetings: view.alternateGreetings.length }, 201);
+  })
+
+  /** 匯出：從存下來的 PNG 重建，**不是**從索引那四個欄位重建（那會丟掉其餘欄位）。 */
+  .get('/:id/card.png', async (c) => {
+    const id = safeId(c.req.param('id'));
+    if (!id) return c.json({ error: '找不到這個角色' }, 404);
+    const png = await readBin(`characters/${id}.png`);
+    if (!png) return c.json({ error: '這個角色不是匯入的卡片' }, 404);
+    const out = embedCard(png, readCard(png));
+    // Buffer 不是 Hono 認得的 body 型別；轉成 Uint8Array（不複製底層記憶體）。
+    return new Response(new Uint8Array(out), {
+      headers: { 'Content-Type': 'image/png', 'Content-Disposition': `attachment; filename="${id}.png"` },
+    });
   })
 
   .post('/', async (c) => {
