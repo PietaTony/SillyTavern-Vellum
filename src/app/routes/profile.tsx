@@ -48,6 +48,9 @@ function MePage() {
     name: readDraft<string>(PERSONA_DRAFT.name) ?? current?.name ?? '',
     avatar: current?.avatar ?? '',
     description: readDraft<string>(PERSONA_DRAFT.description) ?? current?.description ?? '',
+    // 🔴 **已綁定的世界書要帶進來**。漏掉的話選擇器會顯示「沒有綁定」——
+    // 那是**謊話**，而且使用者一存檔就真的把綁定洗掉了。
+    lorebookId: current?.lorebookId ?? '',
   };
 
   const save = useMutation({

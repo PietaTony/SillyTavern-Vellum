@@ -1,9 +1,11 @@
 import Alert from '@mui/material/Alert';
 import Avatar from '@mui/material/Avatar';
 import Button from '@mui/material/Button';
+import Divider from '@mui/material/Divider';
 import Stack from '@mui/material/Stack';
 import Typography from '@mui/material/Typography';
 import { useState } from 'react';
+import { WorldPicker } from '@/features/worldbook';
 import { readImageScaled } from '@/shared/lib/image';
 import { DraftField } from '@/shared/ui/DraftField';
 import type { PersonaDraft } from '../api';
@@ -90,6 +92,19 @@ export function PersonaEditor({
       <Typography variant="caption" color="text.secondary">
         名字決定對方怎麼稱呼你；自我介紹會整段讓對方知道。兩者可以只填一個。
       </Typography>
+
+      {/*
+       * 🔴 **C6 把 `lorebookId` 這個孤兒欄位接起來**（階段八）。
+       * 在此之前欄位做好了、prompt 也真的會讀它，但沒有任何地方可以選 ——
+       * 對使用者來說等於這個功能不存在（總則四）。
+       */}
+      <Divider />
+      <WorldPicker
+        label="我的世界書"
+        value={value.lorebookId}
+        onChange={(id) => onChange({ ...value, ...(id ? { lorebookId: id } : { lorebookId: '' }) })}
+        hint="跟著「你」走的設定，不管跟誰聊天都會生效。選的是某位好友那一本 —— 在那邊改條目，這裡也會跟著變。"
+      />
 
       <Button variant="contained" loading={saving} disabled={!value.name.trim()} onClick={onSave}>
         儲存

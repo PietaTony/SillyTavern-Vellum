@@ -11,3 +11,4 @@ export {
 export type { WbEntry, World, WorldSummary } from './types';
 export { EntryList } from './ui/EntryList';
 export { WorldList } from './ui/WorldList';
+export { WorldPicker } from './ui/WorldPicker';

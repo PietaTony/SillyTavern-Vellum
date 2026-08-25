@@ -10,6 +10,13 @@ export type Persona = {
   depth: number;
   role: number;
   title: string;
+  /**
+   * 這個 persona 綁的世界書（世界書的 persona 層）。
+   * 🔴 **空字串＝沒有綁定**（後端是 `z.string().optional()`，組 prompt 時是 falsy 判斷）。
+   * ⚠️ 這個欄位在 M5 就做好了、prompt 也真的會讀它，但**前端型別上一直沒有它**
+   *    —— 所以連「想接 UI 上去」都做不到。C6 才把它接起來（總則四：孤兒引擎不算完成）。
+   */
+  lorebookId?: string;
   archived: boolean;
   createdAt: string;
 };
