@@ -10,6 +10,7 @@
 import { Hono } from 'hono';
 import { z } from 'zod';
 import { getKey, redact } from '../lib/secrets.ts';
+import { safeId } from '../lib/ids.ts';
 import { readJson, writeJson } from '../lib/storage.ts';
 import { DEFAULT_MODEL, buildBody, parseChunk, streamGenerate, type GeminiChunk } from '../lib/gemini.ts';
 import type { Chat, Message } from './chats.ts';
@@ -26,7 +27,10 @@ const sse = (event: string, data: unknown) => `event: ${event}\ndata: ${JSON.str
 export const generate = new Hono().post('/', async (c) => {
   const parsed = Body.safeParse(await c.req.json());
   if (!parsed.success) return c.json({ error: '參數不合法' }, 400);
-  const { chatId, model, maxOutputTokens } = parsed.data;
+  const { model, maxOutputTokens } = parsed.data;
+  // 🔴 chatId 會被接進檔案路徑 ⇒ 先過白名單（見 lib/ids.ts）
+  const chatId = safeId(parsed.data.chatId);
+  if (!chatId) return c.json({ error: '找不到這段對話' }, 404);
 
   const key = await getKey('google');
   if (!key) return c.json({ error: '尚未設定 Gemini 金鑰', action: 'setup-key' }, 400);

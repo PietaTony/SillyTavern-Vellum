@@ -6,11 +6,36 @@
  */
 import { mkdir, readFile, writeFile, readdir } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
-import { dirname, join } from 'node:path';
+import { dirname, join, resolve, sep } from 'node:path';
 
 const ROOT = process.env['VELLUM_DATA'] ?? join(process.cwd(), 'data');
+const ROOT_ABS = resolve(ROOT);
 
-export const pathFor = (...parts: string[]): string => join(ROOT, ...parts);
+/** 路徑越界。route 層要把它轉成 404，不要讓它變成 500 洩漏內部細節。 */
+export class OutsideDataRoot extends Error {
+  constructor() {
+    super('路徑越界');
+    this.name = 'OutsideDataRoot';
+  }
+}
+
+/**
+ * 把相對路徑接到資料目錄底下。
+ *
+ * 🔴 **這裡一定要夾住 ROOT。** 上一版是 `join(ROOT, ...parts)` ——
+ * `join` 會把 `..` **正規化掉**，所以 `GET /api/chats/..%2Fsecrets` 會解析成
+ * `data/secrets.json`，一個 GET 就把 Google 金鑰整包送出去。
+ * 實際打過確認可利用（2026-08-25 資安稽核；我用 `..%2F..%2Fpackage` 讀到 repo 根的
+ * package.json，證明連 data/ 之外都到得了）。
+ *
+ * 這是**最後一道防線**：route 層另外用白名單擋 id。兩層都要有 ——
+ * 只靠 route 白名單的話，下一個忘記加白名單的端點就是下一個洞。
+ */
+export const pathFor = (...parts: string[]): string => {
+  const p = resolve(ROOT_ABS, ...parts);
+  if (p !== ROOT_ABS && !p.startsWith(ROOT_ABS + sep)) throw new OutsideDataRoot();
+  return p;
+};
 
 export const dataRoot = (): string => ROOT;
 

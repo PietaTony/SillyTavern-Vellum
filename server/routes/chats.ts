@@ -1,5 +1,6 @@
 import { Hono } from 'hono';
 import { z } from 'zod';
+import { safeId } from '../lib/ids.ts';
 import { listJson, readJson, writeJson } from '../lib/storage.ts';
 import { readJson as read } from '../lib/storage.ts';
 import type { Character } from './characters.ts';
@@ -25,7 +26,11 @@ export const chats = new Hono()
   .get('/', async (c) => c.json(await listJson<Chat>('chats')))
 
   .get('/:id', async (c) => {
-    const chat = await readJson<Chat | null>(`chats/${c.req.param('id')}.json`, null);
+    // 🔴 id 會被接進檔案路徑 ⇒ 先過白名單。不合法一律當「找不到」，
+    // 不要回不一樣的訊息 —— 那會告訴攻擊者他猜對了形狀。
+    const id = safeId(c.req.param('id'));
+    if (!id) return c.json({ error: '找不到這段對話' }, 404);
+    const chat = await readJson<Chat | null>(`chats/${id}.json`, null);
     return chat ? c.json(chat) : c.json({ error: '找不到這段對話' }, 404);
   })
 
@@ -34,7 +39,9 @@ export const chats = new Hono()
     const body = z.object({ characterId: z.string() }).safeParse(await c.req.json());
     if (!body.success) return c.json({ error: '參數不合法' }, 400);
 
-    const ch = await read<Character | null>(`characters/${body.data.characterId}.json`, null);
+    const cid = safeId(body.data.characterId);
+    if (!cid) return c.json({ error: '找不到這個角色' }, 404);
+    const ch = await read<Character | null>(`characters/${cid}.json`, null);
     if (!ch) return c.json({ error: '找不到這個角色' }, 404);
 
     const now = new Date().toISOString();
@@ -54,7 +61,8 @@ export const chats = new Hono()
   .post('/:id/messages', async (c) => {
     const body = z.object({ role: z.enum(['user', 'model']), text: z.string() }).safeParse(await c.req.json());
     if (!body.success) return c.json({ error: '參數不合法' }, 400);
-    const id = c.req.param('id');
+    const id = safeId(c.req.param('id'));
+    if (!id) return c.json({ error: '找不到這段對話' }, 404);
     const chat = await readJson<Chat | null>(`chats/${id}.json`, null);
     if (!chat) return c.json({ error: '找不到這段對話' }, 404);
     const msg: Message = { id: crypto.randomUUID(), ...body.data, at: new Date().toISOString() };

@@ -40,6 +40,12 @@ COPY --from=build /app/dist-server ./dist-server
 # 🔴 角色卡、對話、金鑰都在這裡。**沒有掛 volume 就會隨容器一起消失。**
 VOLUME /app/data
 
+# 🔴 **不要用 root 跑。** node 官方 image 內建一個 uid 1000 的 `node` 使用者。
+# 容器逃逸不是理論問題，用非特權使用者可以把半徑縮小。
+# `data/` 要給它寫入權（bind mount 的擁有者是主機端，這行處理容器內建立的情況）。
+RUN chown -R node:node /app
+USER node
+
 EXPOSE 8520
 HEALTHCHECK --interval=30s --timeout=3s --start-period=5s \
   CMD node -e "fetch('http://127.0.0.1:'+(process.env.PORT||8520)+'/api/version').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"

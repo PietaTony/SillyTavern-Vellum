@@ -5,6 +5,8 @@
  */
 import { serve } from '@hono/node-server';
 import { Hono } from 'hono';
+import { bodyLimit } from 'hono/body-limit';
+import { hostGuard } from './lib/hostGuard.ts';
 import { distExists, mountStatic } from './static.ts';
 import { secrets } from './routes/secrets.ts';
 import { characters } from './routes/characters.ts';
@@ -14,7 +16,14 @@ import { update } from './routes/update.ts';
 import { currentVersion } from './lib/version.ts';
 import { describeData } from './lib/storage.ts';
 
+/**
+ * 🔴 **上限 8 MB。** 頭像走 base64 dataUrl 進 JSON body，前端已縮到 256px，
+ * 正常一張幾十 KB。沒有上限的話任何人都能一直 POST 大檔把磁碟塞滿
+ * （實測：5 MB 的 avatar 直接落成 5 MB 的 json，而且每次都是新 UUID 檔）。
+ */
 const app = new Hono()
+  .use('*', hostGuard())
+  .use('/api/*', bodyLimit({ maxSize: 8 * 1024 * 1024 }))
   .get('/api/version', (c) => c.json({ ok: true, name: 'vellum', version: currentVersion() }))
   .route('/api/secrets', secrets)
   .route('/api/characters', characters)

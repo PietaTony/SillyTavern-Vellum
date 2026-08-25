@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { listJson, writeJson, readJson } from '../lib/storage.ts';
 import { getKey, redact } from '../lib/secrets.ts';
 import { draftFromImage } from '../lib/gemini.ts';
+import { safeId } from '../lib/ids.ts';
 
 /** D20b：建立角色只留四欄（頭像・名稱・描述・初始訊息）。進階定義是之後的事。 */
 export const CharacterSchema = z.object({
@@ -21,7 +22,10 @@ export const characters = new Hono()
   .get('/', async (c) => c.json(await listJson<Character>('characters')))
 
   .get('/:id', async (c) => {
-    const ch = await readJson<Character | null>(`characters/${c.req.param('id')}.json`, null);
+    // 🔴 id 會被接進檔案路徑 ⇒ 先過白名單（見 lib/ids.ts）
+    const id = safeId(c.req.param('id'));
+    if (!id) return c.json({ error: '找不到這個角色' }, 404);
+    const ch = await readJson<Character | null>(`characters/${id}.json`, null);
     return ch ? c.json(ch) : c.json({ error: '找不到這個角色' }, 404);
   })
 
