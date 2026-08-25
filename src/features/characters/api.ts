@@ -23,3 +23,6 @@ export const createCharacter = (c: NewCharacter): Promise<Character> =>
 export type ImageDraft = { name: string; description: string; firstMessage: string };
 export const draftFromImage = (dataUrl: string): Promise<ImageDraft> =>
   post<ImageDraft>('/api/characters/from-image', { dataUrl });
+
+export const fetchCharacter = (id: string): Promise<Character> =>
+  get<Character>(`/api/characters/${id}`);
