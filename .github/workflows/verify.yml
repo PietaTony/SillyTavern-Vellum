@@ -4,7 +4,9 @@ name: verify
 
 on:
   push:
-    branches: [main]
+    # 🔴 **staging 一定要在這裡。** 分支分流之後所有開發都在 staging，
+    # 只掛 main 的話 CI 會在「已經合併進 main」之後才第一次跑到 —— 那時擋已經來不及。
+    branches: [main, staging]
   pull_request:
 
 jobs:
