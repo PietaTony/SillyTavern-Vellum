@@ -1,8 +1,12 @@
 import { createFileRoute, redirect } from '@tanstack/react-router';
+import { isSetUp } from '@/app/setup';
 
-// 首次啟動的進入點。之後要改成「有沒有設定過」的判斷（M2）。
+/**
+ * 首頁。**設定完成之後預設是聊天清單**（Peter 2026-08-25）。
+ * 還沒設定過才進首次啟動流程。
+ */
 export const Route = createFileRoute('/')({
-  beforeLoad: () => {
-    throw redirect({ to: '/first-run/provider' });
+  beforeLoad: async () => {
+    throw redirect({ to: (await isSetUp()) ? '/chat-list' : '/first-run/provider' });
   },
 });

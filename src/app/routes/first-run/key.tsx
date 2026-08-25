@@ -1,7 +1,9 @@
 import Alert from '@mui/material/Alert';
 import Button from '@mui/material/Button';
 import { createFileRoute, useNavigate } from '@tanstack/react-router';
+import { queryClient } from '@/app/queryClient';
 import { useBack } from '@/app/screens/useBack';
+import { KEY_STATUS_QUERY } from '@/app/setup';
 import { KeyGate, providerById, useProviderChoice } from '@/features/providers';
 import { Screen } from '@/shared/ui/Screen';
 
@@ -34,7 +36,13 @@ function KeyPage() {
     <KeyGate
       info={providerById(selected)}
       onBack={back}
-      onPassed={() => void nav({ to: '/first-run/add-friend' })}
+      // 🔴 測試通過的當下金鑰就存下來了 ⇒ 這一刻起「設定完成」。
+      // 所以導到 `/add-friend`（設定完成後的入口），不是 `/first-run/add-friend`
+      // —— 後者會被 first-run 的守衛擋下來。
+      onPassed={() => {
+        void queryClient.invalidateQueries({ queryKey: KEY_STATUS_QUERY.queryKey });
+        void nav({ to: '/add-friend' });
+      }}
     />
   );
 }

@@ -1,31 +1,23 @@
 import Alert from '@mui/material/Alert';
 import Avatar from '@mui/material/Avatar';
+import Box from '@mui/material/Box';
 import Button from '@mui/material/Button';
 import Stack from '@mui/material/Stack';
 import TextField from '@mui/material/TextField';
 import Typography from '@mui/material/Typography';
 import { useMutation } from '@tanstack/react-query';
 import { readImageScaled } from '@/shared/lib/image';
-import { useDraft } from '@/shared/lib/useDraft';
 import { draftFromImage } from '../api';
-import { canCreate, type Draft, emptyDraft } from '../model';
+import { canCreate, type Draft } from '../model';
 
 /**
  * D20b：表單只留 頭像・名稱・描述・初始訊息。
  * 🔴 「透過圖片自動生成內容」是**新功能，ST 沒有**（實查 202 個檔零命中）。
+ *
+ * 🔴 **草稿不住在這裡**，住在畫面層 —— 因為送出鈕釘在 footer、不在捲動區內，
+ * 兩邊要看同一份值。
  */
-export function AddFriendForm({
-  onCreate,
-  busy,
-}: {
-  onCreate: (d: Draft, clearDraft: () => void) => void;
-  busy: boolean;
-}) {
-  // 🔴 草稿存進 localStorage —— iOS 把背景分頁重載之後，打過的字要還在
-  const [draft, setDraft, clearDraft] = useDraft<Draft>('vellum.draft.add-friend', emptyDraft);
-  const set = (k: keyof Draft) => (e: { target: { value: string } }) =>
-    setDraft({ ...draft, [k]: e.target.value });
-
+export function AddFriendForm({ draft, setDraft }: { draft: Draft; setDraft: (d: Draft) => void }) {
   const gen = useMutation({
     mutationFn: (dataUrl: string) => draftFromImage(dataUrl),
     onSuccess: (r) =>
@@ -36,6 +28,9 @@ export function AddFriendForm({
         firstMessage: r.firstMessage,
       }),
   });
+
+  const set = (k: keyof Draft) => (e: { target: { value: string } }) =>
+    setDraft({ ...draft, [k]: e.target.value });
 
   async function pickImage(file: File | undefined) {
     if (!file) return;
@@ -113,16 +108,35 @@ export function AddFriendForm({
         onChange={set('firstMessage')}
         placeholder="這將是每次聊天開始時角色傳送的第一則訊息。"
       />
+    </Stack>
+  );
+}
 
+/**
+ * 送出鈕**釘在畫面底部**，不跟著內容捲（Peter 2026-08-25）——
+ * 中間那一區未來還會長出別的欄位，捲到看不見送出鈕就等於這一頁沒有出口。
+ */
+export function AddFriendSubmit({
+  draft,
+  busy,
+  onCreate,
+}: {
+  draft: Draft;
+  busy: boolean;
+  onCreate: () => void;
+}) {
+  return (
+    <Box sx={{ flex: 'none', p: 2, borderTop: 1, borderColor: 'divider' }}>
       <Button
+        fullWidth
         variant="contained"
         size="large"
         loading={busy}
         disabled={!canCreate(draft)}
-        onClick={() => onCreate(draft, clearDraft)}
+        onClick={onCreate}
       >
         建立角色
       </Button>
-    </Stack>
+    </Box>
   );
 }
