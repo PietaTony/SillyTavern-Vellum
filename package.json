@@ -23,7 +23,8 @@
     "gate:selftest": "for f in scripts/gate-*.ts; do pnpm exec tsx \"$f\" --selftest || exit 1; done",
     "dev:server": "tsx watch server/index.ts",
     "server": "tsx server/index.ts",
-    "gate:back": "tsx scripts/gate-back.ts"
+    "gate:back": "tsx scripts/gate-back.ts",
+    "start": "pnpm build && pnpm server"
   },
   "dependencies": {
     "@emotion/react": "^11.14.0",
