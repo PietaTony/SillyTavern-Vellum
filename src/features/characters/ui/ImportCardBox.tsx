@@ -6,6 +6,7 @@ import TextField from '@mui/material/TextField';
 import Typography from '@mui/material/Typography';
 import { useMutation } from '@tanstack/react-query';
 import { useState } from 'react';
+import { readImageScaled } from '@/shared/lib/image';
 import { type ImportedCharacter, importCardByUrl, importCardFile } from '../api';
 
 /**
@@ -16,8 +17,16 @@ import { type ImportedCharacter, importCardByUrl, importCardFile } from '../api'
  *
  * ⚠️ 外觀是粗胚，階段八會重做。**現在的判準是「功能真的通」**。
  */
-export function ImportCardBox({ onImported }: { onImported: (c: ImportedCharacter) => void }) {
+export function ImportCardBox({
+  onImported,
+  onUseAsAvatar,
+}: {
+  onImported: (c: ImportedCharacter) => void;
+  /** 🔴 **死路要有出口**：不是卡片的圖，就讓它變成頭像，不要只留一句錯誤訊息。 */
+  onUseAsAvatar?: ((dataUrl: string) => void) | undefined;
+}) {
   const [url, setUrl] = useState('');
+  const [lastFile, setLastFile] = useState<File | null>(null);
   const m = useMutation({
     mutationFn: (input: string | ArrayBuffer) =>
       typeof input === 'string' ? importCardByUrl(input) : importCardFile(input),
@@ -60,13 +69,34 @@ export function ImportCardBox({ onImported }: { onImported: (c: ImportedCharacte
           aria-label="選擇角色卡檔案"
           onChange={(e) => {
             const f = e.target.files?.[0];
-            if (f) void f.arrayBuffer().then((b) => m.mutate(b));
+            if (!f) return;
+            setLastFile(f);
+            void f.arrayBuffer().then((b) => m.mutate(b));
           }}
         />
       </Button>
       {m.isError ? (
-        <Alert severity="warning" sx={{ mt: 1 }}>
-          匯入失敗：{m.error instanceof Error ? m.error.message : '未知錯誤'}
+        <Alert
+          severity="warning"
+          sx={{ mt: 1 }}
+          action={
+            // 🔴 不是卡片的圖 ≠ 這條路走不下去。**把它接到「自己建角色」那條路上。**
+            lastFile && onUseAsAvatar ? (
+              <Button
+                size="small"
+                onClick={() => {
+                  void readImageScaled(lastFile).then((dataUrl) => {
+                    onUseAsAvatar(dataUrl);
+                    m.reset();
+                  });
+                }}
+              >
+                改用這張圖當頭像
+              </Button>
+            ) : null
+          }
+        >
+          {m.error instanceof Error ? m.error.message : '匯入失敗'}
         </Alert>
       ) : null}
       {m.isSuccess ? (

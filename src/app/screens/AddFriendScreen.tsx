@@ -66,6 +66,7 @@ export function AddFriendScreen({ onBack }: { onBack: () => void }) {
        * 而且要連續匯入好幾張時每次都得再走回來。留在原頁，讓好友列表失效就好。
        */}
       <ImportCardBox
+        onUseAsAvatar={(avatar) => setDraft({ ...draft, avatar })}
         onImported={(c) => {
           void qc.invalidateQueries({ queryKey: ['characters'] });
           // 🔴 有多則開場白就直接帶去挑 —— **選哪一則決定世界書開哪幾條**，
