@@ -1,43 +1,24 @@
-import { splitBlocks } from '../blocks';
 import type { Message } from '../model';
 import styles from './Thread.module.css';
 
 /**
- * D31：我的訊息**描邊氣泡**；他的回覆內部**兩種區塊交錯**——
- * 情境走**左豎線**、對白走**淡底塊**。未閉合引號 fallback 走左豎線。
+ * 我的訊息**描邊氣泡**靠右；他的回覆靠左**左豎線**，整則統一。
+ *
+ * 🔴 **`SPEC` D31 的「對白淡底塊」已實作但刻意未接線**（Peter 2026-08-25 判定體驗問題）。
+ * 純函式在 `../blocks.ts`（7 個測試），要恢復只需把 `splitBlocks()` 接回來。
+ * 原因與判準寫在 `docs/design/v1/SPEC.md §10`。
  */
-function AiTurn({ text, streaming }: { text: string; streaming?: boolean }) {
-  const blocks = splitBlocks(text);
-  return (
-    <div className={`${styles.turn} ${styles.them}`}>
-      {blocks.map((b, i) => (
-        <div
-          // 區塊沒有天然 id。用「種類＋內容前綴」當 key，比純索引穩定
-          key={`${b.kind}-${b.text.slice(0, 24)}`}
-          className={`${styles.text} ${b.kind === 'dialogue' ? styles.dialogue : styles.narration} ${
-            streaming && i === blocks.length - 1 ? styles.caret : ''
-          }`}
-        >
-          {b.text}
-        </div>
-      ))}
-    </div>
-  );
-}
-
 export function Thread({ messages, streaming }: { messages: Message[]; streaming: string | null }) {
   return (
     <div className={styles.list}>
-      {messages.map((m) =>
-        m.role === 'user' ? (
-          <div key={m.id} className={`${styles.text} ${styles.me}`}>
-            {m.text}
-          </div>
-        ) : (
-          <AiTurn key={m.id} text={m.text} />
-        ),
-      )}
-      {streaming !== null ? <AiTurn text={streaming} streaming /> : null}
+      {messages.map((m) => (
+        <div key={m.id} className={`${styles.text} ${m.role === 'user' ? styles.me : styles.them}`}>
+          {m.text}
+        </div>
+      ))}
+      {streaming !== null ? (
+        <div className={`${styles.text} ${styles.them} ${styles.caret}`}>{streaming}</div>
+      ) : null}
     </div>
   );
 }

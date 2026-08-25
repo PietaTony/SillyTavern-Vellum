@@ -1,4 +1,4 @@
-/* D31 元件定稿：我的訊息**描邊**／情境**左豎線**／對白**淡底塊**。
+/* 我的訊息**描邊**／他的回覆**左豎線**。
    密度以長文為準（D6：正文 15px、行高 1.9、訊息間距 20px）。 */
 .list {
   display: flex;
@@ -29,25 +29,14 @@
   border-radius: var(--radius-bubble);
 }
 
-/* 他的回覆：靠左半寬 */
+/* 他的回覆：靠左半寬、左豎線，整則統一。
+   🔴 SPEC D31 的「對白淡底塊」暫緩（Peter 2026-08-25，體驗問題）。
+   純函式仍在 ../blocks.ts，要恢復把 splitBlocks() 接回 Thread.tsx 即可。 */
 .them {
   align-self: flex-start;
   max-width: 100%;
-}
-
-/* 情境描寫：左豎線。也是未閉合引號的 fallback。 */
-.narration {
   padding-left: var(--sp-4, 16px);
   border-left: 2px solid var(--block-them-rule, var(--line-strong));
-  color: var(--ink-muted);
-}
-
-/* 角色對白：淡底塊 */
-.dialogue {
-  padding: var(--sp-3, 12px) var(--sp-4, 16px);
-  border-radius: var(--radius-bubble);
-  background: var(--surface-sunk);
-  color: var(--ink);
 }
 
 .caret::after {
