@@ -24,9 +24,12 @@ const app = new Hono()
 
 export type AppType = typeof app;
 
-// 有 dist 就把前端一起服務 ⇒ `pnpm start` 之後一個 port 就是整個 app。
-// 沒有 dist（dev）就不掛，前端由 Vite 提供。
-if (distExists()) mountStatic(app);
+// 🔴 **只有 production 才端前端。** 判斷不能只看「dist/ 在不在」——
+// dev 期間 dist/ 通常也在（build 過一次就留著），那會讓後端端出一份**過期的打包版**：
+// 畫面看起來正常但改了 code 沒反應，是最難診斷的那種症狀。
+// dev 的前端一律由 Vite（5173）提供。
+const isProd = process.env['NODE_ENV'] === 'production';
+if (isProd && distExists()) mountStatic(app);
 
 const port = Number(process.env['PORT'] ?? 8520);
 // 🔴 **只綁 127.0.0.1。** `@hono/node-server` 預設綁所有介面 —— 開了 Tailscale 之後
@@ -35,7 +38,7 @@ const port = Number(process.env['PORT'] ?? 8520);
 // 要讓後端自己對外，設 HOST 環境變數，那是刻意的動作而不是預設。
 const hostname = process.env['HOST'] ?? '127.0.0.1';
 serve({ fetch: app.fetch, port, hostname }, (info) => {
-  const where = distExists() ? '整個 app' : '只有 API（前端請跑 pnpm dev）';
+  const where = isProd && distExists() ? '整個 app' : '只有 API（前端請開 http://localhost:5173）';
   console.log(`[vellum] v${currentVersion()}  http://${hostname}:${info.port}  —— ${where}`);
   // 🔴 資料在哪、有多少 —— 忘記掛 volume 的話這一行會顯示 0，不會靜靜地假裝正常
   void describeData().then((d) => console.log(`[vellum] ${d}`));

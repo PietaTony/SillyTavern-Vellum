@@ -22,10 +22,10 @@
     "gate:screens": "tsx scripts/gate-screens-vs-routes.ts",
     "verify": "pnpm typecheck && pnpm test && pnpm lint && pnpm gate:selftest && pnpm gate:boundaries && pnpm gate:no-hex && pnpm gate:file-size && pnpm gate:screens && pnpm gate:back",
     "gate:selftest": "for f in scripts/gate-*.ts; do pnpm exec tsx \"$f\" --selftest || exit 1; done",
-    "dev:server": "tsx watch server/index.ts",
-    "server": "tsx server/index.ts",
+    "dev:server": "PORT=8521 tsx watch server/index.ts",
+    "server": "PORT=8521 tsx server/index.ts",
     "gate:back": "tsx scripts/gate-back.ts",
-    "start": "pnpm build && node dist-server/index.js",
+    "start": "pnpm build && NODE_ENV=production node dist-server/index.js",
     "build:server": "esbuild server/index.ts --bundle --platform=node --format=esm --target=node20 --packages=external --outfile=dist-server/index.js"
   },
   "dependencies": {

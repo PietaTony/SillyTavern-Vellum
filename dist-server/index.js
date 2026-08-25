@@ -395,6 +395,15 @@ function isNewer(a, b) {
 var REPO = "PietaTony/SillyTavern-Vellum";
 var LATEST = `https://api.github.com/repos/${REPO}/releases/latest`;
 var TTL_MS = 6 * 60 * 60 * 1e3;
+function hasBreaking(notes) {
+  if (!notes) return false;
+  return /破壞性|不相容|breaking\s*change/i.test(notes);
+}
+function trimNotes(body, max = 1200) {
+  const t = (body ?? "").trim();
+  if (!t) return null;
+  return t.length > max ? `${t.slice(0, max)}\u22EF` : t;
+}
 var cache = null;
 async function look() {
   const current = currentVersion();
@@ -402,6 +411,8 @@ async function look() {
     current,
     latest: null,
     updateAvailable: false,
+    notes: null,
+    breaking: false,
     url: `https://github.com/${REPO}/releases/latest`
   };
   try {
@@ -410,14 +421,17 @@ async function look() {
       signal: AbortSignal.timeout(5e3)
     });
     if (!res.ok) return { ...base, error: `GitHub \u56DE ${res.status}` };
-    const body = await res.json();
-    const latest = body.tag_name ?? null;
+    const payload = await res.json();
+    const latest = payload.tag_name ?? null;
     if (!latest) return { ...base, error: "\u6700\u65B0\u7248\u6C92\u6709 tag_name" };
+    const notes = trimNotes(payload.body);
     return {
       ...base,
       latest,
       updateAvailable: isNewer(current, latest),
-      url: body.html_url ?? base.url
+      notes,
+      breaking: hasBreaking(notes),
+      url: payload.html_url ?? base.url
     };
   } catch (e) {
     return { ...base, error: e instanceof Error ? e.message : "\u67E5\u4E0D\u5230\u6700\u65B0\u7248" };
@@ -431,11 +445,12 @@ var update = new Hono5().get("/", async (c) => {
 
 // server/index.ts
 var app = new Hono6().get("/api/version", (c) => c.json({ ok: true, name: "vellum", version: currentVersion() })).route("/api/secrets", secrets).route("/api/characters", characters).route("/api/chats", chats).route("/api/generate", generate).route("/api/update", update);
-if (distExists()) mountStatic(app);
-var port = Number(process.env["PORT"] ?? 8787);
+var isProd = process.env["NODE_ENV"] === "production";
+if (isProd && distExists()) mountStatic(app);
+var port = Number(process.env["PORT"] ?? 8520);
 var hostname = process.env["HOST"] ?? "127.0.0.1";
 serve({ fetch: app.fetch, port, hostname }, (info) => {
-  const where = distExists() ? "\u6574\u500B app" : "\u53EA\u6709 API\uFF08\u524D\u7AEF\u8ACB\u8DD1 pnpm dev\uFF09";
+  const where = isProd && distExists() ? "\u6574\u500B app" : "\u53EA\u6709 API\uFF08\u524D\u7AEF\u8ACB\u958B http://localhost:5173\uFF09";
   console.log(`[vellum] v${currentVersion()}  http://${hostname}:${info.port}  \u2014\u2014 ${where}`);
   void describeData().then((d) => console.log(`[vellum] ${d}`));
   if (hostname === "127.0.0.1")

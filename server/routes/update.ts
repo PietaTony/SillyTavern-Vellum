@@ -11,9 +11,30 @@ export type UpdateInfo = {
   latest: string | null;
   updateAvailable: boolean;
   url: string;
+  /**
+   * 🔴 **人寫的重點，不是 commit 訊息**（設計正本 U-D3）。
+   * 依據：更新可能弄壞東西，盲目按的代價太高；而 commit 訊息是寫給開發者看的，
+   * 使用者判斷不了風險。⇒ 這裡放的是 release notes 的正文。
+   */
+  notes: string | null;
+  /** 🔴 **破壞性變更必須單獨標出來，不能埋在清單裡**（設計正本 U-D3）。 */
+  breaking: boolean;
   /** 查不到時的原因（離線、被限流…）。🔴 查不到 ≠ 沒有新版，UI 要分得出來。 */
   error?: string;
 };
+
+/** 從 release notes 認出破壞性變更。純函式，可測。 */
+export function hasBreaking(notes: string | null): boolean {
+  if (!notes) return false;
+  return /破壞性|不相容|breaking\s*change/i.test(notes);
+}
+
+/** 太長的 notes 要截斷 —— banner 不是 release 頁面，看全文請點連結。 */
+export function trimNotes(body: string | undefined | null, max = 1200): string | null {
+  const t = (body ?? '').trim();
+  if (!t) return null;
+  return t.length > max ? `${t.slice(0, max)}⋯` : t;
+}
 
 let cache: { at: number; info: UpdateInfo } | null = null;
 
@@ -23,6 +44,8 @@ async function look(): Promise<UpdateInfo> {
     current,
     latest: null,
     updateAvailable: false,
+    notes: null,
+    breaking: false,
     url: `https://github.com/${REPO}/releases/latest`,
   };
   try {
@@ -31,14 +54,21 @@ async function look(): Promise<UpdateInfo> {
       signal: AbortSignal.timeout(5000),
     });
     if (!res.ok) return { ...base, error: `GitHub 回 ${res.status}` };
-    const body = (await res.json()) as { tag_name?: string; html_url?: string };
-    const latest = body.tag_name ?? null;
+    const payload = (await res.json()) as {
+      tag_name?: string;
+      html_url?: string;
+      body?: string;
+    };
+    const latest = payload.tag_name ?? null;
     if (!latest) return { ...base, error: '最新版沒有 tag_name' };
+    const notes = trimNotes(payload.body);
     return {
       ...base,
       latest,
       updateAvailable: isNewer(current, latest),
-      url: body.html_url ?? base.url,
+      notes,
+      breaking: hasBreaking(notes),
+      url: payload.html_url ?? base.url,
     };
   } catch (e) {
     // 🔴 離線是常態不是錯誤：本機 app 沒網路照樣要能用。

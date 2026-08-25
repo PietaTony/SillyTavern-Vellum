@@ -10,8 +10,8 @@ import Typography from '@mui/material/Typography';
 import { useQuery } from '@tanstack/react-query';
 import { useState } from 'react';
 import { copyText } from '@/shared/lib/copyText';
-import { useDraft } from '@/shared/lib/useDraft';
 import { fetchUpdate } from '../api';
+import { UpdateNotes } from './UpdateNotes';
 
 const CMD = 'docker compose pull && docker compose up -d';
 
@@ -23,10 +23,13 @@ const WHY = `為什麼不是按一下就更新完：容器沒辦法自己換掉�
 /**
  * 有新版時告訴使用者 —— **只通知，不自動更新**。
  *
- * 🔴 這個立場有依據：同類最大的專案 Open WebUI 官方文件明確反對自動更新，
+ * 🔴 依據：同類最大的專案 Open WebUI 官方文件明確反對自動更新，
  * 理由是版本一旦帶破壞性變更或資料遷移，會在使用者不知情時弄壞他的部署。
  *
- * 🔴 關掉是**記在這一版**：下一版出來會再提醒一次，不會從此消失。
+ * 🔴 **只有「稍後」，沒有「跳過這版」**（Peter 2026-08-25 裁定）。
+ * 設計正本主張要有「跳過這版」，理由是看到破壞性變更想等一版的人不該只剩
+ * 「更新」與「永遠被提醒」兩種選擇 —— **這條被 Peter 否決，以他為準**。
+ * ⇒ 稍後＝這次不看，重新開啟還會再提醒。
  */
 export function UpdateBanner() {
   const q = useQuery({
@@ -35,24 +38,22 @@ export function UpdateBanner() {
     staleTime: 6 * 60 * 60 * 1000,
     retry: false,
   });
-  const [dismissed, setDismissed] = useDraft<string>('vellum.update.dismissed', '');
+  const [later, setLater] = useState(false);
   const [copied, setCopied] = useState(false);
 
   const info = q.data;
   // 查不到就安靜 —— 離線是本機 app 的常態，不是要吵使用者的事
   if (!info?.updateAvailable || !info.latest) return null;
-  if (dismissed === info.latest) return null;
-
-  const copy = async () => {
-    setCopied(await copyText(CMD));
-  };
+  if (later) return null;
 
   return (
-    <Alert severity="info" sx={{ mb: 2 }} onClose={() => setDismissed(info.latest ?? '')}>
+    <Alert severity={info.breaking ? 'warning' : 'info'} sx={{ mb: 2 }}>
       <Stack spacing={1}>
         <Typography variant="body2">
           有新版本 <strong>{info.latest}</strong>（你在 {info.current}）
         </Typography>
+
+        <UpdateNotes notes={info.notes} breaking={info.breaking} />
 
         <Box
           component="code"
@@ -78,7 +79,7 @@ export function UpdateBanner() {
             size="small"
             variant="outlined"
             sx={{ whiteSpace: 'nowrap' }}
-            onClick={() => void copy()}
+            onClick={() => void copyText(CMD).then(setCopied)}
           >
             {copied ? '已複製' : '複製指令'}
           </Button>
@@ -96,9 +97,18 @@ export function UpdateBanner() {
             rel="noreferrer"
             sx={{ whiteSpace: 'nowrap' }}
           >
-            這一版改了什麼
+            完整說明
           </Button>
         </Stack>
+
+        <Button
+          size="small"
+          color="inherit"
+          sx={{ alignSelf: 'flex-start' }}
+          onClick={() => setLater(true)}
+        >
+          稍後
+        </Button>
       </Stack>
     </Alert>
   );

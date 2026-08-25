@@ -6,20 +6,48 @@ SillyTavern 的 fork —— 功能一樣，UI／UX 大改。授權 AGPL-3.0。
 
 ---
 
-## 安裝（三種平台同一行）
+## 安裝
 
-需要先裝 [Docker Desktop](https://www.docker.com/products/docker-desktop/)（Windows／macOS／Linux 都有）。
+Windows／macOS／Linux 步驟完全一樣。
+
+### 1. 裝 Docker Desktop
+
+到 <https://www.docker.com/products/docker-desktop/> 下載安裝，然後**把它打開**。
+（Linux 用 Docker Engine 也可以。）
+
+### 2. 建一個放資料的資料夾
 
 ```bash
 mkdir vellum && cd vellum
+```
+
+> 這個資料夾之後會裝著你的角色卡、對話、金鑰。放在你找得到的地方。
+
+### 3. 下載設定檔
+
+```bash
 curl -L -o docker-compose.yml https://raw.githubusercontent.com/PietaTony/SillyTavern-Vellum/main/docker-compose.yml
+```
+
+### 4. 啟動
+
+```bash
 docker compose up -d
 ```
 
-打開 **<http://localhost:8520>** 就可以用了。第一次會帶你設定 API 金鑰。
+第一次會下載 image，需要幾分鐘。之後啟動是幾秒。
+
+### 5. 打開 <http://localhost:8520>
 
 > **網址永遠是 `localhost:8520`**，不會變。加到書籤就好，不用每次去查 port。
 > 要換 port 的話改 `docker-compose.yml` 的 `"127.0.0.1:8520:8520"` 左邊那個數字。
+
+### 6. 設定 API 金鑰
+
+app 會帶你走一次：選供應商 → 貼金鑰 → 測試連線 → 加第一個好友。
+**測試不過就不會讓你往下走**，不會讓你設定完才發現金鑰是錯的。
+
+---
 
 > 🔴 **`./data` 這個資料夾就是你的全部身家**（角色卡、對話、金鑰）。
 > 它跟 `docker-compose.yml` 放在一起，備份就是複製這個資料夾。
@@ -68,6 +96,8 @@ docker compose pull && docker compose up -d
 3. `docker compose up -d`
 4. 手機開 `http://<電腦的 Tailscale IP>:8520`
 
+> dev 模式下前端也是 8520（`pnpm dev`），所以**手機上的網址不用換**。
+
 > ⚠️ 改成 `"8520:8520"` 之後，**同一個區域網路上的人也連得到**。
 > 在公共 wifi 上請不要這樣開。
 
@@ -77,8 +107,8 @@ docker compose pull && docker compose up -d
 
 ```bash
 pnpm install
-pnpm dev          # 前端 5173
-pnpm dev:server   # 後端 8520
+pnpm dev          # 前端 8520 ← 開這個
+pnpm dev:server   # 後端 8521（前端會 proxy 過去）
 pnpm verify       # 九道閘門：typecheck／test／lint／selftest／boundaries／no-hex／file-size／screens／back
 ```
 
