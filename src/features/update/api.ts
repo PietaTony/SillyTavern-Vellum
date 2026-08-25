@@ -11,6 +11,13 @@ export type UpdateInfo = {
   breaking: boolean;
   /** 🔴 查不到 ≠ 沒有新版。離線、被 GitHub 限流都會落在這裡。 */
   error?: string;
+  /** 上次真正打了 GitHub 的時間（epoch ms）。設定頁「上次檢查」顯示這個，不是「現在」。 */
+  checkedAt: number;
 };
 
-export const fetchUpdate = (): Promise<UpdateInfo> => get<UpdateInfo>('/api/update');
+/**
+ * `force` 繞過後端六小時快取 —— 設定頁的「檢查更新」按鈕要用得到，
+ * 平常 `UpdateBanner` 開畫面時不用，讓它繼續吃快取。
+ */
+export const fetchUpdate = (opts?: { force?: boolean }): Promise<UpdateInfo> =>
+  get<UpdateInfo>(opts?.force ? '/api/update?force=1' : '/api/update');

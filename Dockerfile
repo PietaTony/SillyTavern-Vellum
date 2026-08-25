@@ -18,6 +18,11 @@ RUN pnpm install --frozen-lockfile --config.minimumReleaseAge=0
 
 COPY . .
 # 前端 → dist/，後端 → dist-server/index.js（純 JS，runtime 不需要 tsx）
+# 🔴 `pnpm build` 的順序是 **vite build → tsc → build:server**，不能對調。
+#    `src/app/routeTree.gen.ts` 由 vite 的 `@tanstack/router-plugin` 在 build 時產生，
+#    而且被 gitignore ⇒ 全新 checkout（這裡就是）根本沒有它。
+#    tsc 排前面的話會在 vite 有機會產生它之前先炸（`Cannot find module './routeTree.gen'`）。
+#    實測：`git archive HEAD` 到乾淨環境跑 tsc 必炸 11 個錯；換順序後同一份 commit 全過。
 RUN pnpm build
 
 # ── 執行階段 ────────────────────────────────────────────────

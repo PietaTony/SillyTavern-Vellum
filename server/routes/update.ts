@@ -21,6 +21,11 @@ export type UpdateInfo = {
   breaking: boolean;
   /** 查不到時的原因（離線、被限流…）。🔴 查不到 ≠ 沒有新版，UI 要分得出來。 */
   error?: string;
+  /**
+   * 上次真正打了 GitHub 的時間（epoch ms）。
+   * 🔴 設定頁的「上次檢查」要顯示這個，不是「現在」——這支只在快取過期或 `force=1` 時才會變。
+   */
+  checkedAt: number;
 };
 
 /** 從 release notes 認出破壞性變更。純函式，可測。 */
@@ -36,11 +41,14 @@ export function trimNotes(body: string | undefined | null, max = 1200): string |
   return t.length > max ? `${t.slice(0, max)}⋯` : t;
 }
 
-let cache: { at: number; info: UpdateInfo } | null = null;
+/** `look()` 不知道自己被快取多久，`checkedAt` 由呼叫端（handler）填 —— 那裡才知道快取時間。 */
+type LookResult = Omit<UpdateInfo, 'checkedAt'>;
 
-async function look(): Promise<UpdateInfo> {
+let cache: { at: number; info: LookResult } | null = null;
+
+async function look(): Promise<LookResult> {
   const current = currentVersion();
-  const base: UpdateInfo = {
+  const base: LookResult = {
     current,
     latest: null,
     updateAvailable: false,
@@ -78,6 +86,9 @@ async function look(): Promise<UpdateInfo> {
 
 export const update = new Hono().get('/', async (c) => {
   const now = Date.now();
-  if (!cache || now - cache.at > TTL_MS) cache = { at: now, info: await look() };
-  return c.json(cache.info);
+  // 🔴 `force=1` 無視 TTL 強制重查 —— 設定頁的「檢查更新」按鈕要能繞過六小時快取，
+  // 否則按了也看不到剛發布的新版。
+  const force = c.req.query('force') === '1';
+  if (!cache || force || now - cache.at > TTL_MS) cache = { at: now, info: await look() };
+  return c.json({ ...cache.info, checkedAt: cache.at });
 });

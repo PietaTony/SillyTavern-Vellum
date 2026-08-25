@@ -9,7 +9,7 @@
   "packageManager": "pnpm@10.25.0",
   "scripts": {
     "dev": "vite",
-    "build": "tsc --noEmit && vite build && pnpm build:server",
+    "build": "vite build && tsc --noEmit && pnpm build:server",
     "preview": "vite preview",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
@@ -20,7 +20,7 @@
     "gate:no-hex": "tsx scripts/gate-no-hex.ts",
     "gate:file-size": "tsx scripts/gate-file-size.ts",
     "gate:screens": "tsx scripts/gate-screens-vs-routes.ts",
-    "verify": "pnpm typecheck && pnpm test && pnpm lint && pnpm gate:selftest && pnpm gate:boundaries && pnpm gate:no-hex && pnpm gate:file-size && pnpm gate:screens && pnpm gate:back",
+    "verify": "pnpm build && pnpm test && pnpm lint && pnpm gate:selftest && pnpm gate:boundaries && pnpm gate:no-hex && pnpm gate:file-size && pnpm gate:screens && pnpm gate:back",
     "gate:selftest": "for f in scripts/gate-*.ts; do pnpm exec tsx \"$f\" --selftest || exit 1; done",
     "dev:server": "PORT=8521 tsx watch server/index.ts",
     "server": "PORT=8521 tsx server/index.ts",

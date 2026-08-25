@@ -83,6 +83,18 @@
           "route": "chat/$chatId",
           "note": "等待／思考（對話串的狀態）",
           "back": "chat-list"
+        },
+        {
+          "id": "Tab-Settings--undrawn",
+          "route": "settings",
+          "note": "設定 tab 的根＝設定項清單，第一項「關於與更新」。🔴 設計正本沒有這張，待補圖",
+          "back": null
+        },
+        {
+          "id": "Settings-About--undrawn",
+          "route": "settings/about",
+          "note": "關於與更新：目前版本、手動檢查、release notes、破壞性變更、複製更新指令。🔴 設計正本沒有這張，待補圖",
+          "back": "settings"
         }
       ]
     },

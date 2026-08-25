@@ -20,7 +20,7 @@ const TABS: { id: TabId; label: string; to: string | null; icon: ReactElement }[
   { id: 'friends', label: '好友', to: '/friends', icon: <PeopleIcon /> },
   { id: 'chats', label: '聊天', to: '/chat-list', icon: <ChatIcon /> },
   { id: 'wi', label: '世界書', to: null, icon: <MenuBookIcon /> },
-  { id: 'settings', label: '設定', to: null, icon: <SettingsIcon /> },
+  { id: 'settings', label: '設定', to: '/settings', icon: <SettingsIcon /> },
 ];
 
 export function TabBar({ active }: { active: TabId }) {

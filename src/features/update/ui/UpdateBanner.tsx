@@ -11,14 +11,8 @@ import { useQuery } from '@tanstack/react-query';
 import { useState } from 'react';
 import { copyText } from '@/shared/lib/copyText';
 import { fetchUpdate } from '../api';
+import { UPDATE_COMMAND as CMD, UPDATE_COMMAND_WHY as WHY } from '../copyCommand';
 import { UpdateNotes } from './UpdateNotes';
-
-const CMD = 'docker compose pull && docker compose up -d';
-
-const WHY = `為什麼不是按一下就更新完：容器沒辦法自己換掉自己的 image。
-要做到真正的一鍵，得把 docker.sock 掛進容器 —— 那等同把主機的 root 權限交出去，
-為了省一次貼上不值得。
-另一個理由：更新前你應該先看過這一版改了什麼。`;
 
 /**
  * 有新版時告訴使用者 —— **只通知，不自動更新**。
@@ -34,7 +28,7 @@ const WHY = `為什麼不是按一下就更新完：容器沒辦法自己換掉�
 export function UpdateBanner() {
   const q = useQuery({
     queryKey: ['update'],
-    queryFn: fetchUpdate,
+    queryFn: () => fetchUpdate(),
     staleTime: 6 * 60 * 60 * 1000,
     retry: false,
   });

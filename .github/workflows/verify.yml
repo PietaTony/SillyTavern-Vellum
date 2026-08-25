@@ -19,4 +19,8 @@ jobs:
           cache: pnpm
       # 同 Dockerfile 的理由：這一步不做解析，裝的是本機審過的同一份 lockfile
       - run: pnpm install --frozen-lockfile --config.minimumReleaseAge=0
+      # `pnpm verify` 的第一步是 `pnpm build`（不是 tsc）—— 兩個理由：
+      #   ① routeTree.gen.ts 被 gitignore，要 vite build 才生得出來，
+      #      tsc 排前面在乾淨 runner 上 100% 失敗（實測 11 個錯）
+      #   ② 🔴 verify 從此真的會 build。之前 build 壞掉，九道閘門照樣全綠。
       - run: pnpm verify
