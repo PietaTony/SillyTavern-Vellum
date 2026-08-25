@@ -10,6 +10,8 @@
  */
 
 /** PNG 檔頭固定這 8 個 byte。不是這串就不是 PNG。 */
+import { decodeText } from './pngText.ts';
+
 const SIGNATURE = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
 
 export type Chunk = { type: string; data: Buffer };
@@ -103,15 +105,25 @@ export function makeText(keyword: string, text: string): Chunk {
   };
 }
 
-/** 取出某個 keyword 的 `tEXt` 內容（原文，不解 base64）。沒有就 null。 */
+/**
+ * 取出某個 keyword 的文字內容（原文，不解 base64）。沒有就 null。
+ *
+ * 🔴 **`tEXt`／`zTXt`／`iTXt` 三種都讀**（見 `pngText.ts`）：只讀 `tEXt` 會把
+ * 「我們讀不到」講成「這張圖沒有卡片資料」。
+ * 🔴 keyword 比對**不分大小寫** —— 野生的卡有寫成 `Chara` 的。
+ */
 export function textOf(chunks: Chunk[], keyword: string): string | null {
+  const want = keyword.toLowerCase();
   for (const c of chunks) {
-    if (c.type !== 'tEXt') continue;
-    const kv = splitText(c.data);
-    if (kv?.keyword === keyword) return kv.text;
+    const kv = decodeText(c.type, c.data);
+    if (kv && kv.keyword.toLowerCase() === want) return kv.text;
   }
   return null;
 }
+
+/** 這張圖裡有哪些文字 keyword —— 匯入失敗時要能告訴使用者「我看到的是這些」。 */
+export const textKeywords = (chunks: Chunk[]): string[] =>
+  chunks.map((c) => decodeText(c.type, c.data)?.keyword).filter((k): k is string => Boolean(k));
 
 /**
  * 換掉（或新增）某個 keyword 的 `tEXt`，**其餘 chunk 一個都不動**。

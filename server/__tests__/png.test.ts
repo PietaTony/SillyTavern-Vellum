@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { NotAPng, readChunks, replaceText, textOf, writeChunks, makeText, crc32 } from '../lib/png.ts';
+import { deflateSync } from 'node:zlib';
+import { NotAPng, readChunks, replaceText, textKeywords, textOf, writeChunks, makeText, crc32 } from '../lib/png.ts';
 
 /** 合成一張最小 PNG。🔴 **不用真卡當測試素材**——那是私人資料，而且 repo 是公開的。 */
 function fakePng(extra: { keyword: string; text: string }[] = []): Buffer {
@@ -16,7 +17,54 @@ function fakePng(extra: { keyword: string; text: string }[] = []): Buffer {
   ]);
 }
 
+/** `zTXt`：keyword \0 method(1) 壓縮內容 */
+const zText = (keyword: string, text: string) => ({
+  type: 'zTXt',
+  data: Buffer.concat([Buffer.from(keyword, 'latin1'), Buffer.from([0, 0]), deflateSync(Buffer.from(text, 'latin1'))]),
+});
+
+/** `iTXt`：keyword \0 flag method lang \0 translated \0 內容 */
+const iText = (keyword: string, text: string, compressed = false) => ({
+  type: 'iTXt',
+  data: Buffer.concat([
+    Buffer.from(keyword, 'latin1'),
+    Buffer.from([0, compressed ? 1 : 0, 0]),
+    Buffer.from([0]),
+    Buffer.from([0]),
+    compressed ? deflateSync(Buffer.from(text, 'latin1')) : Buffer.from(text, 'latin1'),
+  ]),
+});
+
 describe('png chunk 層', () => {
+  it('🔴 zTXt（壓縮的）也要讀得到 —— 只讀 tEXt 會把「我們讀不到」講成「這張圖沒有卡片」', () => {
+    const chunks = readChunks(
+      writeChunks([...readChunks(fakePng()).slice(0, 1), zText('chara', 'aGk='), ...readChunks(fakePng()).slice(1)]),
+    );
+    expect(textOf(chunks, 'chara')).toBe('aGk=');
+  });
+
+  it('🔴 iTXt 兩種形式（壓縮與未壓縮）都要讀得到', () => {
+    const build = (c: { type: string; data: Buffer }) =>
+      readChunks(writeChunks([...readChunks(fakePng()).slice(0, 1), c, ...readChunks(fakePng()).slice(1)]));
+    expect(textOf(build(iText('ccv3', 'AAA')), 'ccv3')).toBe('AAA');
+    expect(textOf(build(iText('ccv3', 'BBB', true)), 'ccv3')).toBe('BBB');
+  });
+
+  it('🔴 keyword 比對不分大小寫（野生的卡有寫成 Chara 的）', () => {
+    const chunks = readChunks(fakePng([{ keyword: 'Chara', text: 'XYZ' }]));
+    expect(textOf(chunks, 'chara')).toBe('XYZ');
+  });
+
+  it('列得出圖裡有哪些文字欄位（匯入失敗時要能告訴使用者我看到什麼）', () => {
+    const chunks = readChunks(fakePng([{ keyword: 'Software', text: 'Photoshop' }]));
+    expect(textKeywords(chunks)).toContain('Software');
+  });
+
+  it('壞掉的壓縮內容回 null，不可以讓整張圖讀不進來', () => {
+    const bad = { type: 'zTXt', data: Buffer.concat([Buffer.from('chara'), Buffer.from([0, 0]), Buffer.from('不是zlib')]) };
+    const chunks = readChunks(writeChunks([...readChunks(fakePng()).slice(0, 1), bad, ...readChunks(fakePng()).slice(1)]));
+    expect(textOf(chunks, 'chara')).toBeNull();
+  });
   it('讀回來的 chunk 順序與內容與寫進去的一致', () => {
     const chunks = readChunks(fakePng([{ keyword: 'chara', text: 'aGVsbG8=' }]));
     expect(chunks.map((c) => c.type)).toEqual(['IHDR', 'tEXt', 'IDAT', 'IEND']);

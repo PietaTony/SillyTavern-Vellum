@@ -8,7 +8,7 @@
  * 兩者內容**不保證相同**（實測標的卡兩者長度差 1 byte）。
  * 只留一份再從它產生另一份 ＝ 靜默改寫別人的卡。⇒ 各自原樣保存、各自寫回。
  */
-import { readChunks, replaceText, textOf, writeChunks, type Chunk } from './png.ts';
+import { readChunks, replaceText, textKeywords, textOf, writeChunks, type Chunk } from './png.ts';
 
 export const CARD_KEYWORDS = ['ccv3', 'chara'] as const;
 export type CardKeyword = (typeof CARD_KEYWORDS)[number];
@@ -65,7 +65,20 @@ export function readCard(png: Buffer): Card {
     if (text !== null) payloads[kw] = decodePayload(text);
   }
   const primary = CARD_KEYWORDS.find((kw) => payloads[kw] !== undefined);
-  if (!primary) throw new NotACard('這張 PNG 沒有角色卡資料（找不到 ccv3／chara）');
+  if (!primary) {
+    /**
+     * 🔴 **錯誤訊息要說「我看到了什麼」**。只說「找不到角色卡資料」的話，
+     * 使用者無從判斷是「這張圖本來就不是卡片」還是「我們讀不到」——
+     * 而這兩件事的下一步完全不同（換一個檔 vs 回報 bug）。
+     */
+    const found = textKeywords(chunks);
+    const saw = found.length > 0 ? `這張圖裡的文字欄位只有：${found.join('、')}` : '這張圖裡沒有任何文字欄位';
+    throw new NotACard(
+      `這張 PNG 不是角色卡（${saw}）。角色卡是「圖片裡藏著資料」的 PNG；` +
+        '一般的插圖、截圖、或被重新壓縮過的圖（例如從手機相簿選、或經過通訊軟體轉傳）都會失去那份資料。' +
+        '請用卡片站下載的原始檔，或直接貼卡片網址。',
+    );
+  }
   return { payloads, primary };
 }
 
