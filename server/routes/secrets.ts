@@ -27,7 +27,15 @@ export const secrets = new Hono()
     const parsed = WriteBody.safeParse(await c.req.json());
     if (!parsed.success) return c.json({ error: '參數不合法' }, 400);
     const { provider, value } = parsed.data;
-    if (provider !== 'google') return c.json({ ok: false, message: 'M2 目前只做 Gemini' }, 400);
+    // 🔴 **第二道防線，不是唯一一道。** 前端的 `PROVIDERS[].status` 已經讓還沒接上的
+    // 那幾家不可選，但前端不可信 —— 直接打這支 API 一樣要擋下來。
+    // ⚠️ 訊息是**給使用者看的**，不是給我們自己看的：原本寫「M2 目前只做 Gemini」，
+    //    「M2」是我們的里程碑代號，使用者讀不懂，只會覺得是自己做錯了什麼。
+    if (provider !== 'google')
+      return c.json(
+        { ok: false, message: 'Vellum 目前只接得上 Google Gemini，這一家還在接。' },
+        400,
+      );
 
     const r = await testKey(value);
     if (!r.ok) {

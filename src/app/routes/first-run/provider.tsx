@@ -27,7 +27,11 @@ function ProviderPage() {
     >
       <Stack spacing={2}>
         <Typography variant="body2" color="text.secondary">
-          Vellum 只接兩家官方 API。兩家都可以，但取得方式差很多——先講清楚，別讓你選完才撞牆。
+          {/* 🔴 不要為了排版把中文句子折行 —— JSX 會在折行處留一個半形空格，
+              中文標點後面多一格看起來像沒排版好。整句寫成一個字串。 */}
+          {
+            'Vellum 只接兩家官方 API。目前接上的是 Google Gemini；Anthropic Claude 還在接，所以先不開放選。取得方式兩家差很多——先講清楚，別讓你選完才撞牆。'
+          }
         </Typography>
         {PROVIDERS.map((p) => (
           <ProviderCard

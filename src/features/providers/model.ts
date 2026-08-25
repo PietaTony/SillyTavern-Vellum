@@ -12,6 +12,18 @@ export type ProviderInfo = {
   consoleUrl: string;
   steps: string[];
   keyHint: string;
+  /**
+   * 🔴 **能力宣告**：這一家後端到底接上了沒。
+   *
+   * 為什麼要有這個欄位，而不是把還沒接上的那家從清單刪掉：
+   * 專案原則是「ST 有 → 我們也要有，零例外」，而 ST 接了 26 家 ——
+   * **這份清單遲早要列滿，所以現在就要有辦法誠實表達「列了但還沒通」**。
+   * 刪掉的話，接上 Claude 時要再加回來，而且中間沒有任何機制擋住下一個人再犯。
+   *
+   * `ready`   ＝ 後端真的送得出去，正常可選
+   * `planned` ＝ **列出來但不可選**，卡片上標明還沒接上
+   */
+  status: 'ready' | 'planned';
 };
 
 /** 依據：SPEC §1 D20「② 該廠商的詳細金鑰引導（帶連結）」 */
@@ -30,6 +42,7 @@ export const PROVIDERS: ProviderInfo[] = [
       '複製 AIza… 開頭的字，貼回這裡',
     ],
     keyHint: 'AIza…',
+    status: 'ready',
   },
   {
     id: 'anthropic',
@@ -47,12 +60,18 @@ export const PROVIDERS: ProviderInfo[] = [
       '複製 sk-ant-… 開頭的字，貼回這裡',
     ],
     keyHint: 'sk-ant-…',
+    // 🔴 `server/routes/secrets.ts` 的 `/test` 目前只送得出 Google。
+    //    接上之後把這裡改成 `ready` 即可，UI 一行都不用動。
+    status: 'planned',
   },
 ];
 
 /** fallback：找不到就回第一家。用 `?? PROVIDERS[0]` 會被 noUncheckedIndexedAccess 判成 undefined，
  *  所以把「至少有一家」這件事寫成型別上成立的形狀。 */
 const [FIRST] = PROVIDERS as [ProviderInfo, ...ProviderInfo[]];
+
+/** 真的送得出去的那幾家。UI 用它決定可不可以點。 */
+export const isReady = (p: ProviderInfo): boolean => p.status === 'ready';
 
 export const providerById = (id: ProviderId): ProviderInfo =>
   PROVIDERS.find((p) => p.id === id) ?? FIRST;
