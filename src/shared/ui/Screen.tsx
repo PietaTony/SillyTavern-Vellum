@@ -53,7 +53,7 @@ export function Screen({
                 <ArrowBackIcon />
               </IconButton>
             ) : null}
-            <Typography variant="h6" component="h1" sx={{ flexGrow: 1, fontSize: '1.05rem' }}>
+            <Typography variant="h6" component="h1" sx={{ flexGrow: 1 }}>
               {title}
             </Typography>
             {action}

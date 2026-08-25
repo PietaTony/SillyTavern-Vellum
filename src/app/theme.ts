@@ -97,14 +97,23 @@ export const theme = createTheme({
       ...RADII,
     },
   },
+  /**
+   * 🔴 **字級一律照 MUI 官方預設**（Peter 2026-08-25：「參考 MUI design 的官方建議照做」）。
+   * 上一版把正本的 `--text-*` 一格一格搬進來（body1 15/1.9、h6 17/1.4/700…），已整段移除。
+   *
+   * MUI 預設（實際讀自安裝的 9.3.1，不是憑記憶）：
+   *   body1 16/1.5 ｜ body2 14/1.43 ｜ subtitle2 14/1.57/500 ｜ caption 12/1.66 ｜ h6 20/1.6/500
+   *
+   * ⚠️ **body1 = 16px 這一格順帶解決了 iOS 的自動放大**（input 字級 <16px 就會放大整個畫面）。
+   * ⇒ 之前那條 `MuiInputBase.input.fontSize: 16` 的覆寫已經多餘，一起移除。
+   * 🔴 **以後要把 body1 調到 16 以下之前，先想起這件事** —— 那個 bug 會無聲回來。
+   *
+   * 只保留兩格不是 MUI 預設的，兩格都不是「字級」：
+   *   fontFamily —— Roboto 我們沒載，而且中文需要 PingFang／Noto Sans TC 的堆疊
+   *   button.textTransform —— MUI 預設 uppercase；我們的按鈕是中文，大寫沒有意義
+   */
   typography: {
     fontFamily: SANS,
-    // 正本〈字級〉，依據 D6「舒適」與 S1 的 1200 字壓力測試
-    body1: { fontSize: 15, lineHeight: 1.9 }, // text-body（內容，襯線在使用端指定）
-    body2: { fontSize: 14, lineHeight: 1.6 }, // text-list
-    subtitle2: { fontSize: 12, lineHeight: 1.5, fontWeight: 500 }, // text-label
-    caption: { fontSize: 11, lineHeight: 1.5 }, // text-caption
-    h6: { fontSize: 17, lineHeight: 1.4, fontWeight: 700 }, // text-title
     button: { textTransform: 'none' },
   },
   components,

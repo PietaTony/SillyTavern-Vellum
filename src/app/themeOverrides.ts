@@ -11,21 +11,6 @@ export const components: ThemeOptions['components'] = {
   MuiButton: { defaultProps: { disableElevation: true } },
   MuiAppBar: { defaultProps: { elevation: 0 } },
   /**
-   * 🔴 **輸入框一律 16px**（Peter 2026-08-25：「那我們就改 16，不要 15」）。
-   *
-   * 起因是 iOS 的規則：**input 字級小於 16px，一 focus 就自動放大整個畫面。**
-   * 我原本只打算在觸控裝置上提到 16、桌機維持正本的 15 —— Peter 裁定不要分兩種。
-   * ⇒ 這一格與正本的 `--text-body: 15px` 刻意不同：那是**內容**的字級，輸入框是另一回事。
-   *
-   * ⚠️ **不用 `maximum-scale=1` 去關掉縮放**：那是把整個網頁的放大功能拿掉
-   * 來換一個症狀消失，會傷到真的需要放大的人。字級才是病因。
-   */
-  MuiInputBase: {
-    styleOverrides: {
-      input: { fontSize: 16 },
-    },
-  },
-  /**
    * 🔴 **繞過 MUI 9.3.1 的一個 bug**：outlined TextField 的 label 浮起後，
    * 外框缺口（legend）沒打開，邊框直接畫過標籤 ——
    * 手機上看起來就是「角色描述」被一條線劃掉。
