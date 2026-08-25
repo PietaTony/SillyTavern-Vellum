@@ -53,3 +53,17 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 export const get = <T>(path: string): Promise<T> => request<T>(path);
 export const post = <T>(path: string, data: unknown): Promise<T> =>
   request<T>(path, { method: 'POST', body: JSON.stringify(data) });
+
+export const patch = <T>(path: string, data: unknown): Promise<T> =>
+  request<T>(path, { method: 'PATCH', body: JSON.stringify(data) });
+
+/**
+ * 傳原始位元組（角色卡是 PNG）。
+ * 🔴 **不要包成 base64 JSON**：會膨脹 ~33%，一張 6.8 MB 的卡變 9 MB，直接撞上 body 上限。
+ */
+export const postBytes = <T>(path: string, bytes: ArrayBuffer): Promise<T> =>
+  request<T>(path, {
+    method: 'POST',
+    body: bytes,
+    headers: { 'Content-Type': 'application/octet-stream' },
+  });

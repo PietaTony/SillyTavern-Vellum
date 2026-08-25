@@ -4,6 +4,7 @@ import ListItemAvatar from '@mui/material/ListItemAvatar';
 import ListItemButton from '@mui/material/ListItemButton';
 import ListItemText from '@mui/material/ListItemText';
 import type { Character } from '../api';
+import { nameOf } from '../api';
 
 /**
  * 好友清單＝**全部角色卡，含從未聊過的**。與「聊天」那條列表刻意分開：
@@ -28,12 +29,12 @@ export function FriendList({
           sx={{ gap: 1 }}
         >
           <ListItemAvatar>
-            <Avatar src={character.avatar || undefined} alt={character.name}>
-              {character.name.slice(0, 1)}
+            <Avatar src={character.avatar || undefined} alt={nameOf(character)}>
+              {nameOf(character).slice(0, 1)}
             </Avatar>
           </ListItemAvatar>
           <ListItemText
-            primary={character.name}
+            primary={nameOf(character)}
             secondary={subtitle}
             slotProps={{
               primary: { noWrap: true, sx: { fontWeight: 600 } },

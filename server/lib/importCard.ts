@@ -8,8 +8,11 @@
  * 每多一次 `readCard` 就多解一次 base64 ＋ 多 parse 一次 3 MB JSON。
  */
 import { readCard, viewOf, type Card } from './card.ts';
+import { worldFromCard, type CharWorld } from './charWorld.ts';
 import { spriteBytes, spriteExt, spritesInCard } from './sprite.ts';
-import { writeBin } from './storage.ts';
+import { listJson, writeBin, writeJson } from './storage.ts';
+import { displayNameOf, uniqueDisplayName } from './displayName.ts';
+import type { Character } from './character.ts';
 
 export type ImportedAsset = { path: string; mime: string; bytes: number; from: string };
 
@@ -18,6 +21,7 @@ export type ImportedCard = {
   card: Card;
   view: ReturnType<typeof viewOf>;
   assets: ImportedAsset[];
+  world: CharWorld;
 };
 
 /**
@@ -40,5 +44,51 @@ export async function importCardFiles(png: Buffer, id: string): Promise<Imported
       // 壞掉的 base64：跳過這一張，其餘照抽。**角色本體比貼圖重要**，不因此擋下整次匯入。
     }
   }
-  return { id, card, view: viewOf(card), assets };
+  /**
+   * D-f：把卡內嵌的世界書複製成**這個好友專屬**的一份，並在同一刻留下出廠快照。
+   * 🔴 **不問使用者要不要**（不沿用 ST 的「Import Card Lore」彈窗）——複製是「加入」的一部分。
+   * 🔴 **每個好友一份**：共用的話，在 A 切線 B 會跟著變。
+   */
+  const world = worldFromCard(card, id, new Date().toISOString());
+  // 🔴 **放 `worlds/` 不是 `characters/`。** `listJson('characters')` 會讀那個目錄下
+  // **每一個 `.json`** —— 世界書放進去就會被當成一個沒有名字的角色回傳，
+  // 前端讀 `description.replace(...)` 當場整頁崩潰。實際踩過一次。
+  await writeJson(`worlds/${id}.json`, world);
+
+  return { id, card, view: viewOf(card), assets, world };
+}
+
+/**
+ * 匯入的本體：檔案上傳與網址匯入**走同一條路**。
+ * 🔴 兩條路各寫一份的話，之後只會有一邊被修到 —— 那是最容易長出「行為不一致」的地方。
+ */
+export async function intoCharacter(png: Buffer) {
+  const id = crypto.randomUUID();
+  const imported = await importCardFiles(png, id);
+  const { view, assets, world } = imported;
+  const base = view.name || '未命名角色';
+  // D-h：加入時主動避開重名。第一個保持原名，第二個起 `(1)`、`(2)`…
+  const existing = (await listJson<Character>('characters')).map(displayNameOf);
+  const displayName = uniqueDisplayName(base, existing);
+  const ch: Character = {
+    id,
+    name: base,
+    ...(displayName !== base ? { displayName } : {}),
+    description: view.description,
+    firstMessage: view.firstMessage,
+    // 相對路徑：dev 由 Vite 代理到後端、Docker 是同一個 process，兩邊都通。
+    avatar: `/api/characters/${id}/avatar.png`,
+    createdAt: new Date().toISOString(),
+    card: `${id}.png`,
+    ...(assets.length > 0 ? { assets } : {}),
+  };
+  await writeJson(`characters/${id}.json`, ch);
+  return {
+    ...ch,
+    alternateGreetings: view.alternateGreetings.length,
+    world: {
+      entries: world.entries.length,
+      disabledAtFactory: Object.values(world.origin.entries).filter((e) => !e.enabled).length,
+    },
+  };
 }

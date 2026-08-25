@@ -10,6 +10,7 @@ import { hostGuard } from './lib/hostGuard.ts';
 import { distExists, mountStatic } from './static.ts';
 import { secrets } from './routes/secrets.ts';
 import { characters } from './routes/characters.ts';
+import { charWorld } from './routes/world.ts';
 import { chats } from './routes/chats.ts';
 import { generate } from './routes/generate.ts';
 import { update } from './routes/update.ts';
@@ -35,6 +36,8 @@ const app = new Hono()
   .get('/api/version', (c) => c.json({ ok: true, name: 'vellum', version: currentVersion() }))
   .route('/api/secrets', secrets)
   .route('/api/characters', characters)
+  // 同一個前綴掛兩支：角色本體與世界書副本是兩種節奏的東西，分開比較好讀。
+  .route('/api/characters', charWorld)
   .route('/api/chats', chats)
   .route('/api/generate', generate)
   .route('/api/update', update);

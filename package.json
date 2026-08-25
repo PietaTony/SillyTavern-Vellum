@@ -34,7 +34,8 @@
     "verify:rules": "tsx scripts/verify-output-rules.ts",
     "verify:vars": "tsx scripts/verify-vars.ts",
     "gate:no-eval": "tsx scripts/gate-no-eval.ts",
-    "verify:companion": "tsx scripts/verify-companion.ts"
+    "verify:companion": "tsx scripts/verify-companion.ts",
+    "verify:lifecycle": "tsx scripts/verify-lifecycle.ts"
   },
   "dependencies": {
     "@emotion/react": "^11.14.0",

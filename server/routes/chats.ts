@@ -4,7 +4,8 @@ import { safeId } from '../lib/ids.ts';
 import { listJson, readJson, writeJson, readBin, writeBin } from '../lib/storage.ts';
 import { parseChatJsonl, viewOfEntry, viewOfHeader, writeChatJsonl } from '../lib/chatFile.ts';
 import { readJson as read } from '../lib/storage.ts';
-import type { Character } from './characters.ts';
+import type { Character } from '../lib/character.ts';
+import { displayNameOf } from '../lib/displayName.ts';
 
 export const MessageSchema = z.object({
   id: z.string(),
@@ -55,7 +56,7 @@ export const chats = new Hono()
     const chat: Chat = {
       id: crypto.randomUUID(),
       characterId: ch.id,
-      characterName: ch.name,
+      characterName: displayNameOf(ch),
       messages: ch.firstMessage
         ? [{ id: crypto.randomUUID(), role: 'model', text: ch.firstMessage, at: now }]
         : [],
@@ -88,7 +89,7 @@ export const chats = new Hono()
     const chat: Chat = {
       id,
       characterId: ch.id,
-      characterName: head.characterName || ch.name,
+      characterName: head.characterName || displayNameOf(ch),
       messages: file.entries.map((e) => {
         const v = viewOfEntry(e);
         return { id: crypto.randomUUID(), role: v.role, text: v.text, at: v.sentAt };

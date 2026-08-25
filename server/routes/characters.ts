@@ -1,37 +1,14 @@
 import { Hono } from 'hono';
 import { z } from 'zod';
+import { CharacterSchema, type Character } from '../lib/character.ts';
 import { listJson, writeJson, readJson, readBin } from '../lib/storage.ts';
 import { embedCard, readCard } from '../lib/card.ts';
-import { importCardFiles } from '../lib/importCard.ts';
+import { intoCharacter } from '../lib/importCard.ts';
+import { BadCardUrl, fetchCardBytes } from '../lib/fetchCard.ts';
 import { readChunks, writeChunks } from '../lib/png.ts';
 import { getKey, redact } from '../lib/secrets.ts';
 import { draftFromImage } from '../lib/gemini.ts';
 import { safeId } from '../lib/ids.ts';
-
-/** D20b：建立角色只留四欄（頭像・名稱・描述・初始訊息）。進階定義是之後的事。 */
-export const CharacterSchema = z.object({
-  id: z.string(),
-  name: z.string().min(1),
-  description: z.string().default(''),
-  firstMessage: z.string().default(''),
-  avatar: z.string().default(''),
-  createdAt: z.string(),
-  /**
-   * 🔴 **匯入的卡片，正本是那個 PNG 檔，不是這份 JSON。**
-   * 上面四個欄位只是投影出來給列表用的視圖；卡片本體（幾十個我們還沒實作的欄位、
-   * 世界書、regex、別人的擴充資料）原樣留在 `characters/<id>.png` 的 tEXt 裡。
-   * ⇒ 匯出時從那個檔重建，**不是**從這四個欄位重建。
-   */
-  card: z.string().optional(),
-  /**
-   * 從卡片抽出來的資產（桌寵貼圖之類）。
-   * 🔴 **抽出來 ≠ 從卡裡刪掉**：卡內原欄位依 A1 原樣保留，這裡只是另存一份可用的。
-   */
-  assets: z
-    .array(z.object({ path: z.string(), mime: z.string(), bytes: z.number(), from: z.string() }))
-    .optional(),
-});
-export type Character = z.infer<typeof CharacterSchema>;
 
 const CreateBody = CharacterSchema.omit({ id: true, createdAt: true });
 
@@ -68,29 +45,28 @@ export const characters = new Hono()
    * 匯入 TavernCard PNG。body 是**原始 PNG bytes**（`application/octet-stream`），
    * 不是 base64 JSON —— 見 `lib/storage.ts` 的 `writeBin` 註解。
    */
-  .post('/import', async (c) => {
-    const png = Buffer.from(await c.req.arrayBuffer());
-    const id = crypto.randomUUID();
-    let imported;
+  /**
+   * 從網址匯入。**後端去抓**（瀏覽器直接抓會撞 CORS，多數卡片站沒開）。
+   * 🔴 SSRF 護欄在 `lib/fetchCard.ts`：解析出 IP 才判斷，且每一跳轉址都重驗。
+   */
+  .post('/import-url', async (c) => {
+    const body = z.object({ url: z.string().min(1) }).safeParse(await c.req.json());
+    if (!body.success) return c.json({ error: '要給一個網址' }, 400);
     try {
-      imported = await importCardFiles(png, id);
+      const { bytes } = await fetchCardBytes(body.data.url);
+      return c.json(await intoCharacter(bytes), 201);
+    } catch (e) {
+      if (e instanceof BadCardUrl) return c.json({ error: e.message }, 400);
+      return c.json({ error: e instanceof Error ? e.message : '匯入失敗' }, 400);
+    }
+  })
+
+  .post('/import', async (c) => {
+    try {
+      return c.json(await intoCharacter(Buffer.from(await c.req.arrayBuffer())), 201);
     } catch (e) {
       return c.json({ error: e instanceof Error ? e.message : '這張圖不是角色卡' }, 400);
     }
-    const { view, assets } = imported;
-    const ch: Character = {
-      id,
-      name: view.name || '未命名角色',
-      description: view.description,
-      firstMessage: view.firstMessage,
-      // 相對路徑：dev 由 Vite 代理到後端、Docker 是同一個 process，兩邊都通。
-      avatar: `/api/characters/${id}/avatar.png`,
-      createdAt: new Date().toISOString(),
-      card: `${id}.png`,
-      ...(assets.length > 0 ? { assets } : {}),
-    };
-    await writeJson(`characters/${id}.json`, ch);
-    return c.json({ ...ch, alternateGreetings: view.alternateGreetings.length }, 201);
   })
 
   /**

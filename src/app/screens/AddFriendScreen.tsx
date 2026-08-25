@@ -1,6 +1,6 @@
 import Alert from '@mui/material/Alert';
 import Button from '@mui/material/Button';
-import { useMutation } from '@tanstack/react-query';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from '@tanstack/react-router';
 import {
   AddFriendForm,
@@ -8,6 +8,7 @@ import {
   createCharacter,
   type Draft,
   emptyDraft,
+  ImportCardBox,
 } from '@/features/characters';
 import { createChat } from '@/features/chat';
 import { useDraft } from '@/shared/lib/useDraft';
@@ -24,6 +25,7 @@ import { Screen } from '@/shared/ui/Screen';
  */
 export function AddFriendScreen({ onBack }: { onBack: () => void }) {
   const nav = useNavigate();
+  const qc = useQueryClient();
   const [draft, setDraft, clearDraft] = useDraft<Draft>('vellum.draft.add-friend', emptyDraft);
 
   // 建立角色 → 直接開對話 → 進對話串（F22–F28：按下去直接開始對話）
@@ -58,6 +60,12 @@ export function AddFriendScreen({ onBack }: { onBack: () => void }) {
           建立失敗：{m.error instanceof Error ? m.error.message : '未知錯誤'}
         </Alert>
       ) : null}
+      {/* 🔴 匯入框放最上方（Peter 指定）：大多數人是「已經有卡」而不是「從零捏一個」。 */}
+      {/*
+       * 🔴 **匯入成功不跳走。** 跳走的話那句「已加入誰」永遠看不到，
+       * 而且要連續匯入好幾張時每次都得再走回來。留在原頁，讓好友列表失效就好。
+       */}
+      <ImportCardBox onImported={() => void qc.invalidateQueries({ queryKey: ['characters'] })} />
       <AddFriendForm draft={draft} setDraft={setDraft} />
     </Screen>
   );
