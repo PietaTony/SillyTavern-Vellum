@@ -108,5 +108,39 @@ if ((lore0?.dangling.length ?? 0) > 0)
 if (swiped.swipeIndex !== 4) fail('swipe 沒有切到指定的候選');
 if (swiped.text === '') fail('切換後訊息內容是空的');
 if (diff.length === 0) fail('🔴 B3：切換開場白之後世界書開關完全沒變 —— 這條鏈沒有接上');
+
+/**
+ * B9／B10 `[api]`：**端點吐出來的東西就是畫面要印的東西**，所以引擎用的標記不可以出現在裡面。
+ * 🔴 這一條是今天踩三次之後補的：`applyRules()` 的單元測試全過，
+ * 但**沒有任何一條驗收在看「使用者會拿到什麼字串」**。
+ */
+const shown = (await (await fetch(`${base}/api/chats/${chat.id}`)).json()) as {
+  messages: { text: string }[];
+};
+const leaked: string[] = [];
+/**
+ * 🔴 **要查外洩的「內容」，不是外洩的「標籤」。**
+ * 第一版我只查 `<UpdateVariable>` 這種字串——結果故意把顯示規則關掉之後它照樣 PASS：
+ * 因為 `htmlToText` 會把那個標籤當成 HTML 剝掉，**標籤不見了、裡面那坨 JSON 還印在畫面上**。
+ * **一把只查得到包裝紙的尺，量不到裡面的東西。**
+ */
+for (const m of shown.messages) {
+  for (const bad of [
+    'UpdateVariable',
+    'JSONPatch',
+    'StatusPlaceHolderImpl',
+    '"op"',
+    '"path"',
+    '小結：',
+    '使用指南',
+  ]) {
+    if (m.text.includes(bad)) leaked.push(bad);
+  }
+  if (/<!--[\s\S]*?-->/.test(m.text)) leaked.push('HTML 註解');
+  if (/\{\{\s*(user|char)\s*\}\}/.test(m.text)) leaked.push('{{user}}／{{char}}');
+  if (/function\s*\(|addEventListener/.test(m.text)) leaked.push('JS 程式碼');
+}
+console.log(`B9／B10：畫面會拿到的文字裡，引擎標記外洩 ${leaked.length} 處`);
+if (leaked.length > 0) fail(`B9／B10：這些東西會被印在畫面上：${[...new Set(leaked)].join('、')}`);
 console.log('verify:swipe PASS — B3 開場白切換 → 標籤提取 → 世界書開關真的跟著變');
 stop(0);
