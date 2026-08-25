@@ -1,6 +1,5 @@
 import Alert from '@mui/material/Alert';
 import Avatar from '@mui/material/Avatar';
-import Box from '@mui/material/Box';
 import Button from '@mui/material/Button';
 import Stack from '@mui/material/Stack';
 import TextField from '@mui/material/TextField';
@@ -8,7 +7,7 @@ import Typography from '@mui/material/Typography';
 import { useMutation } from '@tanstack/react-query';
 import { readImageScaled } from '@/shared/lib/image';
 import { draftFromImage } from '../api';
-import { canCreate, type Draft } from '../model';
+import type { Draft } from '../model';
 
 /**
  * D20b：表單只留 頭像・名稱・描述・初始訊息。
@@ -17,7 +16,19 @@ import { canCreate, type Draft } from '../model';
  * 🔴 **草稿不住在這裡**，住在畫面層 —— 因為送出鈕釘在 footer、不在捲動區內，
  * 兩邊要看同一份值。
  */
-export function AddFriendForm({ draft, setDraft }: { draft: Draft; setDraft: (d: Draft) => void }) {
+export function AddFriendForm({
+  draft,
+  setDraft,
+  imported = false,
+}: {
+  draft: Draft;
+  setDraft: (d: Draft) => void;
+  /**
+   * 🔴 匯入的卡片**本來就有內容**，「透過圖片自動生成」會把它蓋掉。
+   * 這種按鈕不該只是「按了會壞」——直接關掉，並說明原因（Peter 2026-08-25）。
+   */
+  imported?: boolean;
+}) {
   const gen = useMutation({
     mutationFn: (dataUrl: string) => draftFromImage(dataUrl),
     onSuccess: (r) =>
@@ -67,12 +78,16 @@ export function AddFriendForm({ draft, setDraft }: { draft: Draft; setDraft: (d:
         variant="outlined"
         size="small"
         loading={gen.isPending}
-        disabled={!draft.avatar}
+        disabled={imported || !draft.avatar}
         onClick={() => gen.mutate(draft.avatar)}
       >
         透過圖片自動生成內容
       </Button>
-      {!draft.avatar ? (
+      {imported ? (
+        <Typography variant="caption" color="text.secondary">
+          這是匯入的角色卡，內容已經有了 —— 用 AI 生成會把卡片原本的內容蓋掉。
+        </Typography>
+      ) : !draft.avatar ? (
         <Typography variant="caption" color="text.secondary">
           先放一張圖，就能請 AI 幫你把下面兩欄填好。
         </Typography>
@@ -109,39 +124,5 @@ export function AddFriendForm({ draft, setDraft }: { draft: Draft; setDraft: (d:
         placeholder="這將是每次聊天開始時角色傳送的第一則訊息。"
       />
     </Stack>
-  );
-}
-
-/**
- * 送出鈕**釘在畫面底部**，不跟著內容捲（Peter 2026-08-25）——
- * 中間那一區未來還會長出別的欄位，捲到看不見送出鈕就等於這一頁沒有出口。
- */
-export function AddFriendSubmit({
-  draft,
-  busy,
-  onCreate,
-  imported = false,
-  greetings = 0,
-}: {
-  draft: Draft;
-  busy: boolean;
-  onCreate: () => void;
-  /** 🔴 匯入的角色**已經建立好了**，這顆鈕的意義變成「開始聊天」。 */
-  imported?: boolean;
-  greetings?: number;
-}) {
-  return (
-    <Box sx={{ flex: 'none', p: 2, borderTop: 1, borderColor: 'divider' }}>
-      <Button
-        fullWidth
-        variant="contained"
-        size="large"
-        loading={busy}
-        disabled={!imported && !canCreate(draft)}
-        onClick={onCreate}
-      >
-        {imported ? (greetings > 1 ? '選一個開場，開始聊天' : '開始聊天') : '建立角色'}
-      </Button>
-    </Box>
   );
 }

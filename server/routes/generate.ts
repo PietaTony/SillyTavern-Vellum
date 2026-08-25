@@ -14,6 +14,11 @@ import { safeId } from '../lib/ids.ts';
 import { readJson, writeJson } from '../lib/storage.ts';
 import { DEFAULT_MODEL, buildBody, parseChunk, streamGenerate, type GeminiChunk } from '../lib/gemini.ts';
 import type { Chat, Message } from '../lib/chatModel.ts';
+import { displayOf } from '../lib/persona.ts';
+import { personaForChat } from '../lib/personaContext.ts';
+import { insertAtDepth, personaPieces } from '../lib/personaPrompt.ts';
+import { substitute } from '../lib/macro.ts';
+import { worldDepthPieces, worldForChat, worldSystemText, DEPTH_PRIORITY } from '../lib/promptWorld.ts';
 
 const Body = z.object({
   chatId: z.string(),
@@ -38,11 +43,37 @@ export const generate = new Hono().post('/', async (c) => {
   const chat = await readJson<Chat | null>(`chats/${chatId}.json`, null);
   if (!chat) return c.json({ error: '找不到這段對話' }, 404);
 
-  const body = buildBody(
-    chat.messages.map((m) => ({ role: m.role, text: m.text })),
-    `你正在扮演「${chat.characterName}」。全程使用繁體中文，保持角色語氣。`,
-    maxOutputTokens,
+  /**
+   * 🔴 **persona 在這裡現算，不是建立對話時算一次存起來**（規格 B2）。
+   * 使用者可能在別的分頁改了全域預設 —— 存起來的話這一段對話永遠用舊的。
+   */
+  const who = await personaForChat(chat);
+  const userName = displayOf(who.persona);
+  const pieces = personaPieces(who.persona);
+  const macros = { user: userName, char: chat.characterName };
+
+  // `{{user}}`／`{{char}}` 在送進模型之前就要展開 —— 模型看到大括號只會照抄。
+  const history = chat.messages.map((m) => ({ role: m.role, text: substitute(m.text, macros) }));
+  // 世界書：好友那本（character 層）＋ persona 那本（persona 層）。
+  const world = await worldForChat(chat, who.persona, history.map((m) => ({ name: '', text: m.text })));
+
+  const withPersona = insertAtDepth(
+    history,
+    [
+      ...pieces.atDepth.map((x) => ({ ...x, priority: DEPTH_PRIORITY.persona })),
+      ...worldDepthPieces(world.plan),
+    ],
+    (text) => ({ role: 'model' as const, text: substitute(text, macros) }),
   );
+
+  const system = [
+    `你正在扮演「${chat.characterName}」。全程使用繁體中文，保持角色語氣。`,
+    `對方（使用者）叫「${userName}」。`,
+    ...worldSystemText(world.plan).map((t) => substitute(t, macros)),
+    ...pieces.system.map((t) => substitute(t, macros)),
+  ].join('\n');
+
+  const body = buildBody(withPersona, system, maxOutputTokens);
 
   const controller = new AbortController();
   c.req.raw.signal.addEventListener('abort', () => controller.abort());

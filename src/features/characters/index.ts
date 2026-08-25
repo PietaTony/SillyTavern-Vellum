@@ -15,6 +15,7 @@ export {
   nameOf,
 } from './api';
 export { canCreate, type Draft, emptyDraft } from './model';
-export { AddFriendForm, AddFriendSubmit } from './ui/AddFriendForm';
+export { AddFriendForm } from './ui/AddFriendForm';
+export { AddFriendSubmit } from './ui/AddFriendSubmit';
 export { type FriendItem, FriendList } from './ui/FriendList';
 export { ImportCardBox } from './ui/ImportCardBox';

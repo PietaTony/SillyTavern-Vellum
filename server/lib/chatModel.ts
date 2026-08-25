@@ -24,6 +24,8 @@ export const ChatSchema = z.object({
   characterName: z.string(),
   messages: z.array(MessageSchema),
   createdAt: z.string(),
+  /** 第 1 層 · 這一段對話的 persona（優先序最高）。可空＝往下找好友層。 */
+  personaId: z.string().optional(),
   /**
    * 🔴 **匯入的對話，正本是那個 `.jsonl` 檔。**
    * `messages` 只是投影：實測 ST 的對話檔每一行鍵集都不同（`extra` 的子鍵 6 行 6 種），

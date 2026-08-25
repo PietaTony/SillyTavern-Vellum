@@ -37,11 +37,12 @@ function KeyPage() {
       info={providerById(selected)}
       onBack={back}
       // 🔴 測試通過的當下金鑰就存下來了 ⇒ 這一刻起「設定完成」。
-      // 所以導到 `/add-friend`（設定完成後的入口），不是 `/first-run/add-friend`
+      // 所以導到 `/me?setup=1`（設定完成後的入口），不是 `/first-run/*`
       // —— 後者會被 first-run 的守衛擋下來。
+      // 🔴 中間多這一步是 Peter 的 P-1：讓人知道「我是誰」這件事存在。**那一步可以跳過。**
       onPassed={() => {
         void queryClient.invalidateQueries({ queryKey: KEY_STATUS_QUERY.queryKey });
-        void nav({ to: '/add-friend' });
+        void nav({ to: '/me', search: { setup: true } });
       }}
     />
   );

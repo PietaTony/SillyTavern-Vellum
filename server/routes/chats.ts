@@ -9,6 +9,8 @@ import { readJson as read } from '../lib/storage.ts';
 import type { Character } from '../lib/character.ts';
 import { displayNameOf } from '../lib/displayName.ts';
 import { renderMessages, rulesOf } from '../lib/renderChat.ts';
+import { displayOf } from '../lib/persona.ts';
+import { personaForChat } from '../lib/personaContext.ts';
 
 export const chats = new Hono()
   .get('/', async (c) => c.json(await listJson<Chat>('chats')))
@@ -25,9 +27,16 @@ export const chats = new Hono()
     const chat = await readJson<Chat | null>(`chats/${id}.json`, null);
     if (!chat) return c.json({ error: '找不到這段對話' }, 404);
     const ch = await read<Character | null>(`characters/${chat.characterId}.json`, null);
-    // ⚠️ `user` 目前寫死「你」—— persona（使用者角色）還沒做，見 PLAN。
-    const names = { char: chat.characterName, user: '你' };
-    return c.json({ ...chat, messages: renderMessages(chat.messages, rulesOf(ch), names) });
+    // 🔴 `{{user}}` 由生效中的 persona 名字驅動；沒有 persona 才回退成「你」。
+    const who = await personaForChat(chat);
+    const names = { char: chat.characterName, user: displayOf(who.persona) };
+    return c.json({
+      ...chat,
+      messages: renderMessages(chat.messages, rulesOf(ch), names),
+      // 🔴 **回報是哪一層生效**：使用者改了全域卻沒反應（對話層蓋著），
+      // 沒有這個資訊他只會覺得壞了（驗收 C4）。
+      persona: who.persona ? { id: who.persona.id, name: who.persona.name, layer: who.layer } : { layer: who.layer },
+    });
   })
 
   /** M1：一段對話＝一個好友。建立對話時把角色的初始訊息當第一則寫進去。 */
@@ -68,6 +77,25 @@ export const chats = new Hono()
     // ④ 選定的那一則決定世界書開哪幾條（B3 的完整路徑）。
     const lore = opening ? await applyGreetingLore(ch.id, opening) : null;
     return c.json({ ...chat, lore }, 201);
+  })
+
+  /**
+   * 這一段對話的 persona。
+   * 🔴 **傳 null ＝ 清回「跟隨上層」**（驗收 C5）——沒有這條路，對話一旦設過就永遠脫鉤。
+   */
+  .patch('/:id/persona', async (c) => {
+    const id = safeId(c.req.param('id'));
+    if (!id) return c.json({ error: '找不到這段對話' }, 404);
+    const body = z.object({ personaId: z.string().nullable() }).safeParse(await c.req.json());
+    if (!body.success) return c.json({ error: '參數不合法' }, 400);
+    const chat = await readJson<Chat | null>(`chats/${id}.json`, null);
+    if (!chat) return c.json({ error: '找不到這段對話' }, 404);
+    const next = { ...chat };
+    if (body.data.personaId) next.personaId = body.data.personaId;
+    else delete next.personaId;
+    await writeJson(`chats/${id}.json`, next);
+    const who = await personaForChat(next);
+    return c.json({ persona: who.persona ? { id: who.persona.id, name: who.persona.name } : null, layer: who.layer });
   })
 
   /**

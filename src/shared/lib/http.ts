@@ -57,6 +57,9 @@ export const post = <T>(path: string, data: unknown): Promise<T> =>
 export const patch = <T>(path: string, data: unknown): Promise<T> =>
   request<T>(path, { method: 'PATCH', body: JSON.stringify(data) });
 
+export const put = <T>(path: string, data: unknown): Promise<T> =>
+  request<T>(path, { method: 'PUT', body: JSON.stringify(data) });
+
 /**
  * 傳原始位元組（角色卡是 PNG）。
  * 🔴 **不要包成 base64 JSON**：會膨脹 ~33%，一張 6.8 MB 的卡變 9 MB，直接撞上 body 上限。

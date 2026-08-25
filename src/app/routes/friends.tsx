@@ -1,7 +1,13 @@
 import AddIcon from '@mui/icons-material/Add';
 import Alert from '@mui/material/Alert';
+import Avatar from '@mui/material/Avatar';
 import Button from '@mui/material/Button';
 import CircularProgress from '@mui/material/CircularProgress';
+import Divider from '@mui/material/Divider';
+import List from '@mui/material/List';
+import ListItemAvatar from '@mui/material/ListItemAvatar';
+import ListItemButton from '@mui/material/ListItemButton';
+import ListItemText from '@mui/material/ListItemText';
 import Stack from '@mui/material/Stack';
 import Typography from '@mui/material/Typography';
 import { useQuery } from '@tanstack/react-query';
@@ -9,6 +15,7 @@ import { createFileRoute, useNavigate } from '@tanstack/react-router';
 import { TabBar } from '@/app/screens/TabBar';
 import { type FriendItem, FriendList, fetchCharacters } from '@/features/characters';
 import { createChat, fetchChats, latestChatOf } from '@/features/chat';
+import { fetchPersonas } from '@/features/persona';
 import { Screen } from '@/shared/ui/Screen';
 
 export const Route = createFileRoute('/friends')({ component: FriendsPage });
@@ -21,6 +28,8 @@ function FriendsPage() {
   const nav = useNavigate();
   const chars = useQuery({ queryKey: ['characters'], queryFn: fetchCharacters });
   const chats = useQuery({ queryKey: ['chats'], queryFn: fetchChats });
+  const me = useQuery({ queryKey: ['personas'], queryFn: fetchPersonas });
+  const myPersona = me.data?.personas.find((p) => p.id === me.data?.defaultPersonaId) ?? null;
 
   const addFriend = () => void nav({ to: '/add-friend' });
 
@@ -63,6 +72,24 @@ function FriendsPage() {
       }
       footer={<TabBar active="friends" />}
     >
+      {/*
+       * 🔴 **第一列是自己**（Peter 的 P-2，照 LINE）。點頭像改「我是誰」。
+       * 放在清單裡而不是另開一個設定頁：使用者不會想到「我自己」是一個設定項。
+       */}
+      <List disablePadding>
+        <ListItemButton onClick={() => void nav({ to: '/me' })}>
+          <ListItemAvatar>
+            <Avatar src={myPersona?.avatar || undefined}>我</Avatar>
+          </ListItemAvatar>
+          <ListItemText
+            primary={myPersona?.name ?? '設定「我是誰」'}
+            secondary={
+              myPersona?.description?.slice(0, 40) || '對方會怎麼稱呼你、知道你是什麼樣的人'
+            }
+          />
+        </ListItemButton>
+      </List>
+      <Divider sx={{ mb: 1 }} />
       {chars.isPending ? <CircularProgress size={24} /> : null}
       {chars.isError ? (
         <Alert

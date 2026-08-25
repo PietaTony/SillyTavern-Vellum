@@ -10,6 +10,8 @@ export type Message = {
 };
 export type Chat = {
   id: string;
+  /** 這一段對話生效中的「我是誰」，含**來自哪一層**（畫面要看得出來，驗收 C4）。 */
+  persona?: { id?: string; name?: string; layer: string };
   characterId: string;
   characterName: string;
   messages: Message[];

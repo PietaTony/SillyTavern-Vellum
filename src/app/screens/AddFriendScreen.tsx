@@ -107,7 +107,7 @@ export function AddFriendScreen({ onBack }: { onBack: () => void }) {
           });
         }}
       />
-      <AddFriendForm draft={draft} setDraft={setDraft} />
+      <AddFriendForm draft={draft} setDraft={setDraft} imported={imported !== null} />
     </Screen>
   );
 }

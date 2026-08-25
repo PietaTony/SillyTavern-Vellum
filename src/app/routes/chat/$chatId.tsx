@@ -15,6 +15,7 @@ import {
   swipeMessage,
   Thread,
 } from '@/features/chat';
+import { ChatPersona } from '@/features/persona';
 import { Screen } from '@/shared/ui/Screen';
 
 export const Route = createFileRoute('/chat/$chatId')({ component: ChatPage });
@@ -103,6 +104,9 @@ function ChatPage() {
     <Screen
       title={q.data.characterName}
       onBack={onBack}
+      action={
+        <ChatPersona chatId={chatId} persona={q.data.persona} onChanged={() => void q.refetch()} />
+      }
       scroll={false}
       footer={<Composer chatId={chatId} busy={streaming !== null} onSend={(t) => void send(t)} />}
     >

@@ -23,6 +23,8 @@ export const CharacterSchema = z.object({
    * 全在額外問候裡，只留第一則等於「匯進來了但看不到內容」。
    */
   greetings: z.array(z.string()).optional(),
+  /** 第 2 層 · 「跟這個好友，我是誰」。可空＝往下找全域預設。 */
+  personaId: z.string().optional(),
   /**
    * P6 輸出後處理規則（從卡片的 `regex_scripts` 轉出來）。
    * 🔴 **存在這裡而不是每次去讀卡**：那張卡 6.8 MB、兩份各 3 MB base64，
