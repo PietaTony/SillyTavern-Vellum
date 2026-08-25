@@ -28,9 +28,9 @@ export type AppType = typeof app;
 // 沒有 dist（dev）就不掛，前端由 Vite 提供。
 if (distExists()) mountStatic(app);
 
-const port = Number(process.env['PORT'] ?? 8787);
+const port = Number(process.env['PORT'] ?? 8520);
 // 🔴 **只綁 127.0.0.1。** `@hono/node-server` 預設綁所有介面 —— 開了 Tailscale 之後
-// 後端就直接躺在 tailnet 上（實測 http://100.x.x.x:8787/api/version 回 200）。
+// 後端就直接躺在 tailnet 上（實測 http://100.x.x.x:8520/api/version 回 200）。
 // 手機是透過 Vite 的 /api proxy 進來的，proxy 從 Mac 這一端連本機，所以綁本機就夠。
 // 要讓後端自己對外，設 HOST 環境變數，那是刻意的動作而不是預設。
 const hostname = process.env['HOST'] ?? '127.0.0.1';

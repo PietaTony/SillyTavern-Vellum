@@ -6,8 +6,8 @@ services:
     container_name: vellum
     restart: unless-stopped
     ports:
-      # 只綁本機。要讓手機／平板連進來（例如透過 Tailscale），改成 "8787:8787"
-      - "127.0.0.1:8787:8787"
+      # 只綁本機。要讓手機／平板連進來（例如透過 Tailscale），改成 "8520:8520"
+      - "127.0.0.1:8520:8520"
     volumes:
       # 🔴 角色卡、對話、金鑰。**這一行拿掉，更新一次資料就沒了。**
       - ./data:/app/data

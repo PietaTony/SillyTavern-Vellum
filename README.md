@@ -16,10 +16,10 @@ curl -L -o docker-compose.yml https://raw.githubusercontent.com/PietaTony/SillyT
 docker compose up -d
 ```
 
-打開 **<http://localhost:8787>** 就可以用了。第一次會帶你設定 API 金鑰。
+打開 **<http://localhost:8520>** 就可以用了。第一次會帶你設定 API 金鑰。
 
-> **網址永遠是 `localhost:8787`**，不會變。加到書籤就好，不用每次去查 port。
-> 要換 port 的話改 `docker-compose.yml` 的 `"127.0.0.1:8787:8787"` 左邊那個數字。
+> **網址永遠是 `localhost:8520`**，不會變。加到書籤就好，不用每次去查 port。
+> 要換 port 的話改 `docker-compose.yml` 的 `"127.0.0.1:8520:8520"` 左邊那個數字。
 
 > 🔴 **`./data` 這個資料夾就是你的全部身家**（角色卡、對話、金鑰）。
 > 它跟 `docker-compose.yml` 放在一起，備份就是複製這個資料夾。
@@ -64,11 +64,11 @@ docker compose pull && docker compose up -d
 要讓自己的手機連進來，建議用 [Tailscale](https://tailscale.com/)（把你的裝置組成一個私有網路）：
 
 1. 電腦與手機都裝 Tailscale 並登入同一個帳號
-2. 把 `docker-compose.yml` 的 `"127.0.0.1:8787:8787"` 改成 `"8787:8787"`
+2. 把 `docker-compose.yml` 的 `"127.0.0.1:8520:8520"` 改成 `"8520:8520"`
 3. `docker compose up -d`
-4. 手機開 `http://<電腦的 Tailscale IP>:8787`
+4. 手機開 `http://<電腦的 Tailscale IP>:8520`
 
-> ⚠️ 改成 `"8787:8787"` 之後，**同一個區域網路上的人也連得到**。
+> ⚠️ 改成 `"8520:8520"` 之後，**同一個區域網路上的人也連得到**。
 > 在公共 wifi 上請不要這樣開。
 
 ---
@@ -78,7 +78,7 @@ docker compose pull && docker compose up -d
 ```bash
 pnpm install
 pnpm dev          # 前端 5173
-pnpm dev:server   # 後端 8787
+pnpm dev:server   # 後端 8520
 pnpm verify       # 九道閘門：typecheck／test／lint／selftest／boundaries／no-hex／file-size／screens／back
 ```
 
