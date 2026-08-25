@@ -19,10 +19,11 @@
     "gate:no-hex": "node scripts/gate-no-hex.mjs",
     "gate:file-size": "node scripts/gate-file-size.mjs",
     "gate:screens": "node scripts/gate-screens-vs-routes.mjs",
-    "verify": "pnpm typecheck && pnpm test && pnpm lint && pnpm gate:selftest && pnpm gate:boundaries && pnpm gate:no-hex && pnpm gate:file-size && pnpm gate:screens",
+    "verify": "pnpm typecheck && pnpm test && pnpm lint && pnpm gate:selftest && pnpm gate:boundaries && pnpm gate:no-hex && pnpm gate:file-size && pnpm gate:screens && pnpm gate:back",
     "gate:selftest": "for f in scripts/gate-*.mjs; do node \"$f\" --selftest || exit 1; done",
     "dev:server": "tsx watch server/index.ts",
-    "server": "tsx server/index.ts"
+    "server": "tsx server/index.ts",
+    "gate:back": "node scripts/gate-back.mjs"
   },
   "dependencies": {
     "@hono/node-server": "^2.1.1",

@@ -56,3 +56,22 @@ const [FIRST] = PROVIDERS as [ProviderInfo, ...ProviderInfo[]];
 
 export const providerById = (id: ProviderId): ProviderInfo =>
   PROVIDERS.find((p) => p.id === id) ?? FIRST;
+
+/**
+ * 金鑰的遮罩顯示：**前四碼與後四碼明碼，中間打點**。
+ *
+ * 為什麼要露出兩端：使用者貼完之後唯一能自我確認「有沒有貼對／貼到哪一把」的線索就是這個。
+ * 全遮罩的話，貼錯時他要到測試失敗才知道，而測試失敗看起來像是金鑰無效。
+ *
+ * 🔴 界線：這是**使用者自己剛輸入的值在自己瀏覽器裡的回顯**。
+ * `00-FACTS` F3 擋的是「金鑰從伺服器回到前端／進 log／進錯誤訊息」——
+ * 後端仍然永遠不回傳金鑰值（`/api/secrets` 只回布林表）。兩件事不要混。
+ *
+ * 太短的金鑰不露出任何一端 —— 露兩端會把整串都露完。
+ */
+export function maskKey(value: string, visible = 4): string {
+  const v = value.trim();
+  if (v.length === 0) return '';
+  if (v.length <= visible * 2 + 4) return '•'.repeat(v.length);
+  return `${v.slice(0, visible)}${'•'.repeat(Math.min(v.length - visible * 2, 24))}${v.slice(-visible)}`;
+}

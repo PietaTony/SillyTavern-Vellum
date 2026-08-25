@@ -8,14 +8,42 @@
   background: var(--surface);
 }
 
+/* 🔴 三層結構是刻意的（設計正本原文）：**header 與 footer 在捲動區外**。 */
 .header {
   flex: 0 0 auto;
   display: flex;
   align-items: center;
-  gap: var(--sp-2, 8px);
   padding: var(--sp-3, 12px) var(--sp-4, 16px);
   border-bottom: 1px solid var(--line);
   background: var(--surface);
+}
+
+.lead {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-1, 4px);
+  min-width: 0;
+}
+
+/* .v-back：符號由 ::before 產生，不是塞在標題文字裡的字元 ——
+   塞在文字裡的字元對應不到任何元件，那正是上一版壞掉的形狀（F9／GAP-25）。 */
+.back {
+  min-width: var(--hit-min);
+  min-height: var(--hit-min);
+  margin-left: -10px; /* 抵銷 topbar padding，視覺仍貼齊左緣 */
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  background: none;
+  font-size: 17px;
+  line-height: 1;
+  color: var(--ink);
+  cursor: pointer;
+  flex: none;
+}
+.back::before {
+  content: "‹";
 }
 
 .title {

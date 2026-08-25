@@ -11,21 +11,23 @@
   font-weight: 600;
 }
 
+.hint {
+  margin: 0 0 var(--sp-2, 8px);
+  font-size: var(--fs-fine, 13px);
+  color: var(--ink-faint);
+}
+
 .field {
   box-sizing: border-box;
+  margin-top: var(--sp-4, 16px);
+  margin-bottom: var(--sp-3, 12px);
   width: 100%;
   min-height: var(--hit-min);
   padding: var(--sp-3, 12px);
   border: 1px solid var(--line-strong);
   border-radius: var(--radius-md);
   background: var(--surface-sunk);
-  -webkit-text-security: disc;
-}
-
-.row {
-  display: flex;
-  gap: var(--sp-2, 8px);
-  margin-top: var(--sp-3, 12px);
+  font-family: var(--font-mono, ui-monospace, monospace);
 }
 
 .status {

@@ -9,52 +9,62 @@
         {
           "id": "First-Run--1",
           "route": "first-run/provider",
-          "note": "選供應商。點卡片＝選取；說明 focus 才展開，再點收回"
+          "note": "選供應商。點卡片＝選取；說明 focus 才展開，再點收回",
+          "back": null
         },
         {
           "id": "First-Run--3",
           "route": "first-run/key",
-          "note": "金鑰頁 · 空白"
+          "note": "金鑰頁 · 空白",
+          "back": "first-run/provider"
         },
         {
           "id": "First-Run--3a",
           "route": "first-run/key",
-          "note": "金鑰頁 · 已貼上未測試"
+          "note": "金鑰頁 · 已貼上未測試",
+          "back": "first-run/provider"
         },
         {
           "id": "First-Run--3b",
           "route": "first-run/key",
-          "note": "金鑰頁 · 測試失敗"
+          "note": "金鑰頁 · 測試失敗",
+          "back": "first-run/provider"
         },
         {
           "id": "First-Run--3c",
           "route": "first-run/key",
-          "note": "金鑰頁 · 測試成功 → 解鎖下一步"
+          "note": "金鑰頁 · 測試成功 → 解鎖下一步",
+          "back": "first-run/provider"
         },
         {
           "id": "First-Run--4",
           "route": "first-run/add-friend",
-          "note": "加入好友 · 空白"
+          "note": "加入好友 · 空白",
+          "back": "first-run/key"
         },
         {
           "id": "First-Run--6",
           "route": "first-run/add-friend",
-          "note": "加入好友 · 卡庫 dropdown（疊加）"
+          "note": "加入好友 · 卡庫 dropdown（疊加）",
+          "back": "first-run/key"
         },
         {
           "id": "First-Run--7",
           "route": "first-run/add-friend",
-          "note": "加入好友 · 已填寫（填值）"
+          "note": "加入好友 · 已填寫（填值）",
+          "back": "first-run/key"
         },
         {
           "id": "Chat-Thread-Layout--5",
           "route": "chat/$chatId",
-          "note": "對話串"
+          "note": "對話串",
+          "back": "first-run/add-friend"
         },
         {
           "id": "Waiting-And-Thinking--1",
           "route": "chat/$chatId",
-          "note": "等待／思考（對話串的狀態）"
+          "note": "等待／思考（對話串的狀態）",
+          "back": "first-run/add-friend"
         }
       ]
     },
@@ -87,5 +97,6 @@
     "有 tab bar ⇔ 沒有返回鍵（tab 根＝頂層）",
     "Import-And-Archive--3 刻意沒有返回鍵：進行中狀態，已有『取消』"
   ],
-  "_note_deferred": "M2b-import 尚未做：Peter 2026-08-25 指定先做 Gemini 主線到「聊天室看到 AI 說第一句話」。active 只指向 M2。"
+  "_note_deferred": "M2b-import 尚未做：Peter 2026-08-25 指定先做 Gemini 主線到「聊天室看到 AI 說第一句話」。active 只指向 M2。",
+  "_back_source": "返回落點抄自設計正本 plans/ui/prototype/back.json。back 為 null ＝ 刻意沒有返回（GAP-25 的三個真實入口：好友列表／首次啟動第一步／匯入中）。🔴 chat/$chatId 的正確落點是好友列表（Friends-And-Cards--1），M3 才有，現在暫代成 add-friend。"
 }
