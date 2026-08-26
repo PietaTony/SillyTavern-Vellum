@@ -2,6 +2,7 @@ import Box from '@mui/material/Box';
 import { useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { registerFrame } from '../runtime/host';
+import type { CardVarScopes } from '../runtime/scopes';
 import { buildSrcDoc, type FrameMode, wrap } from '../runtime/srcdoc';
 
 /**
@@ -46,7 +47,7 @@ export function ScriptFrame({
    * 🔴 種進 iframe 的變數。**只在建立時種一次**（`useCardScripts` 保證它不會變）——
    * 它一變，`srcDoc` 就變，iframe 會整個重載：桌寵每存一次尺寸就會重生一次。
    */
-  vars?: Record<string, unknown> | undefined;
+  vars?: CardVarScopes | undefined;
 }) {
   const ref = useRef<HTMLIFrameElement | null>(null);
 

@@ -1,4 +1,5 @@
-import { get, put } from '@/shared/lib/http';
+import { get, patch, put } from '@/shared/lib/http';
+import type { CardVarScope } from './runtime/scopes';
 
 /** 一支卡片自帶程式的盤點資料（不含內容）。 */
 export type ScriptInfo = {
@@ -38,3 +39,28 @@ export const setScriptsConsent = (
   body: { hash: string; externals: string[] } | null,
 ): Promise<{ consent: Consent | null }> =>
   put(`/api/characters/${characterId}/scripts/consent`, body);
+
+/**
+ * 卡片變數的另外兩種範圍（`global`／`character`）。`chat` 那一份跟著對話一起下來。
+ * 🔴 **一次拿兩種**：iframe 的 `srcdoc` 只種一次，缺一種就得等下一次重生才補得上。
+ */
+export const fetchCardVarScopes = (
+  characterId: string,
+): Promise<{ global: Record<string, unknown>; character: Record<string, unknown> }> =>
+  get(`/api/card-variables/${characterId}`);
+
+/**
+ * 存變數（淺層合併）。🔴 **三種範圍三支端點** —— 存錯地方比存不進去更難查，
+ * 因為卡片當下讀得到（本地快取），下次進來才發現不見了。
+ * 🔴 走 `shared/lib/http`，不自己 `fetch` —— 那是前端唯一的 HTTP 出口（A2）。
+ */
+export function patchCardVariables(
+  scope: CardVarScope,
+  ids: { chatId: string; characterId: string },
+  vars: Record<string, unknown>,
+): Promise<unknown> {
+  if (scope === 'global') return patch('/api/card-variables/global', { patch: vars });
+  if (scope === 'character')
+    return patch(`/api/card-variables/character/${ids.characterId}`, { patch: vars });
+  return patch(`/api/chats/${ids.chatId}/variables`, { patch: vars });
+}

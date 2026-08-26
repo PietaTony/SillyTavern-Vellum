@@ -1,4 +1,5 @@
 import { PREAMBLE, VENDOR } from './preamble';
+import type { CardVarScopes } from './scopes';
 
 /**
  * 組出要塞進 `srcdoc` 的那份 HTML（M13 第二／三期）。
@@ -109,8 +110,12 @@ export const wrap = (code: string): string =>
  * 🔴 **`<` 一定要跳脫**：值裡只要出現 `</script>` 就會把我們這段提早結束，
  * 後面整份 HTML 全被當成腳本內容 —— 而那些值來自網路上的角色卡。
  */
-export const seedVars = (vars: Record<string, unknown> | undefined): string =>
-  `<script>window.__vellumVars=${JSON.stringify(vars ?? {}).replace(/</g, '\\u003c')}</script>`;
+export const seedVars = (vars: CardVarScopes | undefined): string =>
+  `<script>window.__vellumVars=${JSON.stringify({
+    global: vars?.global ?? {},
+    character: vars?.character ?? {},
+    chat: vars?.chat ?? {},
+  }).replace(/</g, '\\u003c')}</script>`;
 
 export function buildSrcDoc(opts: {
   /** 已經包好的 body 內容（一份 document、或一串 `<script>`）。 */
@@ -118,8 +123,8 @@ export function buildSrcDoc(opts: {
   name: string;
   mode: FrameMode;
   allow: string[];
-  /** 這段對話目前的變數。🔴 只在建立時種一次，之後由 iframe 自己的快取接手。 */
-  vars?: Record<string, unknown> | undefined;
+  /** 三種範圍各一份。🔴 只在建立時種一次，之後由 iframe 自己的快取接手。 */
+  vars?: CardVarScopes | undefined;
 }): string {
   const vendors = VENDOR.map((u) => `<script src="${u}"></script>`).join('');
   // overlay 要看得到底下的 app ⇒ 背景必須是透明的，不能是 iframe 預設的白色。

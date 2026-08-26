@@ -1,4 +1,4 @@
-import { useMutation, useQuery } from '@tanstack/react-query';
+import { useQuery } from '@tanstack/react-query';
 import { createFileRoute } from '@tanstack/react-router';
 import { useState } from 'react';
 import { CardBackground } from '@/app/screens/CardBackground';
@@ -8,16 +8,15 @@ import { ChatMenu } from '@/app/screens/ChatMenu';
 import { ChatLoading, ChatUnavailable } from '@/app/screens/ChatUnavailable';
 import { useBack } from '@/app/screens/useBack';
 import { useChatBackgroundOverride } from '@/app/screens/useChatBackgroundOverride';
-import { ConsentDialog, useCardScripts } from '@/features/cardscripts';
+import { ConsentDialog, useCardScripts, useCardVars } from '@/features/cardscripts';
 import { CharacterLayer, fetchCharacter } from '@/features/characters';
 import {
   Composer,
   fetchChat,
-  patchChatVariables,
   SwipePicker,
-  swipeMessage,
   Thread,
   useChatStream,
+  useSwipeMessage,
 } from '@/features/chat';
 import { Screen } from '@/shared/ui/Screen';
 
@@ -45,19 +44,10 @@ function ChatPage() {
     q.data?.messages,
   );
 
-  /**
-   * 切候選。🔴 **`reset()` 不可以省**（敵意審查 2026-08-26 B1）：畫面讀「樂觀暫存 ?? 伺服器那份」，
-   * 送過訊息後暫存不是 null ⇒ `refetch()` 的新資料被 `??` 短路，三個入口同時「按了沒反應」。
-   * ⚠️ 先 `await refetch()` 再 `reset()`；反過來會閃一下舊資料。
-   */
-  const swipe = useMutation({
-    mutationFn: ({ messageId, index }: { messageId: string; index: number }) =>
-      swipeMessage(chatId, messageId, index),
-    onSuccess: async () => {
-      await q.refetch();
-      reset();
-    },
-  });
+  const swipe = useSwipeMessage(chatId, () => q.refetch(), reset);
+
+  // 卡片變數的四種範圍 —— 種什麼進去、寫到哪裡（見 `useCardVars`）。
+  const vars = useCardVars({ chatId, characterId: q.data?.characterId ?? '' });
 
   // 🔴 卡片自己的程式（M13 第二期）。**必須在所有早退之前呼叫**（hooks 規則）
   // ⇒ `characterId` 這時可能還是空字串，`useCardScripts` 自己會擋掉那一輪查詢。
@@ -69,8 +59,9 @@ function ChatPage() {
     refresh: () => q.refetch(),
     // 🔴 卡片腳本的狀態（桌寵尺寸就存在這裡）。存檔不重讀對話 ——
     // 重讀會讓 srcdoc 變、iframe 整個重生，桌寵每存一次就閃一次。
-    saveVariables: (patch) => patchChatVariables(chatId, patch),
-    initialVars: q.data?.variables,
+    // 範圍決定存到哪一支端點，理由見 `useCardVars`。
+    saveVariables: vars.saveVariables,
+    initialVars: vars.chatVarsOf(q.data?.variables),
   });
 
   if (q.isPending) return <ChatLoading />;

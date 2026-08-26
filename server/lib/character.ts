@@ -87,5 +87,23 @@ export const CharacterSchema = z.object({
   assets: z
     .array(z.object({ path: z.string(), mime: z.string(), bytes: z.number(), from: z.string() }))
     .optional(),
+  /**
+   * 卡片腳本的變數 —— **`character` 範圍**（ST 四種範圍之一）。
+   *
+   * 🔴 六題：① `variables: Record<string, unknown>`，語意「這位好友的所有對話共用」。
+   * ② **非加不可**：在此之前四種範圍**全部回同一份對話變數** ——
+   *    卡片寫 `{type:'character'}`（例如「這位角色的好感度」）會被下一段新對話清成空的，
+   *    而且失敗是靜默的。範圍講錯 ＝ 資料寫錯地方。
+   * ③ **不能用既有的**：`Chat.variables` 的生命週期綁在單一段對話，答不了「跨對話保留」。
+   * ④ **對既有資料的影響：零** —— 舊 `characters/<id>.json` 讀進來是 `undefined` ⇒ `{}`。
+   * ⑤ 寫：`PATCH /api/card-variables/character/:id`（淺層合併）；
+   *    讀：`GET /api/card-variables/:characterId`，種進 iframe 的 `srcdoc`。
+   * ⑥ 可逆：刪掉這個鍵即回退，其餘欄位不受影響。
+   *
+   * ⚠️ 值一律當成**不透明資料**（`z.unknown()`）——硬給形狀只會在下一張卡上炸掉。
+   * 🔴 **不進 `characterEdit.ts` 的白名單**：那支是給人用的編輯端點，
+   *    卡片腳本的狀態不該能從那裡被改。
+   */
+  variables: z.record(z.string(), z.unknown()).optional(),
 });
 export type Character = z.infer<typeof CharacterSchema>;

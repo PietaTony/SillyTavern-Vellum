@@ -1,4 +1,5 @@
 import type { Chat, Message } from '@/features/chat';
+import { type CardVarScope, type CardVarScopes, scopeOf } from './scopes';
 
 /**
  * 卡片程式呼叫得到的 API（M13 第二期）。
@@ -25,10 +26,11 @@ export type BridgeDeps = {
   /**
    * 🔴 存變數（淺層合併）。卡片是**同步**寫的，所以 iframe 那端先打自己的快取、
    * 再非同步呼叫這支存檔 —— 回傳值沒有人在等（見 `runtime/vars.ts`）。
+   * 🔴 **`scope` 決定存到哪裡**（三個端點各一）。在此之前四種範圍全存進同一份對話變數。
    */
-  saveVariables: (patch: Record<string, unknown>) => Promise<unknown>;
-  /** 建立 iframe 時要種進去的那一份變數（見 `useCardScripts` 的 `vars`）。 */
-  initialVars?: Record<string, unknown> | undefined;
+  saveVariables: (patch: Record<string, unknown>, scope: CardVarScope) => Promise<unknown>;
+  /** 建立 iframe 時要種進去的三份變數（見 `useCardScripts` 的 `vars`）。 */
+  initialVars?: CardVarScopes | undefined;
 };
 
 /**
@@ -64,9 +66,13 @@ export function buildBridge(deps: BridgeDeps): Record<string, unknown> {
      */
     getAllVariables: () => ({}),
     getVariables: () => ({}),
-    setVariables(patch: unknown) {
+    /**
+     * 🔴 **第二個參數是範圍**（iframe 那端一定會送，見 `vars.ts` 的 `call('setVariables', …)`）。
+     * 沒送就是 `chat` —— 與 iframe 那端同一套判準，兩邊不可以各判各的。
+     */
+    setVariables(patch: unknown, opts?: unknown) {
       return patch !== null && typeof patch === 'object'
-        ? deps.saveVariables(patch as Record<string, unknown>)
+        ? deps.saveVariables(patch as Record<string, unknown>, scopeOf(opts))
         : undefined;
     },
     async setChatMessages(updates: unknown) {

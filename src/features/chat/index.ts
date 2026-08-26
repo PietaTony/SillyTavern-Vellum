@@ -17,3 +17,4 @@ export type { FrontendRenderer } from './ui/MessageContent';
 export { SwipePicker } from './ui/SwipePicker';
 export { Thread } from './ui/Thread';
 export { useChatStream } from './useChatStream';
+export { useSwipeMessage } from './useSwipeMessage';

@@ -10,6 +10,7 @@ import {
 import { type BridgeDeps, buildBridge } from './runtime/bridge';
 import { installBridgeHost } from './runtime/host';
 import { VENDOR_HOSTS } from './runtime/preamble';
+import type { CardVarScopes } from './runtime/scopes';
 import { wrap } from './runtime/srcdoc';
 
 /**
@@ -41,7 +42,7 @@ export type CardScriptsView = {
    * 之後由 iframe 自己的同步快取接手；這裡若跟著變，`srcdoc` 就會變，
    * iframe 會**整個重載**（桌寵每存一次尺寸就重生一次）。
    */
-  vars: Record<string, unknown> | undefined;
+  vars: CardVarScopes | undefined;
   /** 開同意視窗。**沒有可同意的東西時是 `undefined`** —— 不要畫一顆沒有去處的鈕。 */
   ask: (() => void) | undefined;
   asking: boolean;
@@ -81,7 +82,7 @@ export function useCardScripts(deps: BridgeDeps): CardScriptsView {
         messages: () => live.current.messages(),
         swipe: (id, i) => live.current.swipe(id, i),
         refresh: () => live.current.refresh(),
-        saveVariables: (patch) => live.current.saveVariables(patch),
+        saveVariables: (patch, scope) => live.current.saveVariables(patch, scope),
       }),
     [],
   );
@@ -100,7 +101,7 @@ export function useCardScripts(deps: BridgeDeps): CardScriptsView {
   const enabled = consented(q.data);
 
   // 見型別上的註解：種子只認第一份，之後不再跟著變。
-  const seed = useRef<Record<string, unknown> | undefined>(undefined);
+  const seed = useRef<CardVarScopes | undefined>(undefined);
   if (seed.current === undefined && deps.initialVars !== undefined) seed.current = deps.initialVars;
 
   // 內容只在**同意過**之後才拿（後端也會擋，403）。⚠️ 那張卡是 2 MB ⇒ `staleTime: Infinity`。

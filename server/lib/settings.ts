@@ -24,6 +24,23 @@ export type Settings = {
    */
   globalWorlds?: { id: string; name: string }[] | undefined;
   /**
+   * 卡片腳本的變數 —— **`global` 範圍**（ST 四種範圍之一）。
+   *
+   * 🔴 六題：① `variables: Record<string, unknown>`，語意「所有角色、所有對話共用」。
+   * ② **非加不可**：在此之前四種範圍全部回同一份對話變數，卡片寫 `{type:'global'}`
+   *    （例如「使用者的暱稱偏好」）會跟著那段對話一起消失。
+   * ③ **不能用既有的**：`globalWorlds` 是世界書名單，語意完全不同；
+   *    `providerModels` 是我們自己的設定，不該讓卡片腳本寫進去。
+   * ④ **對既有資料的影響：零** —— 舊 `settings.json` 讀進來是 `undefined` ⇒ `{}`。
+   * ⑤ 寫：`PATCH /api/card-variables/global`（淺層合併）；
+   *    讀：`GET /api/card-variables/:characterId`，種進 iframe 的 `srcdoc`。
+   * ⑥ 可逆：刪掉這個鍵即回退。
+   *
+   * ⚠️ 這是**唯一一個卡片腳本寫得到的全域鍵**。放在 `Settings` 底下是因為它就是
+   * 「這台機器的狀態」，但寫入端點只准動這一個鍵 —— 見 `cardVariables.ts`。
+   */
+  variables?: Record<string, unknown> | undefined;
+  /**
    * 每一家選好的模型。**鍵是 registry 的 provider id。**
    *
    * 🔴 加這個欄位的六題（鐵律 #11 的精神；這不是 DB 而是設定檔，但判準一樣）：

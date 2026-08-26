@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { CARD_VAR_SCOPES } from '../runtime/scopes';
 import { buildSrcDoc, policyOf, seedVars } from '../runtime/srcdoc';
 
 /**
@@ -68,15 +69,25 @@ describe('iframe 內的 CSP —— 兌現「只能連到這幾個網域」', () 
  * ⚠️ 這條沒有任何別的閘門守得住：typecheck 綠、畫面看起來也正常。
  */
 describe('種進 iframe 的變數不可以逃出那段 script', () => {
-  const evil = { x: '</script><img src=x onerror=alert(1)>' };
+  const payload = '</script><img src=x onerror=alert(1)>';
 
-  it('🔴 `<` 一律跳脫 ⇒ 值裡的 `</script>` 不會結束那一段', () => {
-    const doc = buildSrcDoc({ body: '', name: 'n', mode: 'hidden', allow: [], vars: evil });
-    expect(doc).not.toContain('</script><img');
-    expect(seedVars(evil)).toContain('\\u003c/script>');
+  /**
+   * 🔴 **三個桶子逐一驗**（2026-08-27 加上 global／character 之後）。
+   * 只驗 chat 的話，惡意值從 global 那個桶子進來一樣逃得出去 ——
+   * 那正是「閘門守著一層、洞在另一層」。
+   */
+  it('🔴 `<` 一律跳脫 ⇒ 值裡的 `</script>` 不會結束那一段（三種範圍都要）', () => {
+    for (const scope of CARD_VAR_SCOPES) {
+      const evil = { global: {}, character: {}, chat: {}, [scope]: { x: payload } };
+      const doc = buildSrcDoc({ body: '', name: 'n', mode: 'hidden', allow: [], vars: evil });
+      expect(doc, `${scope} 這個桶子逃出去了`).not.toContain('</script><img');
+      expect(seedVars(evil)).toContain('\\u003c/script>');
+    }
   });
 
-  it('沒有變數時種一個空物件，不是 undefined（卡片會直接取鍵）', () => {
-    expect(seedVars(undefined)).toContain('window.__vellumVars={}');
+  it('沒有變數時三個桶子都種成空物件，不是 undefined（卡片會直接取鍵）', () => {
+    expect(seedVars(undefined)).toContain(
+      'window.__vellumVars={"global":{},"character":{},"chat":{}}',
+    );
   });
 });
