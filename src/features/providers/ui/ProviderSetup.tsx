@@ -2,6 +2,7 @@ import Alert from '@mui/material/Alert';
 import Stack from '@mui/material/Stack';
 import { useQuery } from '@tanstack/react-query';
 import { useState } from 'react';
+import { Toast, type ToastMsg } from '@/shared/ui/Toast';
 import { fetchKeyPreviews, type ProviderRow, STATUS_COPY } from '../registryApi';
 import { KeyField } from './KeyField';
 import { KeySteps } from './KeySteps';
@@ -27,6 +28,8 @@ export function ProviderSetup({ p }: { p: ProviderRow }) {
   // 🔴 遮罩預覽（前四後四）。只有在這裡讀 —— 它是全專案唯一回金鑰衍生資料的端點。
   const preview = useQuery({ queryKey: ['keyPreview'], queryFn: fetchKeyPreviews });
   const [model, setModel] = useState(p.model ?? p.defaultModel);
+  // 🔴 **這個畫面只有一個 tips**：金鑰與模型共用，兩個 Snackbar 會疊在一起。
+  const [toast, setToast] = useState<ToastMsg>(null);
 
   // 🔴 `planned` 走完全不同的分支：那幾家沒有金鑰可貼，版面沒有東西可以照抄。
   if (p.status === 'planned') {
@@ -51,7 +54,7 @@ export function ProviderSetup({ p }: { p: ProviderRow }) {
         keyHint={p.keyHint}
       />
 
-      <KeyField p={p} stored={preview.data?.[p.id] ?? ''} />
+      <KeyField p={p} stored={preview.data?.[p.id] ?? ''} onNotify={setToast} />
 
       {/*
        * **這一頁比 first-run 多出來的就是這一塊**（Peter 原話：「只是我們多了選模型」）。
@@ -59,7 +62,11 @@ export function ProviderSetup({ p }: { p: ProviderRow }) {
        * 還沒有金鑰時**不渲染**，與 first-run 一致（那邊也是測過才出現）——
        * 擺一個選不了的下拉在那裡，比不擺更像壞掉。
        */}
-      {p.keySet ? <ModelPicker provider={p.id} value={model} onChange={setModel} /> : null}
+      {p.keySet ? (
+        <ModelPicker provider={p.id} value={model} onChange={setModel} onNotify={setToast} />
+      ) : null}
+
+      <Toast msg={toast} onClose={() => setToast(null)} />
     </Stack>
   );
 }

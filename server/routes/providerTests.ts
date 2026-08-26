@@ -37,7 +37,7 @@ export const providerTests = new Hono()
     const cfg = byId(provider);
     if (!cfg) return c.json({ ok: false, message: '不認得這一家供應商。' }, 400);
     if (!isSelectable(cfg))
-      return c.json({ ok: false, message: `Vellum 還沒接上 ${cfg.displayName}。` }, 400);
+      return c.json({ ok: false, message: `Vellum 尚未支援 ${cfg.displayName}。` }, 400);
 
     // 🔴 依格式分派 —— **不再寫死 Gemini**（驗收 A4 的一半）。
     const r = await adapterFor(cfg.format).listModels(cfg, value);
@@ -60,7 +60,7 @@ export const providerTests = new Hono()
     const cfg = byId(c.req.param('provider'));
     if (!cfg) return c.json({ ok: false, message: '不認得這一家供應商。' }, 400);
     if (!isSelectable(cfg))
-      return c.json({ ok: false, message: `Vellum 還沒接上 ${cfg.displayName}。` }, 400);
+      return c.json({ ok: false, message: `Vellum 尚未支援 ${cfg.displayName}。` }, 400);
     const key = await getKey(cfg.id);
     if (!key) return c.json({ ok: false, message: `還沒設定 ${cfg.displayName} 的金鑰。` }, 400);
     const r = await adapterFor(cfg.format).listModels(cfg, key);
@@ -83,7 +83,7 @@ export const providerTests = new Hono()
     const cfg = byId(c.req.param('provider'));
     if (!cfg) return c.json({ ok: false, message: '不認得這一家供應商。' }, 400);
     if (!isSelectable(cfg))
-      return c.json({ ok: false, message: `Vellum 還沒接上 ${cfg.displayName}。` }, 400);
+      return c.json({ ok: false, message: `Vellum 尚未支援 ${cfg.displayName}。` }, 400);
     const body = z.object({ model: z.string().min(1) }).safeParse(await c.req.json());
     if (!body.success) return c.json({ ok: false, message: '參數不合法' }, 400);
     const key = await getKey(cfg.id);

@@ -30,6 +30,25 @@ export type Settings = {
    * ⑥ 可逆性 —— 刪掉這個鍵即回退，**不需要 migration**
    */
   providerModels?: Record<string, string> | undefined;
+  /**
+   * **目前使用中的供應商。** 對話送出時用哪一家。
+   *
+   * 🔴 加這個欄位的六題：
+   * ① 加了什麼 —— `activeProvider: <registry 的 provider id>`
+   * ② 為何非加不可 —— **在此之前這個值根本不存在**：`generate.ts` 的 body schema
+   *    寫死 `provider: z.string().default('google')`，而前端呼叫時只送 `chatId`。
+   *    ⇒ 把 Anthropic 設好、測過、選好模型，對話**還是打 Google**。
+   *    26 家的設定 UI 後面沒有接上引擎（總則五）。
+   * ③ 為何不能用既有的 —— first-run 選的那家存在 zustand（`providers/store.ts`），
+   *    **不持久化、也沒送出**，重整就沒了；`providerModels` 是「每家各自選的模型」，
+   *    回答不了「現在用哪一家」。
+   * ④ 對既有資料的影響 —— 新的可選欄位。舊的 `settings.json` 讀進來是 `undefined`，
+   *    回退到 `'google'`，**與現況行為完全相同**。
+   * ⑤ 誰讀誰寫 —— 寫：`PUT /api/secrets/active/:provider`；讀：`generate.ts`、
+   *    `GET /api/secrets/providers`（給清單畫 radio）。
+   * ⑥ 可逆性 —— 刪掉這個鍵即回退，不需要 migration。
+   */
+  activeProvider?: string | undefined;
 };
 
 export const loadSettings = (): Promise<Settings> => readJson<Settings>('settings.json', {});
@@ -44,4 +63,17 @@ export async function getProviderModel(provider: string): Promise<string | undef
 export async function setProviderModel(provider: string, model: string): Promise<void> {
   const s = await loadSettings();
   await saveSettings({ ...s, providerModels: { ...(s.providerModels ?? {}), [provider]: model } });
+}
+
+/**
+ * 目前使用中的供應商。**沒設過就回 `'google'`** —— 與 `generate.ts` 過去寫死的預設相同，
+ * 舊資料的行為一個位元都不變。
+ */
+export async function getActiveProvider(): Promise<string> {
+  return (await loadSettings()).activeProvider ?? 'google';
+}
+
+export async function setActiveProvider(provider: string): Promise<void> {
+  const s = await loadSettings();
+  await saveSettings({ ...s, activeProvider: provider });
 }

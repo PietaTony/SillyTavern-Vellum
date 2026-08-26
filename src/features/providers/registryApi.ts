@@ -7,6 +7,8 @@
  * 那是 onboarding 的文案不是 registry。
  */
 
+import { put } from '@/shared/lib/http';
+
 export type ProviderStatus = 'ready' | 'untested' | 'planned';
 
 export type ProviderRow = {
@@ -23,7 +25,17 @@ export type ProviderRow = {
   keySet: boolean;
   /** 選好的模型。**沒選過是 `null`**，不是 `defaultModel` —— 兩者在畫面上要分得出來。 */
   model: string | null;
+  /** 對話現在打的是這一家。**26 家裡同時只有一個 `true`。** */
+  active: boolean;
 };
+
+/**
+ * 切換「目前使用中的供應商」。
+ * 🔴 **失敗會丟 `ApiError`，而訊息就是後端寫好的那句人話**
+ * （「還沒有金鑰 —— 先設定金鑰才能用它對話」）。呼叫端直接顯示，不要自己再編一句。
+ */
+export const setActiveProvider = (provider: string): Promise<{ ok: true; active: string }> =>
+  put<{ ok: true; active: string }>(`/api/secrets/active/${provider}`, {});
 
 export async function fetchProviderRows(): Promise<ProviderRow[]> {
   const r = await fetch('/api/secrets/providers');
@@ -95,12 +107,23 @@ export async function testStoredKey(
   return (await r.json()) as { ok: true; models: string[] } | { ok: false; message: string };
 }
 
-/** 狀態的說法。🔴 `untested` 不是免責聲明，是**讓「等回報」這個策略真的能運作**。 */
-export const STATUS_COPY: Record<ProviderStatus, { label: string; note: string }> = {
-  ready: { label: '', note: '' },
-  untested: {
-    label: '尚未實測',
-    note: '邏輯照 SillyTavern 寫的，但還沒有人用真金鑰打過。連不上的話請把錯誤訊息原文貼給我們 —— 有原文才修得動。',
-  },
-  planned: { label: '還沒接上', note: 'Vellum 還沒接上這一家，選了也送不出去。' },
-};
+/**
+ * 狀態的說法。🔴 `untested` 不是免責聲明，是**讓「等回報」這個策略真的能運作**。
+ *
+ * 🔴 **`planned` 用紅底**（Peter 2026-08-26：「『還沒接上』換成紅底『尚未支援』」）——
+ * 它與 `untested` 是兩種不同的「不保證」：`untested` 你可以試，`planned` 你試也沒用。
+ * 兩個都用灰底的話，使用者要讀完字才分得出來。
+ */
+export const STATUS_COPY: Record<ProviderStatus, { label: string; note: string; color?: 'error' }> =
+  {
+    ready: { label: '', note: '' },
+    untested: {
+      label: '尚未實測',
+      note: '邏輯照 SillyTavern 寫的，但還沒有人用真金鑰打過。連不上的話請把錯誤訊息原文貼給我們 —— 有原文才修得動。',
+    },
+    planned: {
+      label: '尚未支援',
+      note: 'Vellum 尚未支援這一家，選了也送不出去。',
+      color: 'error',
+    },
+  };

@@ -32,7 +32,11 @@ function ProviderPage() {
        */
       action={
         p && STATUS_COPY[p.status].label ? (
-          <Chip size="small" label={STATUS_COPY[p.status].label} />
+          <Chip
+            size="small"
+            label={STATUS_COPY[p.status].label}
+            {...(STATUS_COPY[p.status].color ? { color: STATUS_COPY[p.status].color } : {})}
+          />
         ) : null
       }
     >

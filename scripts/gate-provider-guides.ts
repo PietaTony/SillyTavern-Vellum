@@ -17,6 +17,7 @@
  * 自證：pnpm exec tsx scripts/gate-provider-guides.ts --selftest
  */
 import { PROVIDERS } from '../server/providers/registry.ts';
+import { POPULARITY } from '../src/features/providers/popularity.ts';
 import { STEPS_BY_PROVIDER } from '../src/features/providers/steps.ts';
 
 export type Row = {
@@ -62,7 +63,7 @@ export function consoleLooksLikeApi(r: Row): boolean {
  */
 const MARKUP = /\*\*|🔴|⚠️|`/;
 
-export function check(rows: Row[], steps: Record<string, string[]>) {
+export function check(rows: Row[], steps: Record<string, string[]>, ranked: string[] = POPULARITY) {
   const badUrl = rows.filter(consoleLooksLikeApi).map((r) => r.id);
   const noSteps = rows
     .filter((r) => r.status !== 'planned')
@@ -71,7 +72,13 @@ export function check(rows: Row[], steps: Record<string, string[]>) {
   const markup = Object.entries(steps)
     .filter(([, lines]) => lines.some((l) => MARKUP.test(l)))
     .map(([id]) => id);
-  return { badUrl, noSteps, markup };
+  /*
+   * 🔴 **排序清單漏掉一家 ⇒ 它會靜靜沉到清單最底**，而沒有人會注意到 ——
+   * 那是「壞了但看起來正常」，正是閘門該擋的形狀。
+   */
+  const inRank = new Set(ranked);
+  const unranked = rows.filter((r) => !inRank.has(r.id)).map((r) => r.id);
+  return { badUrl, noSteps, markup, unranked };
 }
 
 if (process.argv.includes('--selftest')) {
@@ -98,6 +105,8 @@ if (process.argv.includes('--selftest')) {
     ['步驟裡的 ** 要抓到', check([ok], { a: ['**粗體**'] }).markup[0] === 'a'],
     ['步驟裡的 🔴 要抓到', check([ok], { a: ['🔴 注意'] }).markup[0] === 'a'],
     ['乾淨的步驟不誤報', check([ok], { a: ['開啟 example.com'] }).markup.length === 0],
+    ['沒排進流行度清單要抓到', check([ok], { a: ['一'] }, []).unranked[0] === 'a'],
+    ['排進去的不誤報', check([ok], { a: ['一'] }, ['a']).unranked.length === 0],
     ['空清單不可以當綠燈', PROVIDERS.length > 0],
   ];
   let bad2 = 0;
@@ -119,8 +128,8 @@ if (rows.length === 0) {
   console.error('gate:guides FAIL — 掃到 0 家供應商（比對 0 個項目必然 PASS，那是假綠燈）');
   process.exit(1);
 }
-const { badUrl, noSteps, markup } = check(rows, STEPS_BY_PROVIDER);
-if (badUrl.length || noSteps.length || markup.length) {
+const { badUrl, noSteps, markup, unranked } = check(rows, STEPS_BY_PROVIDER);
+if (badUrl.length || noSteps.length || markup.length || unranked.length) {
   console.error(`gate:guides FAIL — 掃了 ${rows.length} 家`);
   if (badUrl.length) {
     console.error(`  consoleUrl 就是 API base（不是控制台）：${badUrl.join('、')}`);
@@ -134,10 +143,14 @@ if (badUrl.length || noSteps.length || markup.length) {
     console.error(`  步驟文案含 markup（會原樣印在畫面上）：${markup.join('、')}`);
     console.error('  ⇒ 步驟是純文字。要強調就把話寫清楚，不要用 ** 或 🔴。');
   }
+  if (unranked.length) {
+    console.error(`  沒排進流行度清單（會靜靜沉到最底）：${unranked.join('、')}`);
+    console.error('  ⇒ 去 src/features/providers/popularity.ts 把它排進去。');
+  }
   process.exit(1);
 }
 const withSteps = rows.filter((r) => r.status !== 'planned').length;
 console.log(
   `gate:guides PASS — ${rows.length} 家：${withSteps} 家有逐步引導，` +
-    `控制台網址 0 家等於 API base，步驟文案 0 處 markup`,
+    `控制台網址 0 家等於 API base、步驟文案 0 處 markup、${POPULARITY.length} 家已排序`,
 );

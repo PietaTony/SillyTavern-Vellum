@@ -1,9 +1,9 @@
 import { Hono } from 'hono';
 import { z } from 'zod';
 import { setKey, whichAreSet, redact, getKey, previews } from '../lib/secrets.ts';
-import { loadSettings } from '../lib/settings.ts';
+import { getActiveProvider, loadSettings, setActiveProvider } from '../lib/settings.ts';
 import { adapterFor } from '../providers/dispatch.ts';
-import { byId, PROVIDERS } from '../providers/registry.ts';
+import { byId, isSelectable, PROVIDERS } from '../providers/registry.ts';
 
 // 🔴 **不再列舉供應商 id**：合法性由 registry 認定（家數要從 2 變 26）。
 const WriteBody = z.object({
@@ -39,7 +39,9 @@ export const secrets = new Hono()
    */
   .get('/providers', async (c) => {
     const set = await whichAreSet();
-    const chosen = (await loadSettings()).providerModels ?? {};
+    const settings = await loadSettings();
+    const chosen = settings.providerModels ?? {};
+    const active = settings.activeProvider ?? 'google';
     return c.json(
       PROVIDERS.map((p) => ({
         id: p.id,
@@ -54,8 +56,35 @@ export const secrets = new Hono()
         // 🔴 選過的才回，沒選過回 null —— **不要偷偷回 defaultModel**，
         //    那會讓「還沒選」與「選了預設那個」在畫面上長得一樣。
         model: chosen[p.id] ?? null,
+        /** 對話現在打的是這一家。**同時只有一個 `true`。** */
+        active: p.id === active,
       })),
     );
+  })
+
+  /**
+   * 切換「目前使用中的供應商」。
+   *
+   * 🔴 **兩種切法會直接弄壞對話，所以在這裡擋掉**，不是靠 UI 自律：
+   * ① `planned` 的四家根本送不出去 ② 沒有金鑰的家一送就失敗。
+   * 讓它切過去只是把錯誤延後到下一次對話 —— 而那時候使用者已經忘記他改過設定。
+   * ⚠️ **擋下來要說得出「那怎麼辦」**，不是只回 400（本專案原則：每個死路都要有出口）。
+   */
+  .put('/active/:provider', async (c) => {
+    const id = c.req.param('provider');
+    const cfg = byId(id);
+    if (!cfg) return c.json({ error: '不認得這一家供應商' }, 400);
+    if (!isSelectable(cfg)) {
+      return c.json({ error: `Vellum 尚未支援 ${cfg.displayName}，選了也送不出去。` }, 400);
+    }
+    if (!(await whichAreSet())[id]) {
+      return c.json(
+        { error: `${cfg.displayName} 還沒有金鑰 —— 先設定金鑰才能用它對話。`, action: 'setup-key' },
+        400,
+      );
+    }
+    await setActiveProvider(id);
+    return c.json({ ok: true, active: await getActiveProvider() });
   })
 
   /**

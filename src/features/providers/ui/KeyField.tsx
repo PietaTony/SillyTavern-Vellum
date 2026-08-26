@@ -4,7 +4,7 @@ import Stack from '@mui/material/Stack';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { DraftField } from '@/shared/ui/DraftField';
-import { Toast, type ToastMsg } from '@/shared/ui/Toast';
+import type { ToastMsg } from '@/shared/ui/Toast';
 import { applyMaskedEdit, maskKey } from '../model';
 import { type ProviderRow, testAndSaveKey, testStoredKey } from '../registryApi';
 import { keyOkAdornment } from './KeyOk';
@@ -18,7 +18,16 @@ import { keyOkAdornment } from './KeyOk';
  * 🔴 **只有測試成功才會存**（`POST /api/secrets/test` 成功時才 `setKey`）。
  * 沒有另一顆「儲存」鈕 —— 存一把沒測過的金鑰只會讓人以為設定好了。
  */
-export function KeyField({ p, stored }: { p: ProviderRow; stored: string }) {
+export function KeyField({
+  p,
+  stored,
+  onNotify,
+}: {
+  p: ProviderRow;
+  stored: string;
+  /** 🔴 **Toast 由畫面層持有**：一個畫面兩個 Snackbar 會疊在同一個位置互相蓋掉。 */
+  onNotify: (m: ToastMsg) => void;
+}) {
   const qc = useQueryClient();
   /**
    * `real` ＝ 使用者**這次貼進來的新金鑰**（前端持有的真值）。
@@ -30,21 +39,18 @@ export function KeyField({ p, stored }: { p: ProviderRow; stored: string }) {
    */
   const [real, setReal] = useState('');
   const [dirty, setDirty] = useState(false);
-  // 🔴 結果用**全站共用的 tips**，不再是欄位下方的內嵌 Alert
-  // （Peter 2026-08-26：「測試連線，成功後應該要像是測試此模型一樣，跳出 tips 的方式」）。
-  const [toast, setToast] = useState<ToastMsg>(null);
 
   const test = useMutation({
     // 動過就測新的（成功時後端順便存起來）；沒動過就測伺服器上存著的那把 ——
     // 🔴 後者**金鑰完全不離開伺服器**，比「重貼一次再測」少一次傳輸。
     mutationFn: () => (dirty ? testAndSaveKey(p.id, real) : testStoredKey(p.id)),
-    onError: () => setToast({ severity: 'warning', text: '連不上，沒有存' }),
+    onError: () => onNotify({ severity: 'warning', text: '連不上，沒有存' }),
     onSuccess: (r) => {
       // 🔴 **失敗不用 tips。** 3 秒讀不完錯誤原文，而「把原文貼給我們」
       // 是那 21 家 untested 唯一的修復路徑 —— 訊息必須留在畫面上。
       if (!r.ok) return;
       // 措辭與 first-run 的成功訊息一字不差 —— 同一件事在兩個入口不可以講得不一樣。
-      setToast({ severity: 'success', text: `連線成功 —— ${r.models.length} 個模型可用` });
+      onNotify({ severity: 'success', text: `連線成功 —— ${r.models.length} 個模型可用` });
       void qc.invalidateQueries({ queryKey: ['providerRows'] });
       // 換了新金鑰 ⇒ 遮罩也要跟著換，不然畫面上還是舊那把的前四後四。
       void qc.invalidateQueries({ queryKey: ['keyPreview'] });
@@ -110,8 +116,6 @@ export function KeyField({ p, stored }: { p: ProviderRow; stored: string }) {
           {p.status === 'untested' ? '（請把這段原文回報給我們）' : ''}
         </Alert>
       ) : null}
-      {/* 成功走全站共用的 tips（Peter 2026-08-26：「像是測試此模型一樣，跳出 tips」）。 */}
-      <Toast msg={toast} onClose={() => setToast(null)} />
     </Stack>
   );
 }

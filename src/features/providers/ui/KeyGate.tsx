@@ -8,6 +8,7 @@ import { useState } from 'react';
 import { fromPromise } from 'xstate';
 import { DraftField } from '@/shared/ui/DraftField';
 import { Screen } from '@/shared/ui/Screen';
+import { Toast, type ToastMsg } from '@/shared/ui/Toast';
 import { testKey } from '../api';
 import { keyGateMachine, type TestOutcome } from '../keyGate.machine';
 import { applyMaskedEdit, DEFAULT_MODEL_BY_PROVIDER, maskKey, type ProviderInfo } from '../model';
@@ -32,6 +33,7 @@ export function KeyGate({
 }) {
   // 預設就是 registry 的預設模型；選了會由 `ModelPicker` 自己存下來。
   const [model, setModel] = useState(DEFAULT_MODEL_BY_PROVIDER[info.id] ?? '');
+  const [toast, setToast] = useState<ToastMsg>(null);
   const [state, send] = useMachine(
     keyGateMachine.provide({
       actors: {
@@ -121,9 +123,10 @@ export function KeyGate({
         {passed ? (
           <>
             <Alert severity="success">連線成功 —— {state.context.models.length} 個模型可用</Alert>
-            <ModelPicker provider={info.id} value={model} onChange={setModel} />
+            <ModelPicker provider={info.id} value={model} onChange={setModel} onNotify={setToast} />
           </>
         ) : null}
+        <Toast msg={toast} onClose={() => setToast(null)} />
         {state.matches('failed') ? (
           <Alert severity="warning">測試沒有通過：{state.context.error}</Alert>
         ) : null}

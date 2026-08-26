@@ -7,12 +7,14 @@ export {
   type ProviderInfo,
   providerById,
 } from './model';
+export { byUsefulness, POPULARITY, rankOf } from './popularity';
 export {
   fetchKeyPreviews,
   fetchModels,
   fetchProviderRows,
   type ProviderRow,
   STATUS_COPY,
+  setActiveProvider,
   testAndSaveKey,
   testModel,
   testStoredKey,
@@ -24,4 +26,5 @@ export { KeySteps } from './ui/KeySteps';
 export { ModelPicker } from './ui/ModelPicker';
 export { PlannedNote } from './ui/PlannedNote';
 export { ProviderCard } from './ui/ProviderCard';
+export { ProviderListRow } from './ui/ProviderListRow';
 export { ProviderSetup } from './ui/ProviderSetup';

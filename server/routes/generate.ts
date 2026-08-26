@@ -16,12 +16,17 @@ import { adapterFor } from '../providers/dispatch.ts';
 import { byId, isSelectable } from '../providers/registry.ts';
 import type { Chat, Message } from '../lib/chatModel.ts';
 import { buildTurn } from '../lib/buildTurn.ts';
-import { getProviderModel } from '../lib/settings.ts';
+import { getActiveProvider, getProviderModel } from '../lib/settings.ts';
 
 const Body = z.object({
   chatId: z.string(),
-  // 🔴 **provider 是參數，不再寫死**（驗收 A4）。沒給就用 google —— 既有行為不變。
-  provider: z.string().default('google'),
+  /**
+   * 🔴 **provider 是參數**（驗收 A4）。**沒給就讀 `settings.activeProvider`** ——
+   * 在此之前這裡是 `.default('google')`，於是不管使用者設定了誰，對話一律打 Google。
+   * 那是「26 家設定 UI 後面沒有引擎」的實際形狀（2026-08-26 Peter 指出畫面講不清楚
+   * 當前全域是誰 —— 查下去才發現不是講不清楚，是根本沒有那個值）。
+   */
+  provider: z.string().optional(),
   model: z.string().optional(),
   // 🔴 給足預算：3.6-flash 實測 thinking 吃掉 514 tokens 才吐 6 個字（07-gemini-facts §2）
   maxOutputTokens: z.number().int().min(256).max(65_536).default(4096),
@@ -33,9 +38,9 @@ export const generate = new Hono().post('/', async (c) => {
   const parsed = Body.safeParse(await c.req.json());
   if (!parsed.success) return c.json({ error: '參數不合法' }, 400);
   const { maxOutputTokens } = parsed.data;
-  const cfg = byId(parsed.data.provider);
+  const cfg = byId(parsed.data.provider ?? (await getActiveProvider()));
   if (!cfg) return c.json({ error: '不認得這一家供應商' }, 400);
-  if (!isSelectable(cfg)) return c.json({ error: `Vellum 還沒接上 ${cfg.displayName}` }, 400);
+  if (!isSelectable(cfg)) return c.json({ error: `Vellum 尚未支援 ${cfg.displayName}` }, 400);
   // 🔴 三段回退：**這次指定的 → 使用者選好存下來的 → registry 的預設**。
   // 少了中間那段的話，選模型 UI 就是「選了沒作用」——又一個孤兒。
   const model = parsed.data.model ?? (await getProviderModel(cfg.id)) ?? cfg.defaultModel;

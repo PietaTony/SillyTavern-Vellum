@@ -45,7 +45,7 @@ export function ProviderCard({
             <Typography sx={{ fontWeight: 600 }}>{info.name}</Typography>
             <Chip
               size="small"
-              label={ready ? info.badge : '還沒接上'}
+              label={ready ? info.badge : '尚未支援'}
               color={ready && info.badgeTone === 'good' ? 'success' : 'default'}
             />
           </Stack>
@@ -55,7 +55,7 @@ export function ProviderCard({
            */}
           {!ready ? (
             <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
-              Vellum 還沒接上這一家，選了也送不出去，所以先不開放。接上之後這裡就會亮起來。
+              Vellum 尚未支援這一家，選了也送不出去，所以先不開放。接上之後這裡就會亮起來。
             </Typography>
           ) : selected ? (
             <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
