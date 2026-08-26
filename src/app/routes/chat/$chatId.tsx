@@ -13,6 +13,7 @@ import { CharacterLayer, fetchCharacter } from '@/features/characters';
 import {
   Composer,
   fetchChat,
+  patchChatVariables,
   SwipePicker,
   swipeMessage,
   Thread,
@@ -26,7 +27,6 @@ function ChatPage() {
   const { chatId } = Route.useParams();
   const onBack = useBack();
   const q = useQuery({ queryKey: ['chat', chatId], queryFn: () => fetchChat(chatId) });
-  // 頭像從角色現取，不複製進對話（避免每段對話多帶一份 base64，也避免換圖後過期）
   const char = useQuery({
     queryKey: ['character', q.data?.characterId],
     queryFn: () => fetchCharacter(q.data?.characterId ?? ''),
@@ -46,9 +46,8 @@ function ChatPage() {
   );
 
   /**
-   * 切候選。🔴 **`reset()` 不可以省**（敵意審查 2026-08-26 B1）：畫面讀的是
-   * 「樂觀暫存 ?? 伺服器那份」，送過一則訊息之後暫存就不是 null，
-   * `refetch()` 的新資料會被 `??` 短路 ⇒ **箭頭／鍵盤／目錄三個入口同時「按了沒反應」**。
+   * 切候選。🔴 **`reset()` 不可以省**（敵意審查 2026-08-26 B1）：畫面讀「樂觀暫存 ?? 伺服器那份」，
+   * 送過訊息後暫存不是 null ⇒ `refetch()` 的新資料被 `??` 短路，三個入口同時「按了沒反應」。
    * ⚠️ 先 `await refetch()` 再 `reset()`；反過來會閃一下舊資料。
    */
   const swipe = useMutation({
@@ -68,6 +67,10 @@ function ChatPage() {
     messages: () => messages,
     swipe: (messageId, index) => swipe.mutateAsync({ messageId, index }),
     refresh: () => q.refetch(),
+    // 🔴 卡片腳本的狀態（桌寵尺寸就存在這裡）。存檔不重讀對話 ——
+    // 重讀會讓 srcdoc 變、iframe 整個重生，桌寵每存一次就閃一次。
+    saveVariables: (patch) => patchChatVariables(chatId, patch),
+    initialVars: q.data?.variables,
   });
 
   if (q.isPending) return <ChatLoading />;
@@ -76,10 +79,8 @@ function ChatPage() {
       <ChatUnavailable why={q.error instanceof Error ? q.error.message : ''} onBack={onBack} />
     );
 
-  /**
-   * 🔴 **只有第一則、而且真的有多個候選，☰ 才長出「換開場」**。
-   * 沒有候選卻列出來，就是一顆點了沒東西的選單項（本專案的「說謊的控制項」）。
-   */
+  // 🔴 只有第一則、而且真的有多個候選，☰ 才長出「換開場」——
+  // 沒有候選卻列出來，就是一顆點了沒東西的選單項。
   const first = messages[0];
   const greeting = first && (first.swipes?.length ?? 0) > 1 ? first : null;
 

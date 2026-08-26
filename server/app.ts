@@ -21,6 +21,7 @@ import { chatBackground } from './routes/chatBackground.ts';
 import { charWorld } from './routes/world.ts';
 import { worlds } from './routes/worlds.ts';
 import { chats } from './routes/chats.ts';
+import { chatVariables } from './routes/chatVariables.ts';
 import { chatImport } from './routes/chatImport.ts';
 import { generate } from './routes/generate.ts';
 import { update } from './routes/update.ts';
@@ -45,6 +46,7 @@ export const app = new Hono()
   .route('/api/characters', characterScripts)
   .route('/api/chats', chats)
   .route('/api/chats', chatImport)
+  .route('/api/chats', chatVariables)
   // 同一個前綴掛兩支的理由見 `chatBackground.ts` 檔頭（`chats.ts` 已逼近 150 行上限）。
   .route('/api/chats', chatBackground)
   .route('/api/backgrounds', backgrounds)

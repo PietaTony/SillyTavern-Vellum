@@ -16,13 +16,12 @@ import { wrap } from './runtime/srcdoc';
  * 對話頁要用的一整包：盤點、同意、以及**把橋掛上去**（M13 第二期）。
  *
  * 🔴 **這支存在的理由就是「零呼叫點」那個病。** `buildBridge()` 與 `ScriptFrame`
- * 在 2026-08-26 上午都寫好了，但沒有任何地方呼叫 —— 使用者按下「啟用」會得到
- * 一個永遠不回應的介面。**同意視窗與執行環境一定要一起上。**
+ * 都寫好了卻沒有人呼叫 ⇒ 按下「啟用」會得到一個永遠不回應的介面。
+ * **同意視窗與執行環境一定要一起上。**
  *
- * 🔴 **背景腳本全部塞進同一個 frame，不是一支一個**（第三期）。
- * 酒館助手是一支一個 iframe，但它**沒有沙箱** ⇒ 那些 iframe 全都同源、共用主頁的全域。
- * 我們有沙箱 ⇒ 一支一個 frame 會讓它們**互相看不見**，而卡片就是靠共用全域在協作的
- * （桌寵讀 `__HESINIAN_DESK_DIALOGUE_CONFIG__`、MVU 掛 `Mvu`）。
+ * 🔴 **背景腳本全部塞進同一個 frame，不是一支一個**（第三期）。酒館助手一支一個 iframe，
+ * 但它**沒有沙箱** ⇒ 那些 frame 同源、共用主頁全域。我們有沙箱 ⇒ 一支一個會讓它們互相看不見，
+ * 而卡片就是靠共用全域協作的（桌寵讀 `__HESINIAN_DESK_DIALOGUE_CONFIG__`、MVU 掛 `Mvu`）。
  * ⇒ 同一個 frame 才是**行為上**照抄，不是形式上照抄。
  */
 
@@ -37,6 +36,12 @@ export type CardScriptsView = {
    * `null` ＝ 還沒同意、或這張卡沒有背景腳本 ⇒ **不要建那個 frame**。
    */
   background: string | null;
+  /**
+   * 🔴 種進 iframe 的變數 —— **只取第一次拿到的那份**。
+   * 之後由 iframe 自己的同步快取接手；這裡若跟著變，`srcdoc` 就會變，
+   * iframe 會**整個重載**（桌寵每存一次尺寸就重生一次）。
+   */
+  vars: Record<string, unknown> | undefined;
   /** 開同意視窗。**沒有可同意的東西時是 `undefined`** —— 不要畫一顆沒有去處的鈕。 */
   ask: (() => void) | undefined;
   asking: boolean;
@@ -59,9 +64,8 @@ export function useCardScripts(deps: BridgeDeps): CardScriptsView {
   });
 
   /**
-   * 🔴 **橋只掛一次。** `deps` 每次 render 都是新物件；掛在相依陣列上會讓每一次訊息更新
-   * 都拆掉再裝一次監聽器 —— iframe 那邊還在等的回覆會落空，而且**不會報錯**。
-   * ⇒ 用 ref 讓 API 永遠讀到最新的 deps，監聽器本身不動。
+   * 🔴 **橋只掛一次。** `deps` 每次 render 都是新物件；掛在相依陣列上會讓每次訊息更新
+   * 都重掛監聽器 —— iframe 還在等的回覆會落空，而且**不會報錯**。用 ref 讀最新的 deps。
    */
   const live = useRef(deps);
   live.current = deps;
@@ -77,6 +81,7 @@ export function useCardScripts(deps: BridgeDeps): CardScriptsView {
         messages: () => live.current.messages(),
         swipe: (id, i) => live.current.swipe(id, i),
         refresh: () => live.current.refresh(),
+        saveVariables: (patch) => live.current.saveVariables(patch),
       }),
     [],
   );
@@ -94,11 +99,11 @@ export function useCardScripts(deps: BridgeDeps): CardScriptsView {
   const inventory = q.data?.inventory ?? null;
   const enabled = consented(q.data);
 
-  /**
-   * 內容只在**同意過**之後才拿（後端也會擋，指紋對不上回 403）。
-   * ⚠️ 那張卡是 **2 MB**（99.2% 是桌寵那張 96 格貼圖），所以 `staleTime: Infinity` ——
-   * 換一次開場就重抓 2 MB 是沒必要的。
-   */
+  // 見型別上的註解：種子只認第一份，之後不再跟著變。
+  const seed = useRef<Record<string, unknown> | undefined>(undefined);
+  if (seed.current === undefined && deps.initialVars !== undefined) seed.current = deps.initialVars;
+
+  // 內容只在**同意過**之後才拿（後端也會擋，403）。⚠️ 那張卡是 2 MB ⇒ `staleTime: Infinity`。
   const content = useQuery({
     queryKey: ['card-scripts-content', deps.characterId],
     queryFn: () => fetchScriptContent(deps.characterId),
@@ -110,11 +115,8 @@ export function useCardScripts(deps: BridgeDeps): CardScriptsView {
     return list.length > 0 ? list.map((x) => wrap(x.content)).join('') : null;
   }, [content.data]);
 
-  /**
-   * 🔴 白名單 ＝ **我們自己的 vendor ＋ 使用者同意過的那些**。
-   * `VENDOR_HOSTS` 也要列進同意視窗 —— 那是我們自己去 CDN 抓 jQuery／toastr，
-   * 不講的話就變成「我們替使用者做了一個他不知道的外連」。
-   */
+  // 🔴 白名單 ＝ 我們自己的 vendor ＋ 使用者同意過的那些。`VENDOR_HOSTS` 也要進同意視窗，
+  // 不講的話就變成「我們替使用者做了一個他不知道的外連」。
   const allow = useMemo(
     () => (enabled ? [...new Set([...VENDOR_HOSTS, ...(q.data?.consent?.externals ?? [])])] : []),
     [enabled, q.data?.consent?.externals],
@@ -125,6 +127,7 @@ export function useCardScripts(deps: BridgeDeps): CardScriptsView {
     enabled,
     allow,
     background,
+    vars: seed.current,
     ask: inventory ? () => setAsking(true) : undefined,
     asking,
     close: () => setAsking(false),

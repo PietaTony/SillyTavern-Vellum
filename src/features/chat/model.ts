@@ -23,6 +23,11 @@ export type Chat = {
   background?: string;
   /** 🔴 這一間自己的縮放方式。可空＝跟隨全站（Peter 2026-08-26：「縮放方式各自獨立」）。 */
   backgroundFitting?: string;
+  /**
+   * 🔴 **卡片腳本的變數**（M13 第三期）。桌寵把自己的尺寸存在這裡。
+   * 內容完全由卡片決定，我們不解讀 —— 形狀的理由在 `server/lib/chatModel.ts` 的六題。
+   */
+  variables?: Record<string, unknown>;
 };
 
 export type StreamEvent =

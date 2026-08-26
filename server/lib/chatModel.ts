@@ -51,5 +51,24 @@ export const ChatSchema = z.object({
    * 照我們的四個欄位重建會把其餘的全部丟掉。匯出一律從 `.jsonl` 重建。
    */
   source: z.string().optional(),
+  /**
+   * 🔴 **這一段對話的變數**（M13 第三期）。形狀照抄 ST 的 `chat_metadata.variables`。
+   *
+   * 六題（鐵律 #11）：
+   * ① 加了 `variables?: Record<string, unknown>`。
+   * ② **非加不可**：卡片腳本是**同步**讀變數的（`getVariables({type:'chat'})` 直接回物件），
+   *    而我們沒有任何地方存它 ⇒ 桌寵讀不到自己的尺寸，改完下一幀就被打回預設
+   *    （Peter 實機回報「調整大小沒有用」）。
+   * ③ **不能用既有的**：`messages` 是對話內容、`background` 是這一間的外觀，
+   *    兩者都答不了「這張卡記了什麼狀態」。
+   * ④ **對既有資料的影響：零**。舊對話讀進來是 `undefined` ⇒ 卡片拿到空物件，
+   *    行為與現在一模一樣。
+   * ⑤ 誰讀誰寫：卡片腳本讀（經 iframe 內的同步快取）／寫走 `PATCH /api/chats/:id/variables`。
+   * ⑥ 可逆：刪掉這個鍵即回退，不需要 migration。
+   *
+   * ⚠️ **內容完全由卡片決定，我們不解讀**（`z.unknown()`）——
+   * 硬給形狀只會在下一張卡上炸掉。
+   */
+  variables: z.record(z.string(), z.unknown()).optional(),
 });
 export type Chat = z.infer<typeof ChatSchema>;

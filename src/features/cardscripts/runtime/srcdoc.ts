@@ -104,12 +104,22 @@ export const wrap = (code: string): string =>
     ? code
     : `<script${/(^|[\s(=;])import[\s(]/m.test(code) ? ' type="module"' : ''}>${code}</script>`;
 
+/**
+ * 把變數種進 srcdoc。
+ * 🔴 **`<` 一定要跳脫**：值裡只要出現 `</script>` 就會把我們這段提早結束，
+ * 後面整份 HTML 全被當成腳本內容 —— 而那些值來自網路上的角色卡。
+ */
+export const seedVars = (vars: Record<string, unknown> | undefined): string =>
+  `<script>window.__vellumVars=${JSON.stringify(vars ?? {}).replace(/</g, '\\u003c')}</script>`;
+
 export function buildSrcDoc(opts: {
   /** 已經包好的 body 內容（一份 document、或一串 `<script>`）。 */
   body: string;
   name: string;
   mode: FrameMode;
   allow: string[];
+  /** 這段對話目前的變數。🔴 只在建立時種一次，之後由 iframe 自己的快取接手。 */
+  vars?: Record<string, unknown> | undefined;
 }): string {
   const vendors = VENDOR.map((u) => `<script src="${u}"></script>`).join('');
   // overlay 要看得到底下的 app ⇒ 背景必須是透明的，不能是 iframe 預設的白色。
@@ -119,7 +129,7 @@ export function buildSrcDoc(opts: {
     // 🔴 CSP 的 <meta> 必須排在所有 <script> 之前，否則對它們不生效。
     `<meta http-equiv="Content-Security-Policy" content="${policyOf(opts.allow)}">` +
     `<style>html,body{margin:0;background:${bg}}</style>` +
-    `${vendors}<script>${PREAMBLE}</script></head>` +
+    `${vendors}${seedVars(opts.vars)}<script>${PREAMBLE}</script></head>` +
     `<body>${opts.body}${helper(opts.mode, opts.name)}</body></html>`
   );
 }

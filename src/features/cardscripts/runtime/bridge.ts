@@ -22,6 +22,13 @@ export type BridgeDeps = {
   swipe: (messageId: string, index: number) => Promise<unknown>;
   /** 重讀對話（卡片改完東西之後要讓畫面跟上）。 */
   refresh: () => Promise<unknown>;
+  /**
+   * 🔴 存變數（淺層合併）。卡片是**同步**寫的，所以 iframe 那端先打自己的快取、
+   * 再非同步呼叫這支存檔 —— 回傳值沒有人在等（見 `runtime/vars.ts`）。
+   */
+  saveVariables: (patch: Record<string, unknown>) => Promise<unknown>;
+  /** 建立 iframe 時要種進去的那一份變數（見 `useCardScripts` 的 `vars`）。 */
+  initialVars?: Record<string, unknown> | undefined;
 };
 
 /**
@@ -51,8 +58,17 @@ export function buildBridge(deps: BridgeDeps): Record<string, unknown> {
     },
     getLastMessageId: () => Math.max(0, deps.messages().length - 1),
     getCurrentMessageId: () => Math.max(0, deps.messages().length - 1),
+    /**
+     * ⚠️ 這兩支**幾乎不會被呼叫**：iframe 那端已經用同步快取蓋掉了（`runtime/vars.ts`）。
+     * 留著是為了「萬一有卡片走 TavernHelper.getVariables()」時不會掉進「沒實作」那條。
+     */
     getAllVariables: () => ({}),
     getVariables: () => ({}),
+    setVariables(patch: unknown) {
+      return patch !== null && typeof patch === 'object'
+        ? deps.saveVariables(patch as Record<string, unknown>)
+        : undefined;
+    },
     async setChatMessages(updates: unknown) {
       /**
        * 🔴 卡片用它做兩件事：改訊息文字、**切候選**。我們只接後者。

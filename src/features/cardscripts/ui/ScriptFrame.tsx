@@ -33,6 +33,7 @@ export function ScriptFrame({
   allow,
   mode = 'hidden',
   preWrapped = false,
+  vars,
 }: {
   code: string;
   name: string;
@@ -41,6 +42,11 @@ export function ScriptFrame({
   mode?: FrameMode;
   /** `code` 已經包好 `<script>`（背景腳本宿主自己包，因為要逐支決定要不要 module）。 */
   preWrapped?: boolean;
+  /**
+   * 🔴 種進 iframe 的變數。**只在建立時種一次**（`useCardScripts` 保證它不會變）——
+   * 它一變，`srcDoc` 就變，iframe 會整個重載：桌寵每存一次尺寸就會重生一次。
+   */
+  vars?: Record<string, unknown> | undefined;
 }) {
   const ref = useRef<HTMLIFrameElement | null>(null);
 
@@ -82,7 +88,7 @@ export function ScriptFrame({
     return () => window.removeEventListener('message', onMsg);
   }, [name, mode]);
 
-  const srcDoc = buildSrcDoc({ body: preWrapped ? code : wrap(code), name, mode, allow });
+  const srcDoc = buildSrcDoc({ body: preWrapped ? code : wrap(code), name, mode, allow, vars });
 
   const sx = {
     hidden: { display: 'none', width: 0, height: 0, border: 0 },

@@ -25,6 +25,16 @@ export type SwipeResult = {
   text: string;
   lore: { include: string[]; exclude: string[]; changed: number; dangling: string[] } | null;
 };
+/**
+ * 🔴 卡片腳本的變數（淺層合併）。桌寵把自己的尺寸存在這裡 ——
+ * 在此之前我們沒有存變數的地方，於是它每次讀回來都是空的（見 `cardscripts/runtime/vars.ts`）。
+ */
+export const patchChatVariables = (
+  chatId: string,
+  vars: Record<string, unknown>,
+): Promise<{ variables: Record<string, unknown> }> =>
+  patch(`/api/chats/${chatId}/variables`, { patch: vars });
+
 export const swipeMessage = (
   chatId: string,
   messageId: string,

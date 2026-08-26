@@ -30,6 +30,7 @@ export function CardFrontend({
       mode="inline"
       code={code}
       allow={cards.allow}
+      vars={cards.vars}
       name={`card-${characterId}-${index}`}
     />
   );

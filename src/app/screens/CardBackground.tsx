@@ -26,6 +26,7 @@ export function CardBackground({
       preWrapped
       code={cards.background}
       allow={cards.allow}
+      vars={cards.vars}
       name={`cardbg-${characterId}`}
     />
   );

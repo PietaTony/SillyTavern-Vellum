@@ -3,6 +3,7 @@ export {
   createChat,
   fetchChat,
   fetchChats,
+  patchChatVariables,
   type SwipeResult,
   streamGenerate,
   swipeMessage,

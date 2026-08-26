@@ -2,19 +2,17 @@
  * 注入進每個卡片 iframe 的前導程式（M13 第二期）。
  *
  * 🔴 **這裡與酒館助手有一個刻意的分歧，而且是本專案唯一沒有照抄的一條。**
- * 酒館助手的 iframe **不加 `sandbox`** ⇒ 與主頁同源，它的
- * `src/iframe/predefine.js:1` 第一行就是 `window._ = window.parent._`，
- * 直接把主頁的全域搬進來 —— 卡片程式因此拿到**整個頁面的權限**。
+ * 酒館助手的 iframe **不加 `sandbox`** ⇒ 與主頁同源，`predefine.js:1` 第一行就是
+ * `window._ = window.parent._`，卡片因此拿到**整個頁面的權限**。
  * 我們加 `sandbox="allow-scripts"`（**不給** `allow-same-origin`）⇒
- * `window.parent` 變成跨來源，讀不到 ⇒ **那條橋必須改成 `postMessage`**。
+ * `window.parent` 變成跨來源 ⇒ **那條橋必須改成 `postMessage`**。
  *
  * 🔴 **為什麼這樣還能相容**：卡片程式找全域的寫法是掃
  * `[window, window.parent, window.top]`（實測 14 處）⇒ 把東西定義在 iframe 自己的
  * `window` 上，第一個 scope 就命中。⚠️ 真的要直接操作主頁 DOM／`localStorage` 的卡片會壞。
  *
- * 🔴 **`Mvu` 不在卡片裡** —— 卡片的「MVU Zod 腳本」全文只有一行
- * `import 'https://testingcf.jsdelivr.net/…/bundle.js'`，那份 code 在 CDN 上。
- * 它載入後會把自己掛到 window，所以這裡提供 `waitGlobalInitialized()`／`initializeGlobal()`
+ * 🔴 **`Mvu` 不在卡片裡** —— 那支全文只有一行 `import 'https://…/bundle.js'`，code 在 CDN 上。
+ * 它載入後把自己掛到 window ⇒ 這裡提供 `waitGlobalInitialized()`／`initializeGlobal()`
  * 讓同一個 iframe 裡的腳本彼此對得上。
  */
 
@@ -38,6 +36,8 @@ export const VENDOR_HOSTS = [...new Set(VENDOR.map((u) => new URL(u).host))];
  * ⚠️ **不要在這裡放產品邏輯。** 這一段是「橋」：把 API 名字擺到 iframe 的全域範圍，
  * 每一支都轉成一則 `postMessage` 丟給主頁去做。真正的實作在主頁的 `bridge.ts`。
  */
+import { VARS_SHIM } from './vars';
+
 export const PREAMBLE = /* js */ `
 (function () {
   var pending = {}, seq = 0;
@@ -79,19 +79,21 @@ export const PREAMBLE = /* js */ `
     });
   });
 
-  /*
-   * 🔴 事件名稱**照抄 ST**（實查 public/scripts/events.js:7,19,49）。
-   * 卡片是這樣用的：eo(te.MESSAGE_SWIPED, …) —— te 拿不到就整支腳本在
-   * 「輪詢等待 10 秒」裡空轉然後走 fallback（實測「何思年_開場連動」就是這個寫法）。
-   */
+  /* 🔴 事件名稱**照抄 ST**（實查 public/scripts/events.js:7,19,49）。拿不到 te 的卡片
+     會在「輪詢等待 10 秒」裡空轉（實測「何思年_開場連動」就是這個寫法）。 */
   window.tavern_events = {
     MESSAGE_SWIPED: 'message_swiped',
     CHAT_CHANGED: 'chat_id_changed',
     CHARACTER_MESSAGE_RENDERED: 'character_message_rendered',
   };
 
+  /* 🔴 變數要**同步**，理由與作法都在 vars.ts 的檔頭（那是一個實機 bug 的根因）。
+     必須排在下面的 NAMES 迴圈之前，否則 H 會綁到非同步的那一版。 */
+  ${VARS_SHIM}
+
   var NAMES = ['eventOn','eventRemoveListener','getChatMessages','getLastMessageId','getCurrentMessageId',
-               'getAllVariables','getVariables','setChatMessages','setChatMessage',
+               'getAllVariables','getVariables','insertOrAssignVariables','replaceVariables',
+               'updateVariablesWith','setChatMessages','setChatMessage',
                'getLorebookEntries','setLorebookEntries','updateWorldbookWith','generate'];
   var H = {};
   NAMES.forEach(function (n) {
@@ -130,11 +132,7 @@ export const PREAMBLE = /* js */ `
       try { return fn.apply(this, arguments); } catch (e) { console.error('[卡片腳本]', e); }
     };
   };
-  /*
-   * 🔴 **卡片的提示不自己畫，轉給主頁**（cardToast.ts 會標明「角色卡：」並決定要不要顯示）。
-   * ① 畫在沙箱 iframe 裡的 toast 會把那一塊變成可點區域，吃掉底下的點擊
-   * ② 那些字看起來會像是 Vellum 在講話 —— 實際上是卡片在講
-   */
+  /* 🔴 **卡片的提示不自己畫，轉給主頁**（理由與判準在 cardToast.ts 的檔頭）。 */
   var T = { options: {}, clear: function () {}, remove: function () {} };
   ['success', 'info', 'warning', 'error'].forEach(function (k) {
     T[k] = function (text, title) {

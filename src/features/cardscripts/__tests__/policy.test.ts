@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { policyOf } from '../runtime/srcdoc';
+import { buildSrcDoc, policyOf, seedVars } from '../runtime/srcdoc';
 
 /**
  * 🔴 **這一支守的是「乙」那道防線**（Peter 2026-08-26 裁定）。
@@ -58,5 +58,25 @@ describe('iframe 內的 CSP —— 兌現「只能連到這幾個網域」', () 
   it('表單送出與 <base> 都關掉（兩條不用 JS 的外送管道）', () => {
     expect(policy).toContain("form-action 'none'");
     expect(policy).toContain("base-uri 'none'");
+  });
+});
+
+/**
+ * 🔴 **變數的值來自網路上的角色卡，而我們把它們塞進 `srcdoc` 的一段 `<script>` 裡。**
+ * 只要值裡出現 `</script>`，那段就會提早結束，**後面整份 HTML 都變成腳本內容** ——
+ * 那是一條從「卡片存了什麼變數」直達 HTML 注入的路。
+ * ⚠️ 這條沒有任何別的閘門守得住：typecheck 綠、畫面看起來也正常。
+ */
+describe('種進 iframe 的變數不可以逃出那段 script', () => {
+  const evil = { x: '</script><img src=x onerror=alert(1)>' };
+
+  it('🔴 `<` 一律跳脫 ⇒ 值裡的 `</script>` 不會結束那一段', () => {
+    const doc = buildSrcDoc({ body: '', name: 'n', mode: 'hidden', allow: [], vars: evil });
+    expect(doc).not.toContain('</script><img');
+    expect(seedVars(evil)).toContain('\\u003c/script>');
+  });
+
+  it('沒有變數時種一個空物件，不是 undefined（卡片會直接取鍵）', () => {
+    expect(seedVars(undefined)).toContain('window.__vellumVars={}');
   });
 });
