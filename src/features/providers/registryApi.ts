@@ -60,29 +60,38 @@ export async function fetchModels(provider: string): Promise<ModelsResult> {
  * 「no longer available to new users」）。只檢查清單的話，
  * 正好存到一個用不了的，而使用者要到下一次對話才發現。
  */
+export type TestFail = {
+  ok: false;
+  message: string;
+  /** 後端分類的錯誤種類（目前只有 `'no-credit'`）。**前端不自己判**。 */
+  reason?: string | null;
+  /** 🔴 額度不足時模型**仍然存下來了** —— 那個失敗不是模型的問題。 */
+  saved?: boolean;
+};
+
 export async function testModel(
   provider: string,
   model: string,
-): Promise<{ ok: true; model: string } | { ok: false; message: string }> {
+): Promise<{ ok: true; model: string } | TestFail> {
   const r = await fetch(`/api/secrets/test-model/${provider}`, {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify({ model }),
   });
-  return (await r.json()) as { ok: true; model: string } | { ok: false; message: string };
+  return (await r.json()) as { ok: true; model: string } | TestFail;
 }
 
 /** 寫入金鑰並測試連線。成功時後端會順便把金鑰存下來。 */
 export async function testAndSaveKey(
   provider: string,
   value: string,
-): Promise<{ ok: true; models: string[] } | { ok: false; message: string }> {
+): Promise<{ ok: true; models: string[] } | TestFail> {
   const r = await fetch('/api/secrets/test', {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify({ provider, value }),
   });
-  return (await r.json()) as { ok: true; models: string[] } | { ok: false; message: string };
+  return (await r.json()) as { ok: true; models: string[] } | TestFail;
 }
 
 /**
@@ -102,9 +111,9 @@ export async function fetchKeyPreviews(): Promise<Record<string, string>> {
  */
 export async function testStoredKey(
   provider: string,
-): Promise<{ ok: true; models: string[] } | { ok: false; message: string }> {
+): Promise<{ ok: true; models: string[] } | TestFail> {
   const r = await fetch(`/api/secrets/test-stored/${provider}`, { method: 'POST' });
-  return (await r.json()) as { ok: true; models: string[] } | { ok: false; message: string };
+  return (await r.json()) as { ok: true; models: string[] } | TestFail;
 }
 
 /**

@@ -12,6 +12,8 @@
 import { Hono } from 'hono';
 import { z } from 'zod';
 import { getKey, redact, setKey } from '../lib/secrets.ts';
+import { modelLooksReal } from '../lib/modelCheck.ts';
+import { classifyProviderError } from '../lib/providerError.ts';
 import { setProviderModel } from '../lib/settings.ts';
 import { adapterFor } from '../providers/dispatch.ts';
 import { byId, isSelectable } from '../providers/registry.ts';
@@ -43,7 +45,8 @@ export const providerTests = new Hono()
     const r = await adapterFor(cfg.format).listModels(cfg, value);
     if (!r.ok) {
       // 供應商的錯誤原文可能夾帶金鑰片段（SPEC §2）
-      return c.json({ ok: false, status: r.status, message: redact(r.message, [value]) });
+      const message = redact(r.message, [value]);
+      return c.json({ ok: false, status: r.status, message, reason: classifyProviderError(message) });
     }
     await setKey(provider, value);
     return c.json({ ok: true, models: r.models });
@@ -67,11 +70,23 @@ export const providerTests = new Hono()
     // 🔴 供應商的錯誤原文可能夾帶金鑰片段 ⇒ 送出前一律 redact（與 /test 同一條）
     return r.ok
       ? c.json({ ok: true, models: r.models })
-      : c.json({ ok: false, status: r.status, message: redact(r.message, [key]) });
+      : c.json({
+          ok: false,
+          status: r.status,
+          message: redact(r.message, [key]),
+          reason: classifyProviderError(redact(r.message, [key])),
+        });
   })
 
   /**
    * 🔴 **測試這個模型，成功才存**（Peter 2026-08-26，與金鑰同一套邏輯）。
+   *
+   * 🔴 **唯一的例外：額度不足照樣存**（Peter 2026-08-26：
+   * 「儘管額度不足，使用者切換模型也是要存下來」）。
+   * 理由是那個失敗**不是這個模型的問題** —— 模型是好的，壞的是帳戶餘額。
+   * 把他的選擇丟掉等於懲罰他選了一個對的東西，而且他不會知道為什麼下拉跳回去了。
+   * ⚠️ 「測過才存」原本要擋的是**清單裡列得出來、打下去卻 404 的模型**
+   * （實測 `gemini-2.5-flash`）—— 那一類仍然不存。
    *
    * **真的打一次**，不是檢查它在不在清單裡 —— `07-gemini-facts` 記過
    * **models 端點會列出打不通的模型**（`gemini-2.5-flash` 實打 404「不對新使用者開放」）。
@@ -108,10 +123,26 @@ export const providerTests = new Hono()
     if (!upstream.ok) {
       const raw = await upstream.text();
       // 🔴 供應商的錯誤原文可能夾帶金鑰片段 ⇒ 一律 redact，並截短（400 回應常常是整包 HTML）
-      return c.json({ ok: false, status: upstream.status, message: redact(raw, [key]).slice(0, 300) });
+      const message = redact(raw, [key]).slice(0, 300);
+      const reason = classifyProviderError(message);
+      /*
+       * 額度不足 ⇒ 模型是好的、壞的是帳戶，存下來（見上面檔頭的理由）。
+       *
+       * 🔴 **但不可以就這樣照單全收。** 餘額 0 的時候供應商**對任何請求都回同一個錯**，
+       * 包含根本不存在的模型 —— 實測 `claude-does-not-exist-9` 也回「credit balance is too low」。
+       * 直接存的話「測過才存」整條失效，而手動輸入的那幾家會存到打錯的字串。
+       * ⇒ 改用**官方清單**驗一次。Anthropic 餘額 0 時 `listModels` 仍然可用
+       *   （我們就是靠它拿到那 10 個模型的）。
+       * ⚠️ 清單也拉不到（或這家沒有清單端點）⇒ **無從判斷，就存**：
+       *   此時擋下來只會讓使用者的選擇無聲消失，而那比存錯更難查。
+       */
+      const saved = reason === 'no-credit' && (await modelLooksReal(cfg, key, body.data.model));
+      if (saved) await setProviderModel(cfg.id, body.data.model);
+      return c.json({ ok: false, status: upstream.status, message, reason, saved });
     }
     // 🔴 **確認之後才存**，而且立刻中止串流 —— 我們只需要知道它開得起來。
     ac.abort();
     await setProviderModel(cfg.id, body.data.model);
     return c.json({ ok: true, model: body.data.model });
   });
+

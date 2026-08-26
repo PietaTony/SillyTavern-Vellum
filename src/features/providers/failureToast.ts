@@ -10,14 +10,16 @@ import { explainProviderError } from './errorHelp';
  * ③ **`copy` 永遠是完整原文** —— 截斷的那份回報回來修不動
  *
  * ⚠️ 在此之前這段邏輯在 `useModelTest`、`KeyField`、清單頁各寫了一次。
+ * 🔴 **錯誤種類由後端判**（`reason`）—— 前端不再自己 regex，見 `errorHelp.ts` 檔頭。
  */
 export function failureToast(
-  raw: string,
+  fail: { message: string; reason?: string | null },
   provider: string,
   consoleUrl: string,
   fallbackPrefix = '錯誤訊息：',
 ): NonNullable<ToastMsg> {
-  const help = explainProviderError(raw, provider, consoleUrl);
+  const raw = fail.message;
+  const help = explainProviderError(fail.reason, provider, consoleUrl);
   return {
     severity: 'warning',
     text: help ? help.text : `${fallbackPrefix}${raw.slice(0, 120)}`,

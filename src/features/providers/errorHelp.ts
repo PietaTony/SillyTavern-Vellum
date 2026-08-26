@@ -1,20 +1,10 @@
 /**
- * 把供應商回來的錯誤原文分類成「我們能給出口的」與「只能照實顯示的」。
+ * 把後端分類過的錯誤變成「那怎麼辦」。
  *
- * 🔴 **餘額不足一定是最常見的那一種**（Peter 2026-08-26：
- * 「所有廠商遇到類似這個錯誤…讓我們直接引導，而非跳錯誤訊息」）。
- * 丟一句 `Your credit balance is too low to access the Anthropic API.` 給使用者，
- * 他要自己讀英文、自己猜去哪裡儲值 —— 那是本專案一直在修的那種死路。
- *
- * 🔴 **原文不丟掉**：判斷錯的時候使用者還是要能把原文複製給我們。
- * 引導只是**蓋在上面**，不是取代。
- *
- * ⚠️ **判準刻意寬鬆（多命中幾個沒關係）**：誤判成「去儲值」的代價是他點過去發現餘額還夠；
- * 漏判的代價是他卡在一句英文錯誤訊息前面。兩者不對稱。
- */
-/**
- * 🔴 **沒有 `action` 文案** —— 按鈕一律是全站那顆「開啟」（`OpenLinkButton`）。
- * 之前這裡回「去儲值」，於是同一個動作在兩個地方長得不一樣（Peter 2026-08-26 修掉）。
+ * 🔴 **這裡不再自己判斷錯誤種類** —— 判準只有一份，住在
+ * `server/lib/providerError.ts`（那邊的分類結果會決定要不要存模型，
+ * 存檔是後端的事）。前端只讀它回的 `reason`。
+ * ⚠️ 之前兩邊各有一份 regex，那是「畫面說已存、實際沒存」的溫床。
  */
 export type ErrorHelp = { text: string; url: string } | null;
 
@@ -31,24 +21,14 @@ const BILLING_URLS: Record<string, string> = {
   xai: 'https://console.x.ai/team/default/billing',
 };
 
-/**
- * 餘額／額度用完的說法在各家長得不一樣，這裡收集實際看過與文件寫過的形狀。
- * 🔴 **不要收斂成一條聰明的 regex** —— 那會很難看出漏了誰，也很難補。
- */
-const NO_CREDIT = [
-  /credit balance is too low/i,
-  /insufficient[\s_-]*(credit|balance|quota|funds)/i,
-  /exceeded your current quota/i,
-  /billing[\s_-]*(hard[\s_-]*limit|not[\s_-]*active)/i,
-  /payment[\s_-]*required/i,
-  /quota[\s_-]*exceeded/i,
-  /arrears|余额不足|餘額不足|欠费|欠費/,
-];
-
-export function explainProviderError(raw: string, provider: string, consoleUrl: string): ErrorHelp {
-  if (!NO_CREDIT.some((re) => re.test(raw))) return null;
+export function explainProviderError(
+  reason: string | null | undefined,
+  provider: string,
+  consoleUrl: string,
+): ErrorHelp {
+  if (reason !== 'no-credit') return null;
   return {
-    text: '這一家的餘額或額度用完了。金鑰是好的，把帳戶的額度補上就能用。',
+    text: '這一家的餘額或額度用完了。',
     url: BILLING_URLS[provider] ?? consoleUrl,
   };
 }

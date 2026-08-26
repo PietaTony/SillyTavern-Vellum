@@ -65,9 +65,9 @@ function ProvidersPage() {
     mutationFn: (row: (typeof rows)[number]) => verifyProvider(row),
     onSuccess: (r, row) => {
       if (r.test.ok) return;
-      pushToast(
-        failureToast(r.test.message, row.id, row.consoleUrl, `${row.displayName} 現在送不出去：`),
-      );
+      pushToast(failureToast(r.test, row.id, row.consoleUrl, `${row.displayName} 現在送不出去：`));
+      // 額度不足時後端已把模型存下 ⇒ 讓清單跟著更新。
+      if (r.test.saved) void qc.invalidateQueries({ queryKey: ['providerRows'] });
     },
     onError: (e: Error) => pushToast({ severity: 'warning', text: e.message }),
   });

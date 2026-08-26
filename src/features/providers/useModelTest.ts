@@ -19,7 +19,12 @@ export function useModelTest(provider: string, onNotify: (m: ToastMsg) => void, 
       if (r.ok) {
         onNotify({ severity: 'success', text: `測試成功，已存：${r.model}` });
       } else {
-        onNotify(failureToast(r.message, provider, consoleUrl));
+        onNotify(failureToast(r, provider, consoleUrl));
+        /*
+         * 🔴 **額度不足時後端已經把模型存下來了** ⇒ 畫面要跟著更新，
+         * 不然下拉會跳回舊值，看起來像「我選的沒生效」。
+         */
+        if (r.saved) void qc.invalidateQueries({ queryKey: ['providerRows'] });
       }
       if (r.ok) void qc.invalidateQueries({ queryKey: ['providerRows'] });
     },

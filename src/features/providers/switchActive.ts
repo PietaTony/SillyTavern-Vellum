@@ -1,10 +1,10 @@
 import { effectiveModel } from './modelOptions';
-import { fetchModels, type ProviderRow, testModel } from './registryApi';
+import { fetchModels, type ProviderRow, type TestFail, testModel } from './registryApi';
 
 export type VerifyResult = {
   /** 實際會拿去對話的那個模型（選過的 → 官方清單第一個 → registry 那份）。 */
   model: string;
-  test: { ok: true; model: string } | { ok: false; message: string };
+  test: { ok: true; model: string } | TestFail;
 };
 
 /**

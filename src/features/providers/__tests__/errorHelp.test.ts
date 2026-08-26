@@ -1,57 +1,35 @@
 import { describe, expect, it } from 'vitest';
 import { explainProviderError } from '../errorHelp';
 
-const help = (raw: string, id = 'anthropic') =>
-  explainProviderError(raw, id, 'https://console.example.com');
+const help = (reason: string | null, id = 'anthropic') =>
+  explainProviderError(reason, id, 'https://console.example.com');
 
 /**
- * 🔴 這支守的是「最常見的錯誤要有出口」。
- * 判準刻意寬鬆：**漏判**會讓使用者卡在一句英文錯誤訊息前面，
- * **誤判**只是他點過去發現餘額還夠 —— 兩者代價不對稱。
+ * 🔴 **這裡不再測「哪些字串算額度不足」** —— 那個判準搬到後端了
+ * （`server/lib/providerError.ts` ＋ `server/__tests__/providerError.test.ts`），
+ * 因為分類結果會決定要不要存模型，而存檔是後端的事。
+ * 前端只負責「後端說是 no-credit 的時候，要給哪一個出口」。
  */
 describe('explainProviderError', () => {
   it('🔴 不可以再回「去儲值」那種文案 —— 按鈕一律是共用的「開啟」', () => {
-    const r = help('Your credit balance is too low');
-    expect(r).toBeTruthy();
+    const r = help('no-credit');
     expect(Object.keys(r ?? {}).sort()).toEqual(['text', 'url']);
     expect(r?.text).not.toContain('去儲值');
   });
 
-  it('Anthropic 的原文（Peter 2026-08-26 實際遇到的那一句）', () => {
-    const r = help(
-      '{"type":"error","error":{"type":"invalid_request_error","message":"Your credit balance is too low to access the Anthropic API. Please go to Plans & Billing to upgrade or purchase credits."}}',
-    );
-    expect(r?.url).toBe('https://console.anthropic.com/settings/billing');
-  });
-
-  it('OpenAI 的說法', () => {
-    expect(help('You exceeded your current quota, please check your plan', 'openai')).toBeTruthy();
-  });
-
-  it('DeepSeek 的說法', () => {
-    expect(help('Insufficient Balance', 'deepseek')?.url).toBe(
-      'https://platform.deepseek.com/top_up',
-    );
-  });
-
-  it('中文的說法也要接住', () => {
-    expect(help('账户余额不足，请充值', 'siliconflow')).toBeTruthy();
+  it('對應到該家的帳單頁', () => {
+    expect(help('no-credit')?.url).toBe('https://console.anthropic.com/settings/billing');
+    expect(help('no-credit', 'deepseek')?.url).toBe('https://platform.deepseek.com/top_up');
   });
 
   it('🔴 沒有帳單頁的那幾家退回控制台網址，不可以回 undefined 讓按鈕連到空的', () => {
-    expect(help('Insufficient credits', 'cometapi')?.url).toBe('https://console.example.com');
+    expect(help('no-credit', 'cometapi')?.url).toBe('https://console.example.com');
   });
 
-  it('金鑰錯誤不是餘額問題 —— 不可以誤導他去儲值', () => {
-    expect(help('Incorrect API key provided: sk-not-a****ting')).toBeNull();
-  });
-
-  it('模型不存在也不是餘額問題', () => {
-    expect(help('models/gemini-2.5-flash is not found for API version v1beta')).toBeNull();
-  });
-
-  it('空字串不算命中', () => {
-    expect(help('')).toBeNull();
+  it('不是 no-credit 就沒有出口 —— 不可以誤導他去儲值', () => {
+    expect(help(null)).toBeNull();
+    expect(help(undefined as unknown as null)).toBeNull();
+    expect(help('something-else')).toBeNull();
   });
 });
 
