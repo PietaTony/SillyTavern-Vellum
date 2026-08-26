@@ -56,7 +56,6 @@ function ChatPage() {
     characterId: q.data?.characterId ?? '',
     messages: () => messages,
     swipe: (messageId, index) => swipe.mutateAsync({ messageId, index }),
-    refresh: () => q.refetch(),
     // 🔴 卡片腳本的狀態（桌寵尺寸就存在這裡）。存檔不重讀對話 ——
     // 重讀會讓 srcdoc 變、iframe 整個重生，桌寵每存一次就閃一次。
     // 範圍決定存到哪一支端點，理由見 `useCardVars`。

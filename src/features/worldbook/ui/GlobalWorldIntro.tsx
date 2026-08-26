@@ -20,6 +20,8 @@ export function GlobalWorldIntro() {
       <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
         世界書一共四層：<b>全域</b>（這裡）、這位好友、我（persona）、這段對話。 四層是
         <b>疊加</b>不是覆蓋 —— 同時命中就會一起送進去，靠「順序」決定誰先。
+        <br />
+        其中<b>「這段對話」那一層還沒接上</b> —— 目前沒有辦法只為某一段對話加一本書。
       </Typography>
       <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
         某位好友自己的世界書<b>不在這裡</b> —— 在對話裡點他的頭像 →「世界書」。

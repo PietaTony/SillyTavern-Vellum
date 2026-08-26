@@ -81,7 +81,6 @@ export function useCardScripts(deps: BridgeDeps): CardScriptsView {
         },
         messages: () => live.current.messages(),
         swipe: (id, i) => live.current.swipe(id, i),
-        refresh: () => live.current.refresh(),
         saveVariables: (patch, scope) => live.current.saveVariables(patch, scope),
       }),
     [],

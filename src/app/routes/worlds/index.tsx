@@ -8,13 +8,14 @@ import { createFileRoute, useNavigate } from '@tanstack/react-router';
 import { useState } from 'react';
 import { TabBar } from '@/app/screens/TabBar';
 import {
+  AddWorldPanel,
+  BLANK,
   createGlobalWorld,
   deleteGlobalWorld,
   fetchGlobalWorlds,
   fetchWorldPresets,
   GlobalWorldIntro,
   GlobalWorldList,
-  PresetPicker,
 } from '@/features/worldbook';
 import { Screen } from '@/shared/ui/Screen';
 import { pushToast } from '@/shared/ui/toastStore';
@@ -121,27 +122,17 @@ function WorldsPage() {
         />
       ) : null}
 
-      <Stack spacing={2} sx={{ p: 2 }}>
-        {presets.data && presets.data.length > 0 ? (
-          <PresetPicker
-            presets={presets.data}
-            pendingKey={pendingKey}
-            onAdd={(key) => {
-              setPendingKey(key);
-              add.mutate(key);
-            }}
-          />
-        ) : null}
-        <Button
-          variant="contained"
-          loading={add.isPending && pendingKey === null}
-          onClick={() => {
-            setPendingKey(null);
-            add.mutate(undefined);
+      <Stack sx={{ p: 2 }}>
+        <AddWorldPanel
+          presets={presets.data ?? []}
+          failed={presets.isError}
+          onRetry={() => void presets.refetch()}
+          pendingKey={pendingKey}
+          onAdd={(key) => {
+            setPendingKey(key ?? BLANK);
+            add.mutate(key);
           }}
-        >
-          建一本空白的
-        </Button>
+        />
       </Stack>
     </Screen>
   );

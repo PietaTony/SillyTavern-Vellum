@@ -5,7 +5,7 @@ import { templateWorld } from '../lib/globalWorld.ts';
 import { findPreset, WORLD_PRESETS } from '../lib/worldPresets.ts';
 import { safeId } from '../lib/ids.ts';
 import { loadSettings, saveSettings } from '../lib/settings.ts';
-import { readJson, writeJson } from '../lib/storage.ts';
+import { deleteJson, readJson, writeJson } from '../lib/storage.ts';
 
 /**
  * 全域世界書 —— **所有對話都套用的那一種**（Peter 2026-08-27）。
@@ -60,9 +60,18 @@ export const globalWorlds = new Hono()
    * 🔴 **兩條路的條目都預設關著** —— 新增一本不該立刻改變所有對話的行為。
    */
   .post('/', async (c) => {
-    // 🔴 `POST` 沒有 body 是合法的（「建空白的」）⇒ 解析失敗要當成沒帶參數，不是 400。
-    const body = await c.req.json().catch(() => ({}));
-    const key = z.object({ preset: z.string().optional() }).safeParse(body).data?.preset;
+    /**
+     * 🔴 **「沒帶 body」與「body 是壞的」是兩件事**（2026-08-27 敵意驗收抓到）。
+     * 上一版寫 `c.req.json().catch(() => ({}))` —— 那把**壞 JSON**（`{oops`）
+     * 與**型別錯**（`{"preset":123}`）都當成「沒帶參數」⇒ 靜默建出一本空白書。
+     * 呼叫端有 bug 時會**量產幽靈書**，而它拿到的是 200。
+     * ⇒ 沒 body 才走預設；有 body 就要合法，不合法回 400。
+     */
+    const raw = (await c.req.text()).trim();
+    const body = raw === '' ? {} : JSON.parse(raw); // 壞 JSON → app.ts 的 onError 收成 400
+    const parsed = z.object({ preset: z.string().min(1).optional() }).safeParse(body);
+    if (!parsed.success) return c.json({ error: '參數不合法' }, 400);
+    const key = parsed.data.preset;
     const preset = key ? findPreset(key) : undefined;
     if (key && !preset) return c.json({ error: '沒有這個樣板' }, 404);
 
@@ -83,7 +92,9 @@ export const globalWorlds = new Hono()
       return c.json({ error: '這本不是全域世界書' }, 404);
     await saveSettings({ ...s, globalWorlds: next });
     // 🔴 連書一起刪：它不屬於任何角色，留著就是孤兒檔。
-    await writeJson(`worlds/${id}.json`, null);
+    // ⚠️ **一定要用 `deleteJson`**：`writeJson(rel, null)` 是寫入字面 `null`，
+    //    檔案還在 —— 那正是這行原本在做的事（敵意驗收 2026-08-27 實測抓到）。
+    await deleteJson(`worlds/${id}.json`);
     return c.json({ ok: true });
   })
 

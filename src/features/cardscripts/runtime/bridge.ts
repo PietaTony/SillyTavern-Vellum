@@ -1,10 +1,5 @@
 import type { Chat, Message } from '@/features/chat';
-import {
-  isActionable,
-  type MessageUpdate,
-  wantsTextEdit,
-  warnTextEditBlocked,
-} from './messageEdit';
+import { makeApplyUpdates } from './messageEdit';
 import { type CardVarScope, type CardVarScopes, scopeOf } from './scopes';
 
 /**
@@ -25,10 +20,16 @@ export type BridgeDeps = {
   characterId: string;
   /** 現在畫面上的訊息（已渲染版）。 */
   messages: () => Message[];
-  /** 切某一則的候選 —— 卡片的「前往此場景」就是靠這條。 */
+  /**
+   * 切某一則的候選 —— 卡片的「前往此場景」就是靠這條。
+   *
+   * 🔴 **這支自己會重讀對話**（`useSwipeMessage` 的 `onSuccess` 裡 `await refetch()`），
+   * 所以這裡**不可以再 refresh 一次**。上一版另外有一個 `refresh` dep，切完再叫一次
+   * ⇒ **一次成功的 swipe ＝ 兩次 refetch，N 筆 ＝ N+1 次**（敵意驗收 2026-08-27 實測）。
+   * ⚠️ 既有測試把 `swipe` mock 掉，所以完全看不到這件事 —— **那是假綠燈**。
+   * ⇒ `refresh` 已移除。要加回來之前先確認 `swipe` 那條路真的不重讀了。
+   */
   swipe: (messageId: string, index: number) => Promise<unknown>;
-  /** 重讀對話（卡片改完東西之後要讓畫面跟上）。 */
-  refresh: () => Promise<unknown>;
   /**
    * 🔴 存變數（淺層合併）。卡片是**同步**寫的，所以 iframe 那端先打自己的快取、
    * 再非同步呼叫這支存檔 —— 回傳值沒有人在等（見 `runtime/vars.ts`）。
@@ -57,6 +58,8 @@ const shaped = (m: Message, i: number) => ({
 });
 
 export function buildBridge(deps: BridgeDeps): Record<string, unknown> {
+  // 卡片想動訊息時該發生什麼 —— 判準與文案全在 `messageEdit.ts`。
+  const { applyUpdates, reportBlocked } = makeApplyUpdates(deps);
   const api: Record<string, unknown> = {
     getChatMessages(range?: unknown) {
       const all = deps.messages().map(shaped);
@@ -81,44 +84,25 @@ export function buildBridge(deps: BridgeDeps): Record<string, unknown> {
         ? deps.saveVariables(patch as Record<string, unknown>, scopeOf(opts))
         : undefined;
     },
+    setChatMessages: applyUpdates,
     /**
-     * 🔴 卡片用它做兩件事：改訊息文字、**切候選**。我們只接後者。
-     * 改文字＝竄改對話紀錄，那是資料損毀等級的權限，不在這一期開放。
-     *
-     * 🔴 **擋下要出聲，而且不可以空轉**（2026-08-27）。修正前這裡是
-     * 「靜默丟掉文字 ＋ 最後無條件 `refresh()`」⇒ 實機上的 `標籤補全` 每收到一則訊息
-     * 就白白重讀一次對話，而卡片以為改成功了。理由與判準在 `messageEdit.ts`。
-     */
-    async setChatMessages(updates: unknown) {
-      const list = (Array.isArray(updates) ? updates : [updates]) as MessageUpdate[];
-      const msgs = deps.messages();
-      let applied = 0;
-      for (const u of list) {
-        if (wantsTextEdit(u)) warnTextEditBlocked('setChatMessages', u?.message_id);
-        const target = msgs[u?.message_id ?? 0];
-        if (!target || !isActionable(u)) continue;
-        await deps.swipe(target.id, u.swipe_id as number);
-        applied += 1;
-      }
-      // 🔴 **沒有真的改到東西就不要重讀對話。** 重讀會讓 srcdoc 變、iframe 整個重生。
-      if (applied > 0) await deps.refresh();
-    },
-    /**
-     * 🔴 **只想改文字的那一路，連 `setChatMessages` 都不要進。**
-     * 進去只會多繞一圈再什麼都不做 —— 而那一圈以前正是空轉的來源。
+     * 🔴 **只想改文字的那一路，連 `applyUpdates` 都不要進。**
+     * 進去只會多繞一圈再什麼都不做。
+     * ⚠️ **不要把 `message` 往下傳** —— 傳了會讓同一次呼叫在
+     * `setChatMessages` 名下再講一次（同一件事兩則訊息、而且署名錯人）。
      */
     setChatMessage(content: unknown, id: number, opts?: { swipe_id?: number }) {
       const swiping = typeof opts?.swipe_id === 'number';
-      // 想改文字、或什麼都做不到 —— 兩種都要出聲。⚠️ **不要把 `message` 往下傳**，
-      // 否則 `setChatMessages` 會為同一次呼叫再警告一次（同一件事兩則訊息）。
-      if (typeof content === 'string' || !swiping) warnTextEditBlocked('setChatMessage', id);
-      if (!swiping) return undefined;
-      return api['setChatMessages'] instanceof Function
-        ? (api['setChatMessages'] as (u: unknown) => Promise<void>)({
-            message_id: id,
-            swipe_id: opts?.swipe_id,
-          })
-        : undefined;
+      const texting = content !== undefined;
+      if (!swiping) {
+        reportBlocked('setChatMessage', id, {
+          kind: texting ? 'text-only' : 'nothing',
+        });
+        return undefined;
+      }
+      // 🔴 有切到候選就**不可以**說「沒有任何變更」——那句話會是假的。
+      if (texting) reportBlocked('setChatMessage', id, { kind: 'text-with-swipe' });
+      return applyUpdates({ message_id: id, swipe_id: opts?.swipe_id });
     },
     getLorebookEntries: () => [],
     setLorebookEntries: () => undefined,
@@ -130,17 +114,5 @@ export function buildBridge(deps: BridgeDeps): Record<string, unknown> {
   };
   return api;
 }
-
-/** 叫到沒實作的函式時要**說得出是哪一個**，不可以是一句 `undefined is not a function`。 */
-export const withReporting = (api: Record<string, unknown>): Record<string, unknown> =>
-  new Proxy(api, {
-    get(t, k: string) {
-      if (k in t) return t[k];
-      return (...args: unknown[]) => {
-        console.warn(`[卡片腳本] 這張卡呼叫了 Vellum 還沒實作的 TavernHelper.${k}()`, args);
-        return undefined;
-      };
-    },
-  });
 
 export type { Chat };

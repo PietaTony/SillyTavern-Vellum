@@ -4,7 +4,7 @@
  * 為什麼是檔案不是 DB：ST 用檔案系統，而「匯入匯出保真」是我們的契約之一。
  * 走同一種形狀，之後對接 ST 的 data 目錄時不必再轉一層。
  */
-import { mkdir, readFile, writeFile, readdir, stat } from 'node:fs/promises';
+import { mkdir, readFile, readdir, rm, stat, writeFile } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import { dirname, join, resolve, sep } from 'node:path';
 
@@ -73,6 +73,21 @@ export async function writeJson(rel: string, value: unknown): Promise<void> {
   const file = pathFor(rel);
   await ensureDir(file);
   await writeFile(file, `${JSON.stringify(value, null, 2)}\n`, 'utf8');
+}
+
+/**
+ * 真的把檔案刪掉。
+ *
+ * 🔴 **不要用 `writeJson(rel, null)` 當刪除**（敵意驗收 2026-08-27 抓到）。
+ * 那是**寫入字面 `null`**：檔案還在、只是內容變成 `null`。
+ * 呼叫端的註解寫著「連書一起刪，留著就是孤兒檔」——**它自己就在製造孤兒檔**，
+ * 只是換了一種形式，而且會永久累積。
+ *
+ * ⚠️ **檔案不存在不算錯**（`force: true`）：刪除要可以重複執行。
+ * 路徑一樣走 `pathFor()`，資料目錄外的路徑會被擋（`OutsideDataRoot`）。
+ */
+export async function deleteJson(rel: string): Promise<void> {
+  await rm(pathFor(rel), { force: true });
 }
 
 /**
