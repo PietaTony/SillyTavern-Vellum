@@ -53,29 +53,33 @@ export function ScriptFrame({
   useEffect(() => {
     if (mode === 'hidden') return;
     const onMsg = (e: MessageEvent) => {
-      const d = e.data as { __vellumHeight?: number; __vellumHit?: boolean; name?: string } | null;
+      const d = e.data as { __vellumHeight?: number; __vellumBox?: string; name?: string } | null;
       if (!d || d.name !== name || !ref.current) return;
       // 上限只是防呆：卡片算錯高度時不要讓頁面變成一公里長。
       if (mode === 'inline' && d.__vellumHeight)
         ref.current.style.height = `${Math.min(d.__vellumHeight, 4000)}px`;
-      // 🔴 只有指標真的落在桌寵身上時才接管點擊，否則底下整個 app 就點不到了。
-      if (mode === 'overlay' && d.__vellumHit !== undefined)
-        ref.current.style.pointerEvents = d.__vellumHit ? 'auto' : 'none';
+      /**
+       * 🔴 **只把「桌寵身上那一塊」留下來，其餘裁掉。**
+       * `clip-path` 裁掉的區域**連命中測試都不存在** ⇒ 底下的卡片按鈕直接收得到點擊。
+       * ⚠️ 上一版是問答式的（丟座標進去問有沒有命中），Peter 實機打回
+       *    「小卡的所有按鈕都超難按」—— 那是非同步來回，切換永遠慢一步。
+       * 空字串 ＝ 這個 frame 目前什麼都沒畫 ⇒ `inset(100%)` 全部裁掉。
+       */
+      if (mode === 'overlay' && d.__vellumBox !== undefined) {
+        const p = d.__vellumBox.split(',').map(Number);
+        const [l, t, r, b2] = p;
+        ref.current.style.clipPath =
+          p.length === 4 &&
+          r !== undefined &&
+          b2 !== undefined &&
+          l !== undefined &&
+          t !== undefined
+            ? `inset(${t}px ${window.innerWidth - r}px ${window.innerHeight - b2}px ${l}px)`
+            : 'inset(100%)';
+      }
     };
     window.addEventListener('message', onMsg);
-    if (mode !== 'overlay') return () => window.removeEventListener('message', onMsg);
-    // overlay 在 `pointerEvents:none` 時收不到滑鼠事件 ⇒ 由主頁把座標餵進去問（見 `srcdoc.ts`）。
-    const onMove = (e: PointerEvent) => {
-      ref.current?.contentWindow?.postMessage(
-        { __vellumProbe: { x: e.clientX, y: e.clientY } },
-        '*',
-      );
-    };
-    document.addEventListener('pointermove', onMove, { passive: true });
-    return () => {
-      window.removeEventListener('message', onMsg);
-      document.removeEventListener('pointermove', onMove);
-    };
+    return () => window.removeEventListener('message', onMsg);
   }, [name, mode]);
 
   const srcDoc = buildSrcDoc({ body: preWrapped ? code : wrap(code), name, mode, allow });
@@ -91,8 +95,15 @@ export function ScriptFrame({
       colorScheme: 'normal',
     },
     /**
-     * 🔴 鋪滿視窗、**預設不吃點擊**，由命中測試逐點打開（`srcdoc.ts` 的 `hitTest`）。
+     * 🔴 鋪滿視窗，但**用 `clip-path` 只留下桌寵身上那一塊**（見上面的 `onMsg`）。
+     * 被裁掉的地方不畫、也不吃點擊，所以底下的 app 完全不受影響。
+     * 初始值是 `inset(100%)` ＝ 全部裁掉 —— **在 iframe 回報自己的外框之前，
+     * 這一層對使用者等於不存在**。先設 `auto` 再裁，比先擋住再放行安全。
      * `zIndex` 壓在 MUI Dialog（1300）之下 —— 同意視窗不可以被桌寵蓋住。
+     *
+     * ⚠️ **不要照著「這一層會讓對話區整片不畫」去改這裡。** 那個現象是假的：
+     * 我當時的量測分頁 `visibilityState === 'hidden'`，而 Chrome 不繪製隱藏分頁。
+     * Peter 在真視窗看到的是「畫面正常、但點不到」——**問題一直都在命中測試，不在繪製**。
      */
     overlay: {
       position: 'fixed' as const,
@@ -101,16 +112,9 @@ export function ScriptFrame({
       height: '100dvh',
       border: 0,
       zIndex: 1200,
-      pointerEvents: 'none' as const,
+      pointerEvents: 'auto' as const,
+      clipPath: 'inset(100%)',
       background: 'transparent',
-      /**
-       * ⚠️ **2026-08-26 未結案的觀察，留給下一輪**：在自動化瀏覽器裡，這一層一出現，
-       * 對話區就只剩背景圖、訊息全部不見（DOM 還在）。但**那個分頁的 `visibilityState`
-       * 是 `hidden`** —— Chrome 對隱藏分頁不繪製，所以那把尺本身就不可信。
-       * 🔴 **要用真的、在前景的視窗重驗**，不要照著那個現象改 code。
-       *    我試過的 opacity／colorScheme／position／尺寸／isolation／捲動 workaround
-       *    **全部沒有證據支持**，已經移除，不要再撿回來。
-       */
     },
   }[mode];
 

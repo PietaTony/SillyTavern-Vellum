@@ -9,7 +9,7 @@ import { PREAMBLE, VENDOR } from './preamble';
  * 三種模式，差別只在**注入哪一段輔助程式**：
  *   `hidden` —— 什麼都不注入（沒有畫面的背景腳本）
  *   `inline` —— 注入量高度的那段（訊息裡的介面要跟著內容長高）
- *   `overlay` —— 注入命中測試那段（桌寵浮在整個畫面上，見下）
+ *   `overlay` —— 注入「回報自己的外框」那段（桌寵浮在整個畫面上，見下）
  */
 
 export type FrameMode = 'hidden' | 'inline' | 'overlay';
@@ -47,29 +47,42 @@ const measure = (name: string) =>
   )}},'*')};new ResizeObserver(s).observe(document.documentElement);addEventListener('load',s);s()})()</script>`;
 
 /**
- * 🔴 **命中測試 —— overlay 模式的核心。**
+ * 🔴 **回報「我身上真正有東西的那一塊」—— overlay 模式的核心。**
  *
  * 桌寵是 `position:fixed` 浮在整個畫面上的，所以它的 iframe 必須鋪滿視窗。
  * 但鋪滿的 iframe 會**吃掉底下整個 app 的點擊**。
- * 而 CSS 沒有辦法「只讓有內容的地方可以點」——`pointer-events:none` 是整個 iframe 一起關的。
  *
- * ⇒ 做法：主頁把滑鼠座標丟進來，這一端用 `elementFromPoint` 判斷那個點上有沒有東西，
- * 回報給主頁去切 iframe 的 `pointerEvents`。
- * ⚠️ **兩個方向都要**：`pointerEvents` 一旦切成 `auto`，主頁就收不到 `pointermove` 了，
- * 所以「指標離開桌寵」必須由**這一端**自己回報，否則會卡在「整個畫面都點不到」。
+ * ⚠️ **第一版用「主頁丟座標進來問、這一端回答有沒有命中」——那是錯的，Peter 實機打回：
+ * 「小卡的所有按鈕都超難按」。** 那是一次**非同步來回**：滑鼠移得快、或直接按下去，
+ * `pointerEvents` 還沒切回 `none`，這一層就把點擊吃掉了。
+ *
+ * ⇒ 現在改成：**這一端只回報自己內容的外框，主頁拿它去設 `clip-path`。**
+ * `clip-path` 裁掉的區域**連命中測試都不存在**（不是「看不到但還在」）——
+ * 判斷發生在合成階段、**同步**、沒有來回，所以不會有「切換還沒回來」這個狀態。
  */
-const hitTest = (name: string) =>
-  `<script>(function(){var N=${JSON.stringify(name)};
-var hit=function(x,y){var e=document.elementFromPoint(x,y);
-return !!e && e!==document.documentElement && e!==document.body};
-var say=function(v){parent.postMessage({__vellumHit:v,name:N},'*')};
-addEventListener('message',function(ev){var d=ev.data;
-if(!d||!d.__vellumProbe)return;say(hit(d.__vellumProbe.x,d.__vellumProbe.y))});
-addEventListener('pointermove',function(ev){say(hit(ev.clientX,ev.clientY))},true);
-addEventListener('pointerleave',function(){say(false)},true)})()</script>`;
+const reportBox = (name: string) =>
+  `<script>(function(){var N=${JSON.stringify(name)},last='';
+function measure(){var l=1/0,t=1/0,r=-1/0,b=-1/0,any=false,c=document.body.children;
+for(var i=0;i<c.length;i++){var e=c[i];
+if(e.tagName==='SCRIPT'||e.tagName==='STYLE')continue;
+var s=getComputedStyle(e);
+if(s.display==='none'||s.visibility==='hidden'||s.opacity==='0')continue;
+var q=e.getBoundingClientRect();
+if(q.width<=0||q.height<=0)continue;
+any=true;if(q.left<l)l=q.left;if(q.top<t)t=q.top;if(q.right>r)r=q.right;if(q.bottom>b)b=q.bottom}
+var v=any?[Math.floor(l),Math.floor(t),Math.ceil(r),Math.ceil(b)].join(','):'';
+if(v!==last){last=v;parent.postMessage({__vellumBox:v,name:N},'*')}}
+/* 拖曳中要跟得上 ⇒ 每一幀量一次。 */
+function loop(){measure();requestAnimationFrame(loop)}
+requestAnimationFrame(loop);
+/* 🔴 rAF 在背景分頁是停的（實測）⇒ 另外用 interval 兜底，
+   否則從別的分頁切回來時外框可能還停在舊的。**不可以從這裡呼叫 loop**——
+   那會讓 rAF 鏈指數成長。 */
+setInterval(measure,400);
+measure()})()</script>`;
 
 const helper = (mode: FrameMode, name: string): string =>
-  mode === 'inline' ? measure(name) : mode === 'overlay' ? hitTest(name) : '';
+  mode === 'inline' ? measure(name) : mode === 'overlay' ? reportBox(name) : '';
 
 /**
  * 卡片的前端區塊本身就是一份完整 document；背景腳本則是純 JS，要自己包 `<script>`。
