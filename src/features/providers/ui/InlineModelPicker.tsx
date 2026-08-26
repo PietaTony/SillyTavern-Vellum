@@ -61,7 +61,19 @@ export function InlineModelPicker({
         onChange={(m) => test.mutate(m)}
         onClick={(e) => e.stopPropagation()}
         slotProps={{ input: { onClick: (e) => e.stopPropagation() } }}
-        sx={{ minWidth: 200, maxWidth: '100%' }}
+        /*
+         * 🔴 **不可以寫死 `minWidth`**：手機上 200px 加上名字與徽章就會把整列撐爆
+         * （Peter 2026-08-26 回報跑版）。改成能縮，值太長就截成「…」。
+         */
+        sx={{
+          minWidth: 0,
+          flex: 1,
+          '& .MuiSelect-select': {
+            overflow: 'hidden',
+            textOverflow: 'ellipsis',
+            whiteSpace: 'nowrap',
+          },
+        }}
       >
         {modelOptions(models, value).map((m) => (
           <MenuItem key={m} value={m}>

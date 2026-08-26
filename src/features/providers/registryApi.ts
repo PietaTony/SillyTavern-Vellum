@@ -118,7 +118,9 @@ export const STATUS_COPY: Record<ProviderStatus, { label: string; note: string; 
   {
     ready: { label: '', note: '' },
     untested: {
-      label: '尚未實測',
+      // 🔴 「作者未測」不是「尚未實測」（Peter 2026-08-26）——
+      // 後者聽起來像**使用者**還沒測，前者說得出「是我們沒測過」。責任歸屬不一樣。
+      label: '作者未測',
       note: '邏輯照 SillyTavern 寫的，但還沒有人用真金鑰打過。連不上的話請把錯誤訊息原文貼給我們 —— 有原文才修得動。',
     },
     planned: {

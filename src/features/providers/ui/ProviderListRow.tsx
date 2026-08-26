@@ -49,35 +49,45 @@ export function ProviderListRow({
 
   return (
     <ListItemButton onClick={onOpen}>
-      {busy ? (
-        <Box
-          sx={{
-            width: 42,
-            mr: 1,
-            display: 'grid',
-            placeItems: 'center',
-            flex: 'none',
-          }}
-        >
+      {/*
+       * 🔴 **radio 與轉圈共用同一個固定尺寸的插槽。**
+       * 上一版轉圈另外包一個 42px 的 Box，而 radio 實際是 38×38 ＋ `edge="start"` 的負邊距
+       * ⇒ loading 進出時整列左右跳動（Peter 2026-08-26：「loading 在跑的時候會跑版」）。
+       * ⚠️ **不要靠「調到看起來一樣」** —— 那是猜的，字型或主題一改又會歪。
+       * 讓兩者住在同一個 Box 裡，尺寸就不可能不一致。
+       */}
+      <Box
+        sx={{ width: 38, height: 38, flex: 'none', mr: 1, display: 'grid', placeItems: 'center' }}
+      >
+        {busy ? (
           <CircularProgress size={18} />
-        </Box>
-      ) : (
-        <Radio
-          checked={p.active}
-          disabled={blocked}
-          size="small"
-          edge="start"
-          onClick={(e) => {
-            e.stopPropagation();
-            onPick();
-          }}
-          slotProps={{
-            input: { 'aria-label': `用 ${p.displayName} 對話` },
-          }}
-          sx={{ mr: 1, ...(blocked ? { pointerEvents: 'none' } : {}) }}
-        />
-      )}
+        ) : (
+          <Radio
+            checked={p.active}
+            disabled={blocked}
+            size="small"
+            onClick={(e) => {
+              e.stopPropagation();
+              onPick();
+            }}
+            slotProps={{
+              input: { 'aria-label': `用 ${p.displayName} 對話` },
+            }}
+            /*
+             * 🔴 **停用的 radio 預設是一塊死區** —— 實測點下去 URL 完全不變，
+             * 既不切換也不進設定頁。`pointerEvents: 'none'` 讓點擊落到外層的 `ListItemButton`。
+             */
+            sx={blocked ? { pointerEvents: 'none' } : undefined}
+          />
+        )}
+      </Box>
+      {/*
+       * 🔴 **名字過長要截成「…」，不可以把整列撐開**（Peter 2026-08-26：手機上會跑版）。
+       * `minWidth: 0` 是關鍵：flex 子元素的預設 `min-width: auto` 會讓它**拒絕縮到內容以下**，
+       * 於是 `noWrap` 的省略號永遠不會出現，改成整列被撐寬。
+       */}
       <ListItemText
+        sx={{ minWidth: 0, overflow: 'hidden' }}
         primary={p.displayName}
         /*
          * 使用中的那一家把「使用中」寫在最前面 —— 徽章講的是「金鑰設好了」，
@@ -85,8 +95,11 @@ export function ProviderListRow({
          */
         secondary={
           p.active ? (
-            <Stack direction="row" sx={{ gap: 1, alignItems: 'center', flexWrap: 'wrap' }}>
-              <span>使用中 ·</span>
+            /*
+             * 🔴 **沒有「使用中」字樣**（Peter 2026-08-26 拿掉）——
+             * 左邊選中的 radio 已經在講同一件事，多一段字只是把下拉擠窄。
+             */
+            <Stack direction="row" sx={{ gap: 1, alignItems: 'center', minWidth: 0 }}>
               {/*
                * 🔴 **只有使用中那一列才有下拉**（Peter 2026-08-26）。
                * 26 列都放下拉的話會拉 26 次 models 端點，而且畫面變成一片選單。
@@ -110,7 +123,10 @@ export function ProviderListRow({
             `預設模型 ${p.defaultModel}（未驗證）`
           )
         }
-        slotProps={{ secondary: { variant: 'caption', component: 'div' } }}
+        slotProps={{
+          primary: { noWrap: true },
+          secondary: { variant: 'caption', component: 'div', sx: { minWidth: 0 } },
+        }}
       />
       {/*
        * 🔴 **狀態徽章靠右、緊鄰箭頭**（Peter 2026-08-26）。
