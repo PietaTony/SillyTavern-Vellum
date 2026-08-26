@@ -11,6 +11,7 @@ import { pushToast } from '@/shared/ui/toastStore';
 import { fetchCharacter, nameOf, updateCharacter } from '../api';
 import { alternatesOf } from '../model';
 import { GreetingsSection } from './GreetingsSection';
+import { WorldSection } from './WorldSection';
 
 /**
  * 對話裡點對方的頭像會開的那一層（Peter 2026-08-26 選「進角色設定」）。
@@ -128,6 +129,12 @@ export function CharacterLayer({
             slotProps={{ input: { readOnly } }}
           />
           <GreetingsSection greetings={greetings} onChange={setGreetings} readOnly={readOnly} />
+          {/*
+           * 🔴 **世界書就在問候語下面**（Peter 2026-08-27：「按鈕形式參照問候語」）。
+           * 兩者是同一類東西：卡片帶進來的一大包內容，各自有自己的一層。
+           * ⚠️ 這一段**不吃 `readOnly`** —— 理由寫在 `WorldSection` 的檔頭。
+           */}
+          <WorldSection characterId={characterId} />
         </Stack>
       ) : null}
     </FullScreenLayer>
