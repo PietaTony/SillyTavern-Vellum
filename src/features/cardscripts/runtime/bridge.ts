@@ -1,4 +1,10 @@
 import type { Chat, Message } from '@/features/chat';
+import {
+  isActionable,
+  type MessageUpdate,
+  wantsTextEdit,
+  warnTextEditBlocked,
+} from './messageEdit';
 import { type CardVarScope, type CardVarScopes, scopeOf } from './scopes';
 
 /**
@@ -75,21 +81,38 @@ export function buildBridge(deps: BridgeDeps): Record<string, unknown> {
         ? deps.saveVariables(patch as Record<string, unknown>, scopeOf(opts))
         : undefined;
     },
+    /**
+     * 🔴 卡片用它做兩件事：改訊息文字、**切候選**。我們只接後者。
+     * 改文字＝竄改對話紀錄，那是資料損毀等級的權限，不在這一期開放。
+     *
+     * 🔴 **擋下要出聲，而且不可以空轉**（2026-08-27）。修正前這裡是
+     * 「靜默丟掉文字 ＋ 最後無條件 `refresh()`」⇒ 實機上的 `標籤補全` 每收到一則訊息
+     * 就白白重讀一次對話，而卡片以為改成功了。理由與判準在 `messageEdit.ts`。
+     */
     async setChatMessages(updates: unknown) {
-      /**
-       * 🔴 卡片用它做兩件事：改訊息文字、**切候選**。我們只接後者。
-       * 改文字＝竄改對話紀錄，那是資料損毀等級的權限，不在這一期開放。
-       */
-      const list = Array.isArray(updates) ? updates : [updates];
+      const list = (Array.isArray(updates) ? updates : [updates]) as MessageUpdate[];
       const msgs = deps.messages();
-      for (const u of list as { message_id?: number; swipe_id?: number }[]) {
+      let applied = 0;
+      for (const u of list) {
+        if (wantsTextEdit(u)) warnTextEditBlocked('setChatMessages', u?.message_id);
         const target = msgs[u?.message_id ?? 0];
-        if (!target || typeof u?.swipe_id !== 'number') continue;
-        await deps.swipe(target.id, u.swipe_id);
+        if (!target || !isActionable(u)) continue;
+        await deps.swipe(target.id, u.swipe_id as number);
+        applied += 1;
       }
-      await deps.refresh();
+      // 🔴 **沒有真的改到東西就不要重讀對話。** 重讀會讓 srcdoc 變、iframe 整個重生。
+      if (applied > 0) await deps.refresh();
     },
-    setChatMessage(_content: unknown, id: number, opts?: { swipe_id?: number }) {
+    /**
+     * 🔴 **只想改文字的那一路，連 `setChatMessages` 都不要進。**
+     * 進去只會多繞一圈再什麼都不做 —— 而那一圈以前正是空轉的來源。
+     */
+    setChatMessage(content: unknown, id: number, opts?: { swipe_id?: number }) {
+      const swiping = typeof opts?.swipe_id === 'number';
+      // 想改文字、或什麼都做不到 —— 兩種都要出聲。⚠️ **不要把 `message` 往下傳**，
+      // 否則 `setChatMessages` 會為同一次呼叫再警告一次（同一件事兩則訊息）。
+      if (typeof content === 'string' || !swiping) warnTextEditBlocked('setChatMessage', id);
+      if (!swiping) return undefined;
       return api['setChatMessages'] instanceof Function
         ? (api['setChatMessages'] as (u: unknown) => Promise<void>)({
             message_id: id,
