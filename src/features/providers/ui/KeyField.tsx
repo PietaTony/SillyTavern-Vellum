@@ -3,7 +3,7 @@ import Stack from '@mui/material/Stack';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { DraftField } from '@/shared/ui/DraftField';
-import type { ToastMsg } from '@/shared/ui/Toast';
+import type { ToastMsg } from '@/shared/ui/toastMsg';
 import { applyMaskedEdit, maskKey } from '../model';
 import { type ProviderRow, testAndSaveKey, testStoredKey } from '../registryApi';
 import { keyOkAdornment } from './KeyOk';

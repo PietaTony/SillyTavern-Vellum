@@ -1,5 +1,5 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import type { ToastMsg } from '@/shared/ui/Toast';
+import type { ToastMsg } from '@/shared/ui/toastMsg';
 import { explainProviderError } from './errorHelp';
 import { testModel } from './registryApi';
 

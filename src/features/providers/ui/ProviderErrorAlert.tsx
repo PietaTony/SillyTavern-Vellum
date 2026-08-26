@@ -1,7 +1,7 @@
 import Alert from '@mui/material/Alert';
 import Button from '@mui/material/Button';
 import { CopyButton } from '@/shared/ui/CopyButton';
-import type { ToastMsg } from '@/shared/ui/Toast';
+import type { ToastMsg } from '@/shared/ui/toastMsg';
 import { explainProviderError } from '../errorHelp';
 
 /**

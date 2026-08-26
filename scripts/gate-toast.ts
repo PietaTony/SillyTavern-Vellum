@@ -26,10 +26,10 @@ const ROOT = new URL('..', import.meta.url).pathname;
 const SCAN = join(ROOT, 'src');
 
 /**
- * 唯一准許直接用 MUI `Snackbar` 的檔 —— 它就是那個包裝。
+ * 唯一准許直接用 MUI `Snackbar` 的檔 —— 它就是那個包裝（全站唯一的 tips 堆疊）。
  * 🔴 白名單只有這一條。要再加就要在這裡寫理由。
  */
-const WRAPPER = 'src/shared/ui/Toast.tsx';
+const WRAPPER = 'src/shared/ui/ToastStack.tsx';
 
 /*
  * 🔴 **不可以比對 import 路徑字串** —— `stripNoise()` 會把字串內容清空，
@@ -85,9 +85,11 @@ const bad = files
   .filter((f) => f !== WRAPPER)
   .filter((f) => usesRawSnackbar(readFileSync(join(ROOT, f), 'utf8')));
 if (bad.length) {
-  console.error(`gate:toast FAIL — ${bad.length} 個檔繞過 <Toast>（掃了 ${files.length} 個）`);
+  console.error(`gate:toast FAIL — ${bad.length} 個檔繞過 <ToastStack>（掃了 ${files.length} 個）`);
   for (const f of bad) console.error(`  ${f}`);
   console.error(`  ⇒ 改用 ${WRAPPER}。tips 的時序是固定的，各寫一份就會分岔。`);
   process.exit(1);
 }
-console.log(`gate:toast PASS — ${files.length} 個檔，tips 全部經過 <Toast>（${WRAPPER} 本身豁免）`);
+console.log(
+  `gate:toast PASS — ${files.length} 個檔，tips 全部經過 <ToastStack>（${WRAPPER} 本身豁免）`,
+);

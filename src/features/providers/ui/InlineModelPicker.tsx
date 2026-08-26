@@ -2,7 +2,7 @@ import CircularProgress from '@mui/material/CircularProgress';
 import MenuItem from '@mui/material/MenuItem';
 import { useQuery } from '@tanstack/react-query';
 import { DraftField } from '@/shared/ui/DraftField';
-import type { ToastMsg } from '@/shared/ui/Toast';
+import type { ToastMsg } from '@/shared/ui/toastMsg';
 import { effectiveModel, isOffList, modelOptions } from '../modelOptions';
 import { fetchModels } from '../registryApi';
 import { useModelTest } from '../useModelTest';

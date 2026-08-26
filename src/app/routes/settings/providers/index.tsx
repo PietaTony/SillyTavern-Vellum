@@ -4,7 +4,6 @@ import List from '@mui/material/List';
 import Typography from '@mui/material/Typography';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { createFileRoute, useNavigate } from '@tanstack/react-router';
-import { useState } from 'react';
 import {
   byUsefulness,
   fetchProviderRows,
@@ -12,7 +11,7 @@ import {
   setActiveProvider,
 } from '@/features/providers';
 import { Screen } from '@/shared/ui/Screen';
-import { Toast, type ToastMsg } from '@/shared/ui/Toast';
+import { pushToast } from '@/shared/ui/toastStore';
 
 export const Route = createFileRoute('/settings/providers/')({ component: ProvidersPage });
 
@@ -34,17 +33,16 @@ function ProvidersPage() {
   const nav = useNavigate();
   const qc = useQueryClient();
   const q = useQuery({ queryKey: ['providerRows'], queryFn: fetchProviderRows });
-  const [toast, setToast] = useState<ToastMsg>(null);
 
   const pick = useMutation({
     mutationFn: (id: string) => setActiveProvider(id),
     onSuccess: (_r, id) => {
       const name = q.data?.find((x) => x.id === id)?.displayName ?? id;
-      setToast({ severity: 'success', text: `對話改用 ${name}` });
+      pushToast({ severity: 'success', text: `對話改用 ${name}` });
       void qc.invalidateQueries({ queryKey: ['providerRows'] });
     },
     // 後端已經寫好那句人話（「還沒有金鑰 —— 先設定金鑰才能用它對話」），照原文顯示。
-    onError: (e: Error) => setToast({ severity: 'warning', text: e.message }),
+    onError: (e: Error) => pushToast({ severity: 'warning', text: e.message }),
   });
 
   /*
@@ -79,7 +77,7 @@ function ProvidersPage() {
              * 給一顆測了必失敗的按鈕，就是回到「選了、照做了、然後出不去」那條死路。
              */
             onOpen={() => void nav({ to: '/settings/providers/$id', params: { id: p.id } })}
-            onNotify={setToast}
+            onNotify={pushToast}
             /*
              * 沒金鑰與 planned 的 radio 已經停用 ⇒ 這裡只會收到「可以用」的那幾家。
              * 🔴 **後端那道守衛照樣留著**（`PUT /api/secrets/active/:provider` 會擋）——
@@ -89,8 +87,6 @@ function ProvidersPage() {
           />
         ))}
       </List>
-
-      <Toast msg={toast} onClose={() => setToast(null)} />
     </Screen>
   );
 }

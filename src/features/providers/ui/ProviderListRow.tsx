@@ -4,7 +4,7 @@ import ListItemButton from '@mui/material/ListItemButton';
 import ListItemText from '@mui/material/ListItemText';
 import Radio from '@mui/material/Radio';
 import Stack from '@mui/material/Stack';
-import type { ToastMsg } from '@/shared/ui/Toast';
+import type { ToastMsg } from '@/shared/ui/toastMsg';
 import { type ProviderRow as Row, STATUS_COPY } from '../registryApi';
 import { InlineModelPicker } from './InlineModelPicker';
 
