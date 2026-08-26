@@ -16,11 +16,26 @@
  * 而 `0.0.0` 比任何版本都舊 ⇒ **更新橫幅永遠掛著**，還告訴使用者「你在 0.0.0」。
  * ⚠️ 那一份**刻意不寫 `type`**：模組格式由 `.mjs` 決定，不靠它。
  *
+ * 🔴 **這支要在 Windows 上跑得起來**（CI 的冒煙 job 會跑它）。
+ * 第一版用 `bash find …` 數 symlink、用 `zip` 壓縮 —— **兩個在 Windows 上都不存在**，
+ * CI 直接 `spawnSync zip ENOENT`。⇒ symlink 檢查改成純 Node 遞迴，
+ * 壓縮依平台分岔（Windows 走 PowerShell 的 `Compress-Archive`）。
+ * ⚠️ 這正是「腳本從來沒在目標平台上跑過」的形狀 —— 本機綠燈不代表它跑得動。
+ *
  * 自證：`pnpm package` 之後跑
  *   `unzip -l dist-zip/*.zip` ／ `find <解壓後> -type l | wc -l` ⇒ 0
  */
 import { execFileSync } from 'node:child_process';
-import { cpSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import {
+  cpSync,
+  existsSync,
+  lstatSync,
+  mkdirSync,
+  readdirSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from 'node:fs';
 import { join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -54,16 +69,43 @@ writeFileSync(
   `${JSON.stringify({ name: 'vellum', version: pkg.version, private: true }, null, 2)}\n`,
 );
 
+/**
+ * 遞迴數 symlink。**純 Node，不呼叫 `find`** —— Windows 上沒有那支指令。
+ * `lstatSync` 不跟隨連結，所以連結本身就會被看見。
+ */
+function countSymlinks(dir: string): number {
+  let n = 0;
+  for (const e of readdirSync(dir, { withFileTypes: true })) {
+    const p = join(dir, e.name);
+    if (lstatSync(p).isSymbolicLink()) n += 1;
+    else if (e.isDirectory()) n += countSymlinks(p);
+  }
+  return n;
+}
+
 /** 🔴 打包完自己驗一次，不要等到使用者解壓才發現。 */
-const symlinks = execFileSync('bash', ['-c', `find "${STAGE}" -type l | wc -l`])
-  .toString()
-  .trim();
-if (symlinks !== '0') fail(`zip 裡有 ${symlinks} 個 symlink —— Windows 解壓會爛`);
+const symlinks = countSymlinks(STAGE);
+if (symlinks !== 0) fail(`zip 裡有 ${symlinks} 個 symlink —— Windows 解壓會爛`);
 if (existsSync(join(STAGE, 'node_modules'))) fail('zip 裡有 node_modules');
 
-execFileSync('zip', ['-qry', `${NAME}.zip`, NAME], { cwd: OUT });
+const zipPath = join(OUT, `${NAME}.zip`);
+if (process.platform === 'win32') {
+  /**
+   * ⚠️ `Compress-Archive` **不保留 Unix 執行位元** —— 在 Windows 上壓出來的 zip
+   * 拿給 Mac 使用者時，`啟動.command` 會沒有執行權限、雙擊不動。
+   * ⇒ **正式的 release 一律在 Linux runner 上打包**（`release.yml` 的 `zip` job）。
+   * 這條分岔只給 Windows CI 的冒煙用。
+   */
+  execFileSync('powershell', [
+    '-NoProfile',
+    '-Command',
+    `Compress-Archive -Path '${STAGE}' -DestinationPath '${zipPath}' -Force`,
+  ]);
+} else {
+  execFileSync('zip', ['-qry', `${NAME}.zip`, NAME], { cwd: OUT });
+}
 rmSync(STAGE, { recursive: true, force: true });
 
-const listed = execFileSync('unzip', ['-l', join(OUT, `${NAME}.zip`)]).toString();
-console.log(listed.split('\n').slice(-3).join('\n'));
-console.log(`package PASS — dist-zip/${NAME}.zip（0 symlink、無 node_modules）`);
+if (!existsSync(zipPath)) fail('壓縮完卻找不到 zip 檔');
+const mb = (lstatSync(zipPath).size / 1e6).toFixed(1);
+console.log(`package PASS — dist-zip/${NAME}.zip（${mb} MB、0 symlink、無 node_modules）`);
