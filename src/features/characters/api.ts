@@ -10,6 +10,8 @@ export type Character = {
   firstMessage: string;
   avatar: string;
   createdAt: string;
+  /** 最後一次就地修改的時間。樂觀鎖用的（GAP-71）；沒改過就沒有這個欄位。 */
+  updatedAt?: string;
   /** 所有開場白候選。>1 時，進對話前要先讓使用者挑（Peter 指定的落點）。 */
   greetings?: string[];
 };
@@ -52,14 +54,31 @@ export const updateCharacter = (
   id: string,
   body: Partial<
     Pick<Character, 'displayName' | 'description' | 'firstMessage' | 'avatar' | 'greetings'>
-  >,
+  > & {
+    /**
+     * 🔴 **樂觀鎖**（GAP-71）：把你讀到的 `updatedAt` 送回來。
+     * 對不上代表中間有別人改過 ⇒ 後端回 409，而不是默默覆蓋掉對方的寫入。
+     * 省略 ＝ 不檢查。
+     */
+    ifUnmodifiedSince?: string | undefined;
+  },
 ): Promise<Character> => patch<Character>(`/api/characters/${id}`, body);
 
 /**
  * 開場白清單。**帶各自的名字**（卡片自己在 `<!-- title: … -->` 裡寫的）——
  * 「第 1 種／第 2 種」對使用者沒有意義，「大一．同班初遇」才有。
  */
-export type GreetingChoice = { index: number; title: string | null; preview: string; lore: number };
+export type GreetingChoice = {
+  index: number;
+  /**
+   * 🔴 **在「額外問候語」那一層的編號**（GAP-67）。`null` ＝ 它就是原本的開場。
+   * 兩頁用同一個編號，使用者才不會以為是兩則不同的東西。
+   */
+  alt: number | null;
+  title: string | null;
+  preview: string;
+  lore: number;
+};
 export const fetchGreetings = (id: string): Promise<GreetingChoice[]> =>
   get<GreetingChoice[]>(`/api/characters/${id}/greetings`);
 

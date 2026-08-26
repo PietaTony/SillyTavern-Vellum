@@ -66,7 +66,14 @@ function PickGreetingPage() {
       <Stack spacing={1.5}>
         {greetings.map((g) => (
           <Paper key={g.index} variant="outlined" sx={{ p: 1.5 }}>
-            <Typography variant="subtitle2">{g.title ?? `第 ${g.index + 1} 種`}</Typography>
+            {/*
+             * 🔴 編號與「額外問候語」那一層對齊（GAP-67）——
+             * 在此之前這裡寫「第 N 種」用的是含第一則的索引，
+             * 同一則內容在前後兩頁差 1，看起來像兩則不同的東西。
+             */}
+            <Typography variant="subtitle2">
+              {g.title ?? (g.alt === null ? '原本的開場' : `額外問候語 第 ${g.alt} 則`)}
+            </Typography>
             <Typography variant="caption" color="text.secondary">
               會開啟 {g.lore} 條世界書設定
             </Typography>

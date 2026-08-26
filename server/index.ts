@@ -52,7 +52,19 @@ const app = new Hono()
   .route('/api/chats', chatBackground)
   .route('/api/backgrounds', backgrounds)
   .route('/api/generate', generate)
-  .route('/api/update', update);
+  .route('/api/update', update)
+  /**
+   * 🔴 **一處守全部**（GAP-69）。`c.req.json()` 對非 JSON body 丟 `SyntaxError`，
+   * 沒攔就是 **500** —— 而 500 的意思是「我壞了」，這其實是**呼叫端送錯東西**、該回 400。
+   * 全 repo 有 17 處 `await c.req.json()`，逐處包 try/catch 會漏掉下一個新增的
+   * ⇒ 在這裡收，新的 route 自動受保護。
+   * 🔴 順便把其餘未捕捉的例外收斂成一句話 —— 預設會把 stack 吐給呼叫端。
+   */
+  .onError((err, c) => {
+    if (err instanceof SyntaxError) return c.json({ error: '參數不合法：body 不是 JSON' }, 400);
+    console.error('[vellum] 未預期的錯誤：', err);
+    return c.json({ error: '伺服器內部錯誤' }, 500);
+  });
 
 export type AppType = typeof app;
 

@@ -56,6 +56,8 @@ export function useAddFriendFinish(onDone: () => void) {
         firstMessage: v.draft.firstMessage,
         avatar: v.draft.avatar,
         greetings,
+        // 🔴 樂觀鎖（GAP-71）。匯入當下那份還沒被改過，通常是 undefined ＝ 不檢查。
+        ifUnmodifiedSince: v.imported.updatedAt,
       });
       return { id: v.imported.id, count: greetings.length };
     },

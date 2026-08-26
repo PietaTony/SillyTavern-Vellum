@@ -37,5 +37,26 @@ export function loadAddFriendDraft(): Draft {
   };
   // 🔴 **搬完才刪** —— 上面任何一步丟例外都不會讓舊資料消失。
   if (legacy) clearDraft(LEGACY_KEY);
-  return migrated;
+  return dropGhost(migrated);
+}
+
+/**
+ * 丟掉「半張卡」的幽靈草稿（GAP-68）。
+ *
+ * 🔴 **失敗劇本**：匯入一張卡 → 重新整理。
+ * `imported` 這個 React state 沒了，但 `avatar` 與 `greetings` **有持久化**
+ * （`AddFriendScreen` 明寫那兩把 key），而 name／description／firstMessage
+ * 是 `DraftField` 存**使用者自己打的字** —— 匯入時是程式填的，沒有存。
+ * ⇒ 還原出來是**空白表單 ＋ 上一張卡的頭像與額外問候語**。
+ * 此時填個名字按「建立角色」，**別張卡的問候語就掛到新角色身上了**。
+ *
+ * ⇒ 判準：**沒有名字卻有頭像或額外問候語 ＝ 這份草稿是半張卡的殘骸**，整組丟掉。
+ * ⚠️ 反過來（有名字、沒頭像）是正常的手打草稿，不可以動。
+ */
+function dropGhost(d: Draft): Draft {
+  const orphan = d.name.trim() === '' && (d.avatar !== '' || d.greetings.length > 0);
+  if (!orphan) return d;
+  clearDraft(`${ADD_FRIEND_DRAFT}avatar`);
+  clearDraft(`${ADD_FRIEND_DRAFT}greetings`);
+  return { ...d, avatar: '', greetings: [] };
 }

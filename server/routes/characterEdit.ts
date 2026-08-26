@@ -34,6 +34,12 @@ const EditBody = z.object({
   avatar: z.string().optional(),
   greetings: z.array(z.string()).optional(),
   personaId: z.string().optional(),
+  /**
+   * 🔴 **樂觀鎖**（GAP-71）：呼叫端把它讀到的 `updatedAt` 送回來。
+   * 對不上 ＝ 中間有別人改過 ⇒ 回 409，**不要默默覆蓋掉對方的寫入**。
+   * ⚠️ 省略 ＝ 不檢查（舊呼叫端與舊資料的行為一個位元都不變）。
+   */
+  ifUnmodifiedSince: z.string().optional(),
 });
 
 export const characterEdit = new Hono().patch('/:id', async (c) => {
@@ -58,7 +64,27 @@ export const characterEdit = new Hono().patch('/:id', async (c) => {
   const ch = await readJson<Character | null>(`characters/${id}.json`, null);
   if (!ch) return c.json({ error: '找不到這個角色' }, 404);
 
-  const patch = parsed.data;
+  const { ifUnmodifiedSince, ...patch } = parsed.data;
+
+  /**
+   * 🔴 **兩個人同時改會丟寫入**（read-modify-write 無鎖）。
+   * 「加入好友頁按送出」與「對話頁角色層按儲存」同時發生就會踩到，
+   * 而且**後到的那次會靜靜覆蓋掉先到的**，兩邊都以為自己存成功了。
+   * ⇒ 有送 `ifUnmodifiedSince` 就比對；對不上回 409 讓呼叫端重讀。
+   */
+  if (ifUnmodifiedSince !== undefined && ch.updatedAt !== undefined && ch.updatedAt !== ifUnmodifiedSince)
+    return c.json({ error: '這個角色在你編輯的期間被改過了，請重新打開再改一次' }, 409);
+
+  /**
+   * 🔴 **指到不存在的 persona 等於一個永遠解不開的錯**（GAP-70）。
+   * 在此之前寫什麼都收（實測寫 `"nonexistent-persona"` 回 200）——
+   * 之後 `resolvePersona` 找不到就靜靜回退，使用者只會看到「我設過但沒作用」。
+   * `null`／空字串 ＝ 清掉，是合法的。
+   */
+  if (patch.personaId) {
+    const ok = await readJson<unknown>(`personas/${patch.personaId}.json`, null);
+    if (!ok) return c.json({ error: '找不到這個 persona' }, 404);
+  }
   /**
    * 🔴 **空白的問候語一律丟掉。**
    * ST 這裡是不一致的（實查）：單人對話把 `alternate_greetings` 轉成 swipes 時
@@ -78,7 +104,12 @@ export const characterEdit = new Hono().patch('/:id', async (c) => {
     Object.entries(patch).filter(([, v]) => v !== undefined),
   ) as Partial<Character>;
 
-  const next: Character = { ...ch, ...given, ...(greetings ? { greetings } : {}) };
+  const next: Character = {
+    ...ch,
+    ...given,
+    ...(greetings ? { greetings } : {}),
+    updatedAt: new Date().toISOString(),
+  };
   await writeJson(`characters/${id}.json`, next);
   return c.json(next);
 });

@@ -97,4 +97,38 @@ describe('PATCH /api/characters/:id', () => {
     const r = await patch('..%2Fsecrets', { displayName: 'x' });
     expect(r.status).toBe(404);
   });
+
+  it('🔴 樂觀鎖：對不上回 409，不可以默默覆蓋別人的寫入（GAP-71）', async () => {
+    const a = await app();
+    await seed({ ...BASE, updatedAt: '2026-08-26T00:00:00.000Z' });
+    const res = await a.request('/api/characters/abc123', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ displayName: 'x', ifUnmodifiedSince: '2026-01-01T00:00:00.000Z' }),
+    });
+    expect(res.status).toBe(409);
+  });
+
+  it('樂觀鎖對得上就放行，而且會蓋上新的 updatedAt', async () => {
+    const a = await app();
+    await seed({ ...BASE, updatedAt: '2026-08-26T00:00:00.000Z' });
+    const res = await a.request('/api/characters/abc123', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ displayName: 'x', ifUnmodifiedSince: '2026-08-26T00:00:00.000Z' }),
+    });
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as { updatedAt: string };
+    expect(body.updatedAt).not.toBe('2026-08-26T00:00:00.000Z');
+  });
+
+  it('沒送 ifUnmodifiedSince ＝ 不檢查（舊呼叫端行為不變）', async () => {
+    const r = await patch('abc123', { displayName: 'x' });
+    expect(r.status).toBe(200);
+  });
+
+  it('🔴 personaId 要真的存在，不可以指到不存在的（GAP-70）', async () => {
+    const r = await patch('abc123', { personaId: 'nosuch-persona' });
+    expect(r.status).toBe(404);
+  });
 });

@@ -4,6 +4,7 @@
  */
 import { Hono } from 'hono';
 import { embedCard, readCard } from '../lib/card.ts';
+import { mergeOwned } from '../lib/cardMerge.ts';
 import type { Character } from '../lib/character.ts';
 import { safeId } from '../lib/ids.ts';
 import { readChunks, writeChunks } from '../lib/png.ts';
@@ -36,13 +37,31 @@ export const characterMedia = new Hono()
     });
   })
 
-  /** 匯出：從存下來的 PNG 重建，**不是**從索引那四個欄位重建（那會丟掉其餘欄位）。 */
+  /**
+   * 匯出：**從存下來的 PNG 重建**，不是從索引那四個欄位重建（那會丟掉其餘欄位）。
+   *
+   * 🔴 **但要把我們擁有的欄位合併回去**（GAP-66）。在此之前這裡是純粹的 PNG → PNG，
+   * 而我們的編輯只寫 `characters/<id>.json` ⇒ **使用者改過的描述、初始訊息、
+   * 額外問候語匯出後全部消失**，而且他不會知道是哪一步掉的。
+   * ⚠️ 合併的規則見 `lib/cardMerge.ts`：**只碰三個鍵**，其餘幾十個欄位原樣留著。
+   */
   .get('/:id/card.png', async (c) => {
     const id = safeId(c.req.param('id'));
     if (!id) return c.json({ error: '找不到這個角色' }, 404);
     const png = await readBin(`characters/${id}.png`);
     if (!png) return c.json({ error: '這個角色不是匯入的卡片' }, 404);
-    const out = embedCard(png, readCard(png));
+    const ch = await readJson<Character | null>(`characters/${id}.json`, null);
+    const all = ch?.greetings ?? [];
+    const out = embedCard(
+      png,
+      mergeOwned(readCard(png), {
+        description: ch?.description ?? '',
+        firstMessage: ch?.firstMessage ?? '',
+        // 🔴 `greetings` **含第一則**，而卡片的 `alternate_greetings` 不含
+        //    ⇒ 用「第一則是不是真的等於 firstMessage」判斷，不用位置（同 `alternatesOf`）。
+        alternateGreetings: all[0] === ch?.firstMessage ? all.slice(1) : all,
+      }),
+    );
     // Buffer 不是 Hono 認得的 body 型別；轉成 Uint8Array（不複製底層記憶體）。
     return new Response(new Uint8Array(out), {
       headers: { 'Content-Type': 'image/png', 'Content-Disposition': `attachment; filename="${id}.png"` },

@@ -13,6 +13,17 @@ export const CharacterSchema = z.object({
   avatar: z.string().default(''),
   createdAt: z.string(),
   /**
+   * 最後一次就地修改的時間。**樂觀鎖用的**（GAP-71）。
+   *
+   * 🔴 六題：① `updatedAt: ISO 字串` ② `PATCH` 是 read-modify-write **而且無鎖** ——
+   * 「加入好友頁按送出」與「對話頁角色層按儲存」同時發生就會**丟掉其中一次寫入**，
+   * 而且沒有任何跡象。③ 沒有既有欄位能表達「我讀到的是哪一版」。
+   * ④ 新的可選欄位，舊資料是 `undefined` ⇒ **視為「不檢查」**，行為與現在完全相同。
+   * ⑤ 寫：`characterEdit.ts`；讀：同一支（比對呼叫端送來的 `ifUnmodifiedSince`）。
+   * ⑥ 刪掉這個鍵即回退，不需要 migration。
+   */
+  updatedAt: z.string().optional(),
+  /**
    * 好友的顯示名（D-h）。🔴 **與卡片的 `data.name` 分開**：改名永不寫回角色卡。
    * 沒有值時回退顯示 `name`（卡片原名）—— 既有資料不需要 migration。
    */

@@ -74,6 +74,8 @@ export function CharacterLayer({
         description,
         // 第一則沿用原本那則（這一層不改它），額外問候語接在後面。空白一律丟掉。
         greetings: [q.data?.firstMessage ?? '', ...greetings].filter((g) => g.trim() !== ''),
+        // 🔴 樂觀鎖：中間被別人改過就回 409，不要默默覆蓋（GAP-71）。
+        ifUnmodifiedSince: q.data?.updatedAt,
       }),
     onSuccess: async () => {
       pushToast({ severity: 'success', text: '角色設定已存好' });
