@@ -4,15 +4,21 @@ import { friendBindings, LAYER_FACTS } from '../lib/wiBindings.ts';
 describe('四層綁定的事實表（C4）', () => {
   /**
    * 🔴 **這一條是提醒，不是裝飾。**
-   * `wiLayers.ts` 支援四層，但 `promptWorld.ts:43-46` 只餵了 character 與 persona
-   * —— global 與 chat **永遠是空的**。接上其中一層時這條會紅，逼你回來改事實表，
+   * `wiLayers.ts` 支援四層，`promptWorld.ts` 目前餵了 persona／global／character
+   * —— 只剩 `chat` **永遠是空的**。接上 chat 時這條會紅，逼你回來改事實表，
    * 否則畫面會繼續說「還沒接上」而使用者其實已經可以綁了。
+   *
+   * 🔴 **2026-08-27 這條真的紅過一次**：`d4578fba8` 接上了全域層（`promptWorld.ts` 的
+   * `globals` 迴圈），但事實表沒跟著改 ⇒ `/worlds/bindings` 繼續寫「這一層還沒接上」。
+   * 這就是**閘門守著錯的狀態**：測試綠燈反而在保護那句謊。
    */
-  it('🔴 目前只有兩層真的會被組進 prompt', () => {
+  it('🔴 目前只有 chat 那一層還沒接進 prompt', () => {
     expect(LAYER_FACTS.filter((l) => l.wired).map((l) => l.id)).toEqual([
       'persona',
+      'global',
       'character',
     ]);
+    expect(LAYER_FACTS.filter((l) => !l.wired).map((l) => l.id)).toEqual(['chat']);
   });
 
   it('🔴 四層全部都要列出來 —— 藏起來會讓人以為我們少了兩層', () => {

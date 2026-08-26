@@ -16,13 +16,17 @@ import { type WbEntry, WI_POSITION } from './worldbook.ts';
  *
  * 🔴 對照 ST：它把全域清單存在 `settings.world_info.globalSelect`
  * （`world-info.js:85,998`），UI 標籤是 "Active World(s) for all chats"
- * （`public/index.html:4687`）。我們的 `Settings.globalWorldIds` 就是同一件事。
+ * （`public/index.html:4687`）。我們的 `Settings.globalWorlds` 就是同一件事。
  */
 
 /** 全域世界書的 `characterId` 欄位放這個 —— 它不屬於任何角色。 */
 export const GLOBAL_OWNER = '__global__';
 
-const entry = (e: Partial<WbEntry> & { uid: string; comment: string; content: string }): WbEntry => ({
+/** 條目的預設值。🔴 **匯出**：內建樣板庫（`worldPresets.ts`）要用同一組預設，
+ *  不然「樣板長什麼樣」會有兩份會分岔的定義。 */
+export const wbEntry = (
+  e: Partial<WbEntry> & { uid: string; comment: string; content: string },
+): WbEntry => ({
   keys: [],
   secondaryKeys: [],
   constant: false,
@@ -50,9 +54,8 @@ const entry = (e: Partial<WbEntry> & { uid: string; comment: string; content: st
  * 不是 lorem。三條**預設都關著**：一本剛建好的書不該立刻改變你所有對話的行為。
  */
 export function templateWorld(): { id: string; world: CharWorld } {
-  const id = randomUUID();
-  const entries: WbEntry[] = [
-    entry({
+  return makeWorld([
+    wbEntry({
       uid: '1',
       comment: '常駐 · 回覆風格',
       content:
@@ -62,7 +65,7 @@ export function templateWorld(): { id: string; world: CharWorld } {
       order: 200,
       position: WI_POSITION.beforeChar,
     }),
-    entry({
+    wbEntry({
       uid: '2',
       comment: '關鍵字 · 世界觀設定',
       content:
@@ -72,7 +75,7 @@ export function templateWorld(): { id: string; world: CharWorld } {
       order: 100,
       position: WI_POSITION.beforeChar,
     }),
-    entry({
+    wbEntry({
       uid: '3',
       comment: '插在對話裡 · 每輪提醒',
       content: '（寫一句你希望模型每一輪都記得的話，例如格式或稱呼方式。）',
@@ -82,19 +85,24 @@ export function templateWorld(): { id: string; world: CharWorld } {
       position: WI_POSITION.atDepth,
       depth: 2,
     }),
-  ];
+  ]);
+}
+
+/**
+ * 把一疊條目包成一本全域世界書。🔴 **匯出給內建樣板庫共用**。
+ *
+ * `origin` 是「出廠快照」，用來標示哪幾條被改過。**自建的書出廠就等於現況**
+ * ⇒ 一建好就是「0 條被改」，這是對的：改動的基準點是樣板，不是某張卡。
+ * ⚠️ 卡片來源的欄位（`cardId`／`cardVersion`／`createDate`）留空字串 ——
+ * 這本書**不是從卡片來的**，填假的來源比留空更糟（升級比對會拿它去猜）。
+ */
+export function makeWorld(entries: WbEntry[]): { id: string; world: CharWorld } {
   return {
-    id,
+    id: randomUUID(),
     world: {
       version: 1,
       characterId: GLOBAL_OWNER,
       entries,
-      /**
-       * 🔴 `origin` 是「出廠快照」，用來標示哪幾條被改過。**自建的書出廠就等於現況**
-       * ⇒ 一建好就是「0 條被改」，這是對的：改動的基準點是樣板，不是某張卡。
-       * ⚠️ 卡片來源的欄位（`cardId`／`cardVersion`／`createDate`）留空字串 ——
-       * 這本書**不是從卡片來的**，填假的來源比留空更糟（升級比對會拿它去猜）。
-       */
       origin: {
         cardId: '',
         cardVersion: '',

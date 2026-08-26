@@ -2,6 +2,7 @@ import { Hono } from 'hono';
 import { z } from 'zod';
 import type { CharWorld } from '../lib/charWorld.ts';
 import { templateWorld } from '../lib/globalWorld.ts';
+import { findPreset, WORLD_PRESETS } from '../lib/worldPresets.ts';
 import { safeId } from '../lib/ids.ts';
 import { loadSettings, saveSettings } from '../lib/settings.ts';
 import { readJson, writeJson } from '../lib/storage.ts';
@@ -37,12 +38,38 @@ export const globalWorlds = new Hono()
     return c.json({ items, missing: list.length - items.length });
   })
 
-  /** 從樣板建一本。🔴 樣板的三條**預設都關著**（見 `globalWorld.ts`）。 */
+  /**
+   * 內建樣板庫的目錄。🔴 **只回名字與說明，不回條目內容** ——
+   * 挑選畫面不需要全文，回全文只是把三本書的字都送過去。
+   */
+  .get('/presets', (c) =>
+    c.json({
+      items: WORLD_PRESETS.map((p) => ({
+        key: p.key,
+        name: p.name,
+        summary: p.summary,
+        source: p.source,
+        entryCount: p.build().world.entries.length,
+      })),
+    }),
+  )
+
+  /**
+   * 建一本。不帶 `preset` ＝ 空白樣板（三條各示範一種進場方式，見 `globalWorld.ts`）；
+   * 帶 `preset` ＝ 從內建樣板庫抄一本（見 `worldPresets.ts`）。
+   * 🔴 **兩條路的條目都預設關著** —— 新增一本不該立刻改變所有對話的行為。
+   */
   .post('/', async (c) => {
-    const { id, world } = templateWorld();
+    // 🔴 `POST` 沒有 body 是合法的（「建空白的」）⇒ 解析失敗要當成沒帶參數，不是 400。
+    const body = await c.req.json().catch(() => ({}));
+    const key = z.object({ preset: z.string().optional() }).safeParse(body).data?.preset;
+    const preset = key ? findPreset(key) : undefined;
+    if (key && !preset) return c.json({ error: '沒有這個樣板' }, 404);
+
+    const { id, world } = preset ? preset.build() : templateWorld();
     await writeJson(`worlds/${id}.json`, world);
     const s = await loadSettings();
-    const name = `全域世界書 ${(s.globalWorlds ?? []).length + 1}`;
+    const name = preset ? preset.name : `全域世界書 ${(s.globalWorlds ?? []).length + 1}`;
     await saveSettings({ ...s, globalWorlds: [...(s.globalWorlds ?? []), { id, name }] });
     return c.json({ id, name });
   })

@@ -1,7 +1,6 @@
 import Alert from '@mui/material/Alert';
 import Button from '@mui/material/Button';
 import CircularProgress from '@mui/material/CircularProgress';
-import Paper from '@mui/material/Paper';
 import Stack from '@mui/material/Stack';
 import Typography from '@mui/material/Typography';
 import { useMutation, useQuery } from '@tanstack/react-query';
@@ -12,7 +11,10 @@ import {
   createGlobalWorld,
   deleteGlobalWorld,
   fetchGlobalWorlds,
+  fetchWorldPresets,
+  GlobalWorldIntro,
   GlobalWorldList,
+  PresetPicker,
 } from '@/features/worldbook';
 import { Screen } from '@/shared/ui/Screen';
 import { pushToast } from '@/shared/ui/toastStore';
@@ -38,11 +40,19 @@ function WorldsPage() {
   const [busyId, setBusyId] = useState<string | null>(null);
   const q = useQuery({ queryKey: ['globalWorlds'], queryFn: fetchGlobalWorlds });
 
+  /**
+   * 🔴 樣板庫**單獨一支 query**，而且**壞掉不擋主畫面**：
+   * 讀不到內建樣板只是少一個捷徑，既有的書照樣要列得出來。
+   */
+  const presets = useQuery({ queryKey: ['worldPresets'], queryFn: fetchWorldPresets });
+  const [pendingKey, setPendingKey] = useState<string | null>(null);
+
   const add = useMutation({
-    mutationFn: createGlobalWorld,
+    mutationFn: (preset?: string) => createGlobalWorld(preset),
+    onSettled: () => setPendingKey(null),
     onSuccess: async (w) => {
       await q.refetch();
-      pushToast({ severity: 'success', text: `已建立「${w.name}」，三條都先關著` });
+      pushToast({ severity: 'success', text: `已加入「${w.name}」，條目都先關著` });
       void nav({ to: '/worlds/$worldId', params: { worldId: w.id } });
     },
     onError: (e: Error) => pushToast({ severity: 'warning', text: e.message }),
@@ -68,21 +78,7 @@ function WorldsPage() {
       footer={<TabBar active="wi" />}
     >
       <Stack spacing={2} sx={{ p: 2 }}>
-        {/* 🔴 機制說明放最上面 —— 這一頁的東西會影響「每一段對話」，代價要先講。 */}
-        <Paper variant="outlined" sx={{ p: 1.5, bgcolor: 'action.hover' }}>
-          <Typography variant="subtitle2">這一頁的書會套用到你所有的對話</Typography>
-          <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
-            每一條有兩種進場方式：<b>常駐</b>（每一輪都送進去）或<b>關鍵字</b>
-            （對話裡出現才送）。<b>沒開的條目完全不會被送出</b>。
-          </Typography>
-          <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
-            世界書一共四層：<b>全域</b>（這裡）、這位好友、我（persona）、這段對話。 四層是
-            <b>疊加</b>不是覆蓋 —— 同時命中就會一起送進去，靠「順序」決定誰先。
-          </Typography>
-          <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
-            某位好友自己的世界書<b>不在這裡</b> —— 在對話裡點他的頭像 →「世界書」。
-          </Typography>
-        </Paper>
+        <GlobalWorldIntro />
 
         {q.isPending ? <CircularProgress size={24} /> : null}
         {q.isError ? (
@@ -108,9 +104,9 @@ function WorldsPage() {
           <Stack spacing={1.5} sx={{ alignItems: 'center', py: 4, textAlign: 'center' }}>
             <Typography variant="h6">還沒有全域世界書</Typography>
             <Typography variant="body2" color="text.secondary">
-              建一本，裡面會有三條範例：常駐、關鍵字、插在對話裡各一條。
+              從下面的<b>內建樣板</b>挑一本現成的，或建一本空白的自己寫。
               <br />
-              <b>三條都先關著</b> —— 新建一本不該立刻改變你所有對話的行為。
+              <b>條目都先關著</b> —— 新增一本不該立刻改變你所有對話的行為。
             </Typography>
           </Stack>
         ) : null}
@@ -125,9 +121,26 @@ function WorldsPage() {
         />
       ) : null}
 
-      <Stack sx={{ p: 2 }}>
-        <Button variant="contained" loading={add.isPending} onClick={() => add.mutate()}>
-          從樣板新增一本
+      <Stack spacing={2} sx={{ p: 2 }}>
+        {presets.data && presets.data.length > 0 ? (
+          <PresetPicker
+            presets={presets.data}
+            pendingKey={pendingKey}
+            onAdd={(key) => {
+              setPendingKey(key);
+              add.mutate(key);
+            }}
+          />
+        ) : null}
+        <Button
+          variant="contained"
+          loading={add.isPending && pendingKey === null}
+          onClick={() => {
+            setPendingKey(null);
+            add.mutate(undefined);
+          }}
+        >
+          建一本空白的
         </Button>
       </Stack>
     </Screen>

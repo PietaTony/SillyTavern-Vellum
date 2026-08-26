@@ -78,9 +78,32 @@ export async function fetchGlobalWorlds(): Promise<{ items: GlobalWorld[]; missi
   return (await r.json()) as { items: GlobalWorld[]; missing: number };
 }
 
-/** 從樣板建一本。🔴 樣板的三條**預設都關著** —— 新建一本不該立刻改變你所有對話。 */
-export async function createGlobalWorld(): Promise<{ id: string; name: string }> {
-  const r = await fetch('/api/global-worlds', { method: 'POST' });
+/** 內建樣板庫的一本（目錄用，不含條目內容）。 */
+export type WorldPresetInfo = {
+  key: string;
+  name: string;
+  summary: string;
+  source: string;
+  entryCount: number;
+};
+
+export async function fetchWorldPresets(): Promise<WorldPresetInfo[]> {
+  const r = await fetch('/api/global-worlds/presets');
+  if (!r.ok) throw new Error('讀不到內建樣板');
+  return ((await r.json()) as { items: WorldPresetInfo[] }).items;
+}
+
+/**
+ * 建一本。不帶 `preset` ＝ 空白樣板（三條各示範一種進場方式）；
+ * 帶 `preset` ＝ 從內建樣板庫抄一本。
+ * 🔴 **兩條路的條目都預設關著** —— 新增一本不該立刻改變你所有對話。
+ */
+export async function createGlobalWorld(preset?: string): Promise<{ id: string; name: string }> {
+  const r = await fetch('/api/global-worlds', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify(preset ? { preset } : {}),
+  });
   if (!r.ok) throw new Error('建不起來');
   return (await r.json()) as { id: string; name: string };
 }
