@@ -14,6 +14,8 @@ describe('加好友草稿的一次性搬遷', () => {
       description: '',
       firstMessage: '',
       avatar: '',
+      // 🔴 額外問候語（2026-08-26 新增）。舊版沒有這把 key ⇒ 回退成空陣列。
+      greetings: [],
     });
   });
 
@@ -47,5 +49,11 @@ describe('加好友草稿的一次性搬遷', () => {
     writeDraft(`${K}name`, '比較新的');
     localStorage.setItem(LEGACY, JSON.stringify({ name: '比較舊的' }));
     expect(loadAddFriendDraft().name).toBe('比較新的');
+  });
+
+  it('🔴 額外問候語的草稿要還原得回來（整個陣列存成一筆）', async () => {
+    const { writeDraft } = await import('@/shared/lib/draftStore');
+    writeDraft('vellum.draft.add-friend.greetings', ['台北總是裹著一層濕氣', '這麼巧。']);
+    expect(loadAddFriendDraft().greetings).toEqual(['台北總是裹著一層濕氣', '這麼巧。']);
   });
 });

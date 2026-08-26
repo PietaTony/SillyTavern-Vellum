@@ -19,7 +19,7 @@ const LEGACY_KEY = 'vellum.draft.add-friend';
 
 export function loadAddFriendDraft(): Draft {
   const legacy = readDraft<Partial<Draft>>(LEGACY_KEY);
-  const pick = (k: keyof Draft): string => {
+  const pick = (k: 'name' | 'description' | 'firstMessage' | 'avatar'): string => {
     const now = readDraft<string>(`${ADD_FRIEND_DRAFT}${k}`);
     if (now !== null) return now;
     const old = legacy?.[k];
@@ -32,6 +32,8 @@ export function loadAddFriendDraft(): Draft {
     description: pick('description'),
     firstMessage: pick('firstMessage'),
     avatar: pick('avatar'),
+    // 🔴 額外問候語是陣列，不走 `pick`（那支只處理字串）。舊版沒有這個 key ⇒ 回退成 []。
+    greetings: readDraft<string[]>(`${ADD_FRIEND_DRAFT}greetings`) ?? [],
   };
   // 🔴 **搬完才刪** —— 上面任何一步丟例外都不會讓舊資料消失。
   if (legacy) clearDraft(LEGACY_KEY);

@@ -1,4 +1,4 @@
-import { get, post, postBytes } from '@/shared/lib/http';
+import { get, patch, post, postBytes } from '@/shared/lib/http';
 
 export type Character = {
   id: string;
@@ -41,6 +41,19 @@ export const nameOf = (c: { name: string; displayName?: string }): string =>
 
 export const fetchCharacter = (id: string): Promise<Character> =>
   get<Character>(`/api/characters/${id}`);
+
+/**
+ * 就地修改既有角色。**只送要改的鍵**。
+ * 🔴 **只寫 `characters/<id>.json` 這份投影，永不寫回 PNG 卡本體**
+ * —— 與 `displayName`「改名永不寫回角色卡」同一條（後端 `characterEdit.ts` 檔頭）。
+ * ⚠️ 已知副作用：匯出走的是 PNG ⇒ 這裡改的東西匯出後看不到（`plans/90-BACKLOG.md`）。
+ */
+export const updateCharacter = (
+  id: string,
+  body: Partial<
+    Pick<Character, 'displayName' | 'description' | 'firstMessage' | 'avatar' | 'greetings'>
+  >,
+): Promise<Character> => patch<Character>(`/api/characters/${id}`, body);
 
 /**
  * 開場白清單。**帶各自的名字**（卡片自己在 `<!-- title: … -->` 裡寫的）——

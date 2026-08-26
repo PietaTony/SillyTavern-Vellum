@@ -1,20 +1,20 @@
 import Alert from '@mui/material/Alert';
 import Button from '@mui/material/Button';
-import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { useNavigate } from '@tanstack/react-router';
+import { useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
+import { useAddFriendFinish } from '@/app/screens/useAddFriendFinish';
 import {
   ADD_FRIEND_DRAFT,
   AddFriendForm,
   AddFriendSubmit,
-  createCharacter,
   type Draft,
   emptyDraft,
+  GreetingsSection,
+  greetingsOf,
   ImportCardBox,
   type ImportedCharacter,
   loadAddFriendDraft,
 } from '@/features/characters';
-import { createChat } from '@/features/chat';
 import { clearDraftPrefix, writeDraft } from '@/shared/lib/draftStore';
 import { Screen } from '@/shared/ui/Screen';
 
@@ -28,7 +28,6 @@ import { Screen } from '@/shared/ui/Screen';
  * 草稿存進 localStorage —— iOS 把背景分頁重載之後，打過的字要還在。
  */
 export function AddFriendScreen({ onBack }: { onBack: () => void }) {
-  const nav = useNavigate();
   const qc = useQueryClient();
   // 🔴 還原（含舊 key 的一次性搬遷）在 initializer **同步**做完，不在 effect 裡：
   // 三個 `DraftField` 若各自在 mount effect 裡還原，看到的是同一份 `draft`，
@@ -42,24 +41,23 @@ export function AddFriendScreen({ onBack }: { onBack: () => void }) {
   const setDraft = (d: Draft) => {
     setDraftState(d);
     if (d.avatar) writeDraft(`${ADD_FRIEND_DRAFT}avatar`, d.avatar);
+    /*
+     * 🔴 **額外問候語整個陣列存成一筆。**
+     * 逐則存（`…greetings.0`、`.1`…）在**排序或刪除之後會還原成錯的那一則** ——
+     * 那個 key 指向的內容已經換人了。閘門 `gate:draft` 管不到陣列，這裡明寫。
+     */
+    writeDraft(`${ADD_FRIEND_DRAFT}greetings`, d.greetings);
   };
   const clearAllDrafts = () => clearDraftPrefix(ADD_FRIEND_DRAFT);
   /** 剛匯入的那一位。有值時這一頁的意義從「建立」變成「確認並開始」。 */
   const [imported, setImported] = useState<ImportedCharacter | null>(null);
 
-  // 建立角色 → 直接開對話 → 進對話串（F22–F28：按下去直接開始對話）
-  const m = useMutation({
-    mutationFn: async (d: Draft) => {
-      const ch = await createCharacter(d);
-      return createChat(ch.id);
-    },
-    // 🔴 **建立成功之後才清草稿。** 失敗就留著 —— 打過的字不可以因為送出失敗而消失。
-    onSuccess: (chat) => {
-      clearAllDrafts();
-      setDraftState(emptyDraft);
-      void nav({ to: '/chat/$chatId', params: { chatId: chat.id } });
-    },
+  const { create, finishImported } = useAddFriendFinish(() => {
+    clearAllDrafts();
+    setDraftState(emptyDraft);
   });
+  const busy = create.isPending || finishImported.isPending;
+  const failed = create.error ?? finishImported.error;
 
   return (
     <Screen
@@ -68,37 +66,35 @@ export function AddFriendScreen({ onBack }: { onBack: () => void }) {
       footer={
         <AddFriendSubmit
           draft={draft}
-          busy={m.isPending}
+          busy={busy}
           imported={imported !== null}
-          greetings={imported?.greetings?.length ?? 0}
-          onCreate={() => {
-            // 匯入的角色**已經建立好了** —— 這顆鈕的意義是「開始聊天」，不是再建一個。
-            if (imported) {
-              clearAllDrafts();
-              if ((imported.greetings?.length ?? 0) > 1)
-                void nav({
-                  to: '/pick-greeting/$characterId',
-                  params: { characterId: imported.id },
-                });
-              else void nav({ to: '/friends' });
-              return;
-            }
-            m.mutate(draft);
-          }}
+          // 🔴 用**編輯後**的數量，不是匯入當下的 —— 使用者剛加/刪過就對不上了。
+          greetings={greetingsOf(draft).length}
+          onCreate={() =>
+            imported ? finishImported.mutate({ imported, draft }) : create.mutate(draft)
+          }
         />
       }
     >
-      {m.isError ? (
+      {failed ? (
         <Alert
           severity="warning"
           sx={{ mb: 2 }}
           action={
-            <Button size="small" onClick={() => m.reset()}>
+            <Button
+              size="small"
+              onClick={() => {
+                create.reset();
+                finishImported.reset();
+              }}
+            >
               再試一次
             </Button>
           }
         >
-          建立失敗：{m.error instanceof Error ? m.error.message : '未知錯誤'}
+          {/* 🔴 匯入那條路失敗＝**問候語沒存進去**，不是「建立失敗」。文案要分得出來。 */}
+          {imported ? '存不回去' : '建立失敗'}：
+          {failed instanceof Error ? failed.message : '未知錯誤'}
         </Alert>
       ) : null}
       {/* 🔴 匯入框放最上方（Peter 指定）：大多數人是「已經有卡」而不是「從零捏一個」。 */}
@@ -120,10 +116,21 @@ export function AddFriendScreen({ onBack }: { onBack: () => void }) {
             description: c.description,
             firstMessage: c.firstMessage,
             avatar: c.avatar,
+            /*
+             * 🔴 **`c.greetings` 含第一則**（`importCard.ts:81` 存的是
+             * `[firstMessage, ...alternateGreetings]`）⇒ 這裡要 `slice(1)`。
+             * 表單這一層與 ST 的 `alternate_greetings` 對齊：**不含第一則**，
+             * 使用者看到的編號才等於陣列索引。
+             */
+            greetings: (c.greetings ?? []).slice(1),
           });
         }}
       />
       <AddFriendForm draft={draft} setDraft={setDraft} imported={imported !== null} />
+      <GreetingsSection
+        greetings={draft.greetings}
+        onChange={(g) => setDraft({ ...draft, greetings: g })}
+      />
     </Screen>
   );
 }

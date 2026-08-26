@@ -13,6 +13,7 @@ import { secrets } from './routes/secrets.ts';
 import { providerTests } from './routes/providerTests.ts';
 import { characters } from './routes/characters.ts';
 import { characterMedia } from './routes/characterMedia.ts';
+import { characterEdit } from './routes/characterEdit.ts';
 import { backgrounds } from './routes/backgrounds.ts';
 import { chatBackground } from './routes/chatBackground.ts';
 import { charWorld } from './routes/world.ts';
@@ -43,6 +44,8 @@ const app = new Hono()
   .route('/api/characters', charWorld)
   .route('/api/worlds', worlds)
   .route('/api/characters', characterMedia)
+  // 同前綴再掛一支：建立與「就地修改」風險不同，分開比較好審（見該檔檔頭）。
+  .route('/api/characters', characterEdit)
   .route('/api/chats', chats)
   .route('/api/chats', chatImport)
   // 同一個前綴掛兩支的理由見 `chatBackground.ts` 檔頭（`chats.ts` 已逼近 150 行上限）。
