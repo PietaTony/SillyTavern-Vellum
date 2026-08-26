@@ -3,6 +3,7 @@ import InputAdornment from '@mui/material/InputAdornment';
 import MenuItem from '@mui/material/MenuItem';
 import Stack from '@mui/material/Stack';
 import { useQuery } from '@tanstack/react-query';
+import { useState } from 'react';
 import { DraftField } from '@/shared/ui/DraftField';
 import type { ToastMsg } from '@/shared/ui/toastMsg';
 import { effectiveModel, isOffList, modelOptions } from '../modelOptions';
@@ -52,6 +53,7 @@ export function ModelPicker({
 }) {
   const q = useQuery({ queryKey: ['models', provider], queryFn: () => fetchModels(provider) });
   const test = useModelTest(provider, onNotify, consoleUrl);
+  const [pending, setPending] = useState<string | null>(null);
 
   if (q.isPending) return <CircularProgress size={20} />;
   /*
@@ -59,7 +61,14 @@ export function ModelPicker({
    * registry 的預設是一個會過期的猜測 —— 只在拿不到清單時才用得上。
    */
   const models = q.data?.ok ? q.data.models : [];
-  const value = effectiveModel(chosen, models, fallback);
+  /*
+   * 🔴 **測試沒過的模型不可以留在下拉上。**
+   * 上一版直接 `onChange(m)` 再測 ⇒ 後端沒存、畫面卻停在那個模型上，
+   * 正是 `errorHelp.ts` 檔頭自己警告的「畫面說已存、實際沒存」。
+   * ⚠️ 也不能立刻跳回舊值 —— 測試要一秒鐘，那一秒看起來像「我剛剛按的沒反應」。
+   * ⇒ 測試中先顯示他選的那個（`pending`），有存下來才提交給上層，沒存就還原。
+   */
+  const value = effectiveModel(pending ?? chosen, models, fallback);
 
   const manual = q.data && !q.data.ok;
   return (
@@ -93,8 +102,14 @@ export function ModelPicker({
           value={value}
           disabled={test.isPending}
           onChange={(m) => {
-            onChange(m);
-            test.mutate(m);
+            setPending(m);
+            void test
+              // 🔴 額度不足時後端**有**存下來（`saved`）⇒ 那也算成功提交。
+              .mutateAsync(m)
+              .then((r) => {
+                if (r.ok || r.saved) onChange(m);
+              })
+              .finally(() => setPending(null));
           }}
           helperText={
             test.isPending ? '測試中…' : `${models.length} 個可用 · 選了就自動測試，通過才會存`

@@ -26,7 +26,9 @@ export type Settings = {
    * 那是未來「對話層」的掛載點，現在是空的門，不要誤以為已經有 per-chat 模型了。
    * ④ 對既有資料的影響 —— **新的可選欄位**，舊的 `settings.json` 讀進來就是 `undefined`，
    *    行為與現在完全相同（回退到 registry 的 `defaultModel`）
-   * ⑤ 誰讀誰寫 —— 寫：`PUT /api/secrets/model/:provider`；讀：`generate.ts`
+   * ⑤ 誰讀誰寫 —— 寫：`POST /api/secrets/test-model/:provider`（**測過才存**）；讀：`generate.ts`
+   *    ⚠️ 這行原本寫 `PUT /api/secrets/model/:provider` —— **那個端點不存在**，
+   *    在 `c4ed8afa9` 就被「測過才存」取代了。註解說謊比沒有註解更糟。
    * ⑥ 可逆性 —— 刪掉這個鍵即回退，**不需要 migration**
    */
   providerModels?: Record<string, string> | undefined;
