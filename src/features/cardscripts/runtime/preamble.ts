@@ -9,10 +9,8 @@
  * `window.parent` 變成跨來源，讀不到 ⇒ **那條橋必須改成 `postMessage`**。
  *
  * 🔴 **為什麼這樣還能相容**：卡片程式找全域的寫法是掃
- * `[window, window.parent, window.top]`（實測 14 處）。
- * 只要我們把該有的東西**定義在 iframe 自己的 `window` 上**，第一個 scope 就命中了。
- * ⚠️ 真的需要「直接操作主頁 DOM」或 `localStorage` 的卡片會壞 —— 這是這個選擇的代價，
- *    寫在驗收單第一排，不要假裝沒有。
+ * `[window, window.parent, window.top]`（實測 14 處）⇒ 把東西定義在 iframe 自己的
+ * `window` 上，第一個 scope 就命中。⚠️ 真的要直接操作主頁 DOM／`localStorage` 的卡片會壞。
  *
  * 🔴 **`Mvu` 不在卡片裡** —— 卡片的「MVU Zod 腳本」全文只有一行
  * `import 'https://testingcf.jsdelivr.net/…/bundle.js'`，那份 code 在 CDN 上。
@@ -20,11 +18,14 @@
  * 讓同一個 iframe 裡的腳本彼此對得上。
  */
 
-/** 卡片實際用到的第三方全域（實掃那 2 MB 得到）。與酒館助手同一個 CDN。 */
+/**
+ * 卡片實際用到的第三方全域（實掃那 2 MB 得到）。與酒館助手同一個 CDN。
+ * ⚠️ **`toastr` 不在這裡** —— 我們自己提供一個假的（見下面的 PREAMBLE），
+ * 把卡片的提示轉給主頁的 `ToastStack` 顯示。少一支 CDN、少一條外連。
+ */
 export const VENDOR = [
   'https://testingcf.jsdelivr.net/npm/lodash/lodash.min.js',
   'https://testingcf.jsdelivr.net/npm/jquery/dist/jquery.min.js',
-  'https://testingcf.jsdelivr.net/npm/toastr/build/toastr.min.js',
   'https://testingcf.jsdelivr.net/npm/js-yaml/dist/js-yaml.min.js',
 ];
 
@@ -57,10 +58,9 @@ export const PREAMBLE = /* js */ `
   }
 
   /*
-   * 🔴 事件要**先**定義，晚於下面那個 NAMES 迴圈就來不及了。
-   * 舊版的順序反過來，於是 TavernHelper.eventOn 綁到的是「把參數 postMessage 出去」的版本 ——
-   * 而參數裡有 callback，**函式過不了結構化複製，一叫就 throw**。
-   * （window.eventOn 當時被後面覆寫成正確版，所以只有 TavernHelper. 那條是壞的，很難發現。）
+   * 🔴 事件要**先**定義：舊版順序反過來，TavernHelper.eventOn 綁到的是
+   * 「把參數 postMessage 出去」的版本 —— 參數裡有 callback，過不了結構化複製，一叫就 throw。
+   * （window.eventOn 當時被後面覆寫成正確版，所以只有 TavernHelper. 那條壞掉，很難發現。）
    */
   var subs = {};
   window.eventOn = function (ev, fn) {
@@ -130,6 +130,19 @@ export const PREAMBLE = /* js */ `
       try { return fn.apply(this, arguments); } catch (e) { console.error('[卡片腳本]', e); }
     };
   };
+  /*
+   * 🔴 **卡片的提示不自己畫，轉給主頁**（cardToast.ts 會標明「角色卡：」並決定要不要顯示）。
+   * ① 畫在沙箱 iframe 裡的 toast 會把那一塊變成可點區域，吃掉底下的點擊
+   * ② 那些字看起來會像是 Vellum 在講話 —— 實際上是卡片在講
+   */
+  var T = { options: {}, clear: function () {}, remove: function () {} };
+  ['success', 'info', 'warning', 'error'].forEach(function (k) {
+    T[k] = function (text, title) {
+      parent.postMessage({ __vellumToast: { level: k, text: String(text), title: String(title || '') } }, '*');
+      return T;
+    };
+  });
+  window.toastr = T;
   window.getScriptId = function () { return window.name || 'vellum-script'; };
   window.SillyTavern = { getContext: function () { return {}; } };
 })();

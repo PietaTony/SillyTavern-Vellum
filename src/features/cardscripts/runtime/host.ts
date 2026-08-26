@@ -1,3 +1,5 @@
+import { markInteracted, showCardToast } from './cardToast';
+
 /**
  * 主頁這一端的接線員（M13 第二期）。
  *
@@ -61,7 +63,7 @@ function cloneable(v: unknown): unknown {
   }
 }
 
-type Call = { __vellumCall?: unknown; args?: unknown; id?: unknown };
+type Call = { __vellumCall?: unknown; args?: unknown; id?: unknown; __vellumToast?: unknown };
 
 async function serve(
   src: Window,
@@ -106,13 +108,25 @@ async function serve(
 export function installBridgeHost(api: Record<string, unknown>): () => void {
   const onMessage = (e: MessageEvent) => {
     const d = e.data as Call | null;
-    if (typeof d?.__vellumCall !== 'string' || typeof d.id !== 'number') return;
+    if (!d) return;
     const src = e.source as Window | null;
     const events = src ? frames.get(src) : undefined;
     // 不是我們開的 frame ⇒ 不執行、也不回應（回應本身就是一種存在證明）。
     if (!src || !events) return;
+    if (d.__vellumToast !== null && typeof d.__vellumToast === 'object') {
+      showCardToast(d.__vellumToast as Record<string, unknown>);
+      return;
+    }
+    if (typeof d.__vellumCall !== 'string' || typeof d.id !== 'number') return;
     void serve(src, d.id, d.__vellumCall, Array.isArray(d.args) ? d.args : [], events, api);
   };
   window.addEventListener('message', onMessage);
-  return () => window.removeEventListener('message', onMessage);
+  // 🔴 「使用者動過沒有」——卡片載入時的自我介紹靠它擋掉（理由見 `cardToast.ts`）。
+  document.addEventListener('pointerdown', markInteracted, { passive: true });
+  document.addEventListener('keydown', markInteracted, { passive: true });
+  return () => {
+    window.removeEventListener('message', onMessage);
+    document.removeEventListener('pointerdown', markInteracted);
+    document.removeEventListener('keydown', markInteracted);
+  };
 }
