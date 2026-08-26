@@ -43,7 +43,6 @@ export function KeyField({ p, stored }: { p: ProviderRow; stored: string }) {
       setReal('');
     },
   });
-  const passed = test.data?.ok === true;
   const canTest = dirty ? Boolean(real.trim()) : p.keySet;
 
   return (
@@ -87,8 +86,9 @@ export function KeyField({ p, stored }: { p: ProviderRow; stored: string }) {
       >
         {dirty ? '測試並存下這把新的' : '測試連線'}
       </Button>
-      {passed ? (
-        <Alert severity="success">連線成功{dirty ? '，這把新的已經存下來了' : ''}。</Alert>
+      {test.data?.ok ? (
+        // 🔴 措辭與 first-run 的成功訊息一字不差 —— 同一件事在兩個入口不可以講得不一樣。
+        <Alert severity="success">連線成功 —— {test.data.models.length} 個模型可用</Alert>
       ) : test.data && !test.data.ok ? (
         <Alert severity="warning">
           測試沒有通過：{test.data.message}

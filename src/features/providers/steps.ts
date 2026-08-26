@@ -5,22 +5,18 @@
  * `server/providers/registry.ts` —— 這裡只放那份沒有、也不該有的東西：
  * 給人看的操作步驟。
  *
- * ⚠️ **只有實際走過的那兩家有逐步文案。** 其餘 24 家刻意留空 ——
- * 憑想像寫 24 家的操作步驟，寫錯比沒寫更糟（使用者照著點，然後找不到那顆按鈕）。
- * `KeySteps` 對沒有文案的會回退成「控制台連結 ＋ 金鑰格式」。
+ * 🔴 **2026-08-26：22 家可用的供應商全部補齊**（Peter：「每一個都要做」）。
+ * 在此之前只有 google／anthropic 有，其餘 20 家退回「控制台連結 ＋ 金鑰格式」兩行版
+ * —— 而那個連結當時還指向 API endpoint（見 `server/providers/consoles.ts` 檔頭）。
+ *
+ * ⚠️ **`planned` 的四家（vertexai／workers_ai／azure_openai／custom）刻意沒有步驟**：
+ * 那幾家的畫面走 `PlannedNote`，講的是「我們還缺什麼」，不是「你該去哪裡拿金鑰」。
+ * 教人辦一把用不了的金鑰，就是我們剛修掉的那條死路。
  */
+import { FIRST_PARTY_STEPS } from './steps/firstParty';
+import { PLATFORM_STEPS } from './steps/platforms';
+
 export const STEPS_BY_PROVIDER: Record<string, string[]> = {
-  google: [
-    '開啟 aistudio.google.com/apikey',
-    '用 Google 帳號登入',
-    '按「Create API key」，選一個專案（沒有就讓它新建）',
-    '複製 AIza… 開頭的字，貼回這裡',
-  ],
-  anthropic: [
-    '開啟 console.anthropic.com',
-    '註冊或登入',
-    'Settings → API Keys → Create Key',
-    '先去 Plans & Billing 儲值（餘額 0 的話，金鑰驗證得過、但每次送出都會失敗）',
-    '複製 sk-ant-… 開頭的字，貼回這裡',
-  ],
+  ...FIRST_PARTY_STEPS,
+  ...PLATFORM_STEPS,
 };

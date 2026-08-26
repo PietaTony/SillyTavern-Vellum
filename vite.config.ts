@@ -8,7 +8,10 @@ import { defineConfig } from 'vite';
 // dev 時後端讓開到 8521 —— 🔴 **8520 永遠是「使用者要打開的那個網址」**，
 // 不管跑的是 dev 還是 Docker。不這樣的話 dev 是 5173、Docker 是 8520，
 // 手機上還要記兩個。
-const BACKEND = 'http://localhost:8521';
+// 🔴 可覆寫**只是為了開第二組隔離環境**（拿臨時 `VELLUM_DATA` 比對 first-run 與設定頁的版面）。
+// 預設值不變 —— 8520／8521 仍然是「使用者要打開的那個網址」。
+const BACKEND = process.env['VELLUM_BACKEND'] ?? 'http://localhost:8521';
+const PORT = Number(process.env['VELLUM_PORT'] ?? 8520);
 
 export default defineConfig({
   plugins: [
@@ -24,7 +27,7 @@ export default defineConfig({
     alias: { '@': fileURLToPath(new URL('./src', import.meta.url)) },
   },
   server: {
-    port: 8520,
+    port: PORT,
     // 🔴 綁所有介面，手機才連得到（預設只綁 localhost —— 這就是 Tailscale 開了也看不到的原因）。
     // 範圍＝tailnet 內的自己人：Mac／iPad／iPhone。
     host: true,

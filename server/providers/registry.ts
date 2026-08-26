@@ -12,6 +12,7 @@
  * 因為 22 家共用同一支適配器 ⇒ 剩餘風險集中在這張表的設定值（base URL／model 名／header），
  * 而那些**不需要金鑰也能對照供應商文件修**。
  */
+import { consoleFor } from './consoles.ts';
 import type { ProviderConfig } from './types.ts';
 
 /** OpenAI 相容的一行工廠。**這就是「加一家＝加一行」的實作。** */
@@ -31,7 +32,8 @@ const oai = (
   defaultModel,
   status: 'untested',
   keyHint: 'sk-…',
-  consoleUrl: base,
+  // 🔴 **不可以退回 `base`。** 舊版就是這樣，害 20 家的「開啟控制台」連到 API endpoint。
+  consoleUrl: consoleFor(id),
   ...extra,
 });
 
@@ -48,7 +50,7 @@ export const PROVIDERS: ProviderConfig[] = [
     // 🔴 唯一一家 `ready`：只有它被真的打通過（`plans/fork/07-gemini-facts.md`）。
     status: 'ready',
     keyHint: 'AIza…',
-    consoleUrl: 'https://aistudio.google.com/apikey',
+    consoleUrl: consoleFor('google'),
   },
   {
     id: 'vertexai',
@@ -60,7 +62,7 @@ export const PROVIDERS: ProviderConfig[] = [
     // Vertex 走 GCP 服務帳號而不是 API key，形狀與 AI Studio 不同 ⇒ 還沒實作。
     status: 'planned',
     keyHint: '（服務帳號）',
-    consoleUrl: 'https://console.cloud.google.com/vertex-ai',
+    consoleUrl: consoleFor('vertexai'),
   },
 
   // ── 格式② Anthropic ─────────────────────────────────────────────
@@ -76,7 +78,7 @@ export const PROVIDERS: ProviderConfig[] = [
     defaultModel: 'claude-sonnet-4-5',
     status: 'untested',
     keyHint: 'sk-ant-…',
-    consoleUrl: 'https://console.anthropic.com',
+    consoleUrl: consoleFor('anthropic'),
   },
 
   // ── 格式④ Cohere ────────────────────────────────────────────────
@@ -90,17 +92,14 @@ export const PROVIDERS: ProviderConfig[] = [
     defaultModel: 'command-r-plus',
     status: 'untested',
     keyHint: '（Cohere key）',
-    consoleUrl: 'https://dashboard.cohere.com/api-keys',
+    consoleUrl: consoleFor('cohere'),
   },
 
   // ── 格式① OpenAI 相容（22 家，一家一行）──────────────────────────
-  oai('openai', 'OpenAI', 'https://api.openai.com/v1', 'gpt-4o', {
-    consoleUrl: 'https://platform.openai.com/api-keys',
-  }),
+  oai('openai', 'OpenAI', 'https://api.openai.com/v1', 'gpt-4o'),
   oai('openrouter', 'OpenRouter', 'https://openrouter.ai/api/v1', 'openai/gpt-4o', {
     // 🔴 沒帶這兩個會被降級或擋（複檢 F2）。
     extraHeaders: { 'HTTP-Referer': 'https://github.com/PietaTony/SillyTavern-Vellum', 'X-Title': 'Vellum' },
-    consoleUrl: 'https://openrouter.ai/keys',
   }),
   oai('deepseek', 'DeepSeek', 'https://api.deepseek.com/v1', 'deepseek-chat'),
   oai('xai', 'xAI Grok', 'https://api.x.ai/v1', 'grok-2-latest'),
@@ -134,12 +133,11 @@ export const PROVIDERS: ProviderConfig[] = [
     defaultModel: 'gpt-4o',
     status: 'planned', // base 與 deployment 由使用者自己填，設定 UI 還沒做
     keyHint: '（Azure key）',
-    consoleUrl: 'https://portal.azure.com',
+    consoleUrl: consoleFor('azure_openai'),
   },
   oai('custom', '自訂（OpenAI 相容）', 'http://localhost:5001/v1', 'local-model', {
     status: 'planned', // 要讓使用者自己填 base URL，設定 UI 還沒做
     keyHint: '（可留空）',
-    consoleUrl: 'https://github.com/PietaTony/SillyTavern-Vellum',
   }),
 ];
 

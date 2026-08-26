@@ -20,7 +20,7 @@
     "gate:no-hex": "tsx scripts/gate-no-hex.ts",
     "gate:file-size": "tsx scripts/gate-file-size.ts",
     "gate:screens": "tsx scripts/gate-screens-vs-routes.ts",
-    "verify": "pnpm build && pnpm test && pnpm lint && pnpm gate:selftest && pnpm gate:boundaries && pnpm gate:no-hex && pnpm gate:file-size && pnpm gate:screens && pnpm gate:back && pnpm gate:no-eval && pnpm gate:draft",
+    "verify": "pnpm build && pnpm test && pnpm lint && pnpm gate:selftest && pnpm gate:boundaries && pnpm gate:no-hex && pnpm gate:file-size && pnpm gate:screens && pnpm gate:back && pnpm gate:no-eval && pnpm gate:draft && pnpm gate:guides",
     "gate:selftest": "for f in scripts/gate-*.ts; do pnpm exec tsx \"$f\" --selftest || exit 1; done",
     "dev:server": "PORT=8521 tsx watch server/index.ts",
     "server": "PORT=8521 tsx server/index.ts",
@@ -35,6 +35,7 @@
     "verify:vars": "tsx scripts/verify-vars.ts",
     "gate:no-eval": "tsx scripts/gate-no-eval.ts",
     "gate:draft": "tsx scripts/gate-draft.ts",
+    "gate:guides": "tsx scripts/gate-provider-guides.ts",
     "verify:companion": "tsx scripts/verify-companion.ts",
     "verify:lifecycle": "tsx scripts/verify-lifecycle.ts",
     "verify:swipe": "tsx scripts/verify-swipe.ts"

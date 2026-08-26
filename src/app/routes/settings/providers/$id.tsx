@@ -4,12 +4,7 @@ import Chip from '@mui/material/Chip';
 import CircularProgress from '@mui/material/CircularProgress';
 import { useQuery } from '@tanstack/react-query';
 import { createFileRoute, useNavigate } from '@tanstack/react-router';
-import {
-  fetchProviderRows,
-  ProviderSetup,
-  type ProviderStatus,
-  STATUS_COPY,
-} from '@/features/providers';
+import { fetchProviderRows, ProviderSetup, STATUS_COPY } from '@/features/providers';
 import { Screen } from '@/shared/ui/Screen';
 
 export const Route = createFileRoute('/settings/providers/$id')({ component: ProviderPage });
@@ -31,10 +26,15 @@ function ProviderPage() {
       title={p?.displayName ?? '供應商'}
       onBack={() => void nav({ to: '/settings/providers' })}
       /*
-       * 🔴 `ready` 的 `STATUS_COPY.label` 是空字串 ⇒ 設定好的那幾家頂欄本來什麼都沒有，
-       * 而清單頁明明掛著綠色的「已設定金鑰」。同一件事兩個畫面說法不一致＝看起來像壞了。
+       * 🔴 **只留 `untested`／`planned` 的警示徽章。**
+       * 這一輪一度加了「已設定金鑰／還沒設定」，但 Peter 要的是**與 first-run 呈現相同**，
+       * 而 first-run 的頂欄沒有徽章 —— 加回去就是又一個「只有這一頁有」的東西。
        */
-      action={p ? <StatusChip status={p.status} keySet={p.keySet} /> : null}
+      action={
+        p && STATUS_COPY[p.status].label ? (
+          <Chip size="small" label={STATUS_COPY[p.status].label} />
+        ) : null
+      }
     >
       {q.isPending ? <CircularProgress size={24} /> : null}
       {/* 🔴 找不到要給出口，不是留一句錯誤讓人卡住 */}
@@ -53,16 +53,5 @@ function ProviderPage() {
       {/* 內距交給 `Screen`（`p: 2`）—— 與 first-run 同一層，不再自己多包一圈。 */}
       {p ? <ProviderSetup p={p} /> : null}
     </Screen>
-  );
-}
-
-/** 頂欄的狀態徽章。**用語與清單頁同一套**，不要在兩個畫面各講各的。 */
-function StatusChip({ status, keySet }: { status: ProviderStatus; keySet: boolean }) {
-  const planned = STATUS_COPY[status].label;
-  if (planned) return <Chip size="small" label={planned} />;
-  return keySet ? (
-    <Chip size="small" color="success" label="已設定金鑰" />
-  ) : (
-    <Chip size="small" variant="outlined" label="還沒設定" />
   );
 }
