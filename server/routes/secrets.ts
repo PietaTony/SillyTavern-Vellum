@@ -1,15 +1,8 @@
 import { Hono } from 'hono';
-import { z } from 'zod';
-import { setKey, whichAreSet, redact, getKey, previews } from '../lib/secrets.ts';
+import { whichAreSet, redact, getKey, previews } from '../lib/secrets.ts';
 import { getActiveProvider, loadSettings, setActiveProvider } from '../lib/settings.ts';
 import { adapterFor } from '../providers/dispatch.ts';
 import { byId, isSelectable, PROVIDERS } from '../providers/registry.ts';
-
-// 🔴 **不再列舉供應商 id**：合法性由 registry 認定（家數要從 2 變 26）。
-const WriteBody = z.object({
-  provider: z.string().min(1),
-  value: z.string().min(1),
-});
 
 export const secrets = new Hono()
   /**
@@ -26,12 +19,13 @@ export const secrets = new Hono()
    */
   .get('/preview', async (c) => c.json(await previews()))
 
-  .post('/', async (c) => {
-    const parsed = WriteBody.safeParse(await c.req.json());
-    if (!parsed.success) return c.json({ error: '參數不合法' }, 400);
-    await setKey(parsed.data.provider, parsed.data.value);
-    return c.json({ ok: true });
-  })
+  /*
+   * 🔴 **`POST /` 已刪除**（Peter 2026-08-26 裁定，GAP-46）。
+   * 它是「不測就存金鑰」的端點：**呼叫端 0**（實測 grep 全 repo 只有 `GET /api/secrets`
+   * 被 `fetchKeyStatus` 用到），而且**違反本專案到處宣稱的「測過才存」** ——
+   * 留著等於留一條繞過測試閘門的路。刪掉同時縮小攻擊面。
+   * ⇒ 現在寫入金鑰只有一條路：`POST /api/secrets/test`（測過才存）。
+   */
 
   /**
    * 供應商清單（給前端畫選單）。**只回設定，永不回金鑰**。

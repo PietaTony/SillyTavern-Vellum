@@ -7,7 +7,10 @@
  */
 import { assign, fromPromise, setup } from 'xstate';
 
-export type TestOutcome = { ok: true; models: string[] } | { ok: false; message: string };
+export type TestOutcome =
+  | { ok: true; models: string[] }
+  /** `reason` 是後端分類過的錯誤種類（見 `server/lib/providerError.ts`）。前端不自己判。 */
+  | { ok: false; message: string; reason?: string | null };
 
 export const keyGateMachine = setup({
   types: {

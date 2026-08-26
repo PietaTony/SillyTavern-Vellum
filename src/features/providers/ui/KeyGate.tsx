@@ -5,12 +5,11 @@ import Stack from '@mui/material/Stack';
 import Typography from '@mui/material/Typography';
 import { useMachine } from '@xstate/react';
 import { useState } from 'react';
-import { fromPromise } from 'xstate';
 import { DraftField } from '@/shared/ui/DraftField';
 import { Screen } from '@/shared/ui/Screen';
 import { pushToast } from '@/shared/ui/toastStore';
-import { testKey } from '../api';
-import { keyGateMachine, type TestOutcome } from '../keyGate.machine';
+import { keyGateMachine } from '../keyGate.machine';
+import { makeTestKeyActor } from '../keyGateActor';
 import { applyMaskedEdit, DEFAULT_MODEL_BY_PROVIDER, maskKey, type ProviderInfo } from '../model';
 import { keyOkAdornment } from './KeyOk';
 import { KeySteps } from './KeySteps';
@@ -36,12 +35,7 @@ export function KeyGate({
   const [model, setModel] = useState<string | null>(null);
   const [state, send] = useMachine(
     keyGateMachine.provide({
-      actors: {
-        testKey: fromPromise<TestOutcome, { value: string }>(async ({ input }) => {
-          const r = await testKey(info.id, input.value);
-          return r.ok ? { ok: true, models: r.models } : { ok: false, message: r.message };
-        }),
-      },
+      actors: { testKey: makeTestKeyActor(info.id, info.consoleUrl) },
     }),
     { input: { provider: info.id } },
   );
@@ -133,9 +127,7 @@ export function KeyGate({
             />
           </>
         ) : null}
-        {state.matches('failed') ? (
-          <Alert severity="warning">測試沒有通過：{state.context.error}</Alert>
-        ) : null}
+        {/* 🔴 失敗訊息走全站 tips（有「開啟」引導與複製鈕）—— 這裡不再另外畫一則。 */}
       </Stack>
     </Screen>
   );
