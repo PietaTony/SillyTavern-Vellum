@@ -1,10 +1,9 @@
 import Avatar from '@mui/material/Avatar';
 import Box from '@mui/material/Box';
 import Stack from '@mui/material/Stack';
-import Typography from '@mui/material/Typography';
-import { SERIF } from '@/app/theme';
 import type { Message } from '../model';
 import { useSwipeKeys } from '../useSwipeKeys';
+import { MessageContent } from './MessageContent';
 import { SwipeBar } from './SwipeBar';
 
 /**
@@ -17,14 +16,13 @@ import { SwipeBar } from './SwipeBar';
  * 🔴 頭像用 `characterId` 現取，不把圖複製一份進對話。
  */
 function Content({ text }: { text: string }) {
-  return (
-    <Typography
-      variant="body1"
-      sx={{ fontFamily: SERIF, whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}
-    >
-      {text}
-    </Typography>
-  );
+  /**
+   * 🔴 **M13 第一期：從「純文字」改成「markdown ＋ 淨化後的 HTML」。**
+   * 在此之前這裡是 `whiteSpace: pre-wrap` 的純文字，而且後端還先把 HTML 壓平
+   * ⇒ 卡片的狀態欄、表格、粗體、程式碼區塊全部變成一整片沒有結構的字。
+   * 淨化在 `render/html.ts`，那是唯一一處 `dangerouslySetInnerHTML`。
+   */
+  return <MessageContent text={text} />;
 }
 
 export function Thread({

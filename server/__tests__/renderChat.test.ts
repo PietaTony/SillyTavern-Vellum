@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { Message } from '../lib/chatModel.ts';
 import type { OutputRule } from '../lib/outputRules.ts';
-import { htmlToText, renderMessages, rulesOf } from '../lib/renderChat.ts';
+import { renderMessages, rulesOf } from '../lib/renderChat.ts';
 
 const msg = (o: Partial<Message>): Message => ({ id: 'm', role: 'model', text: '', at: 'now', ...o });
 const names = { char: '何某', user: '你' };
@@ -10,27 +10,6 @@ const rule = (o: Partial<OutputRule>): OutputRule => ({
 });
 
 describe('顯示層渲染', () => {
-  it('🔴 <script> 整塊丟掉，不是剝標籤（剝標籤會把程式碼變成正文）', () => {
-    expect(htmlToText('<div>看得到<script>alert(1)</script></div>')).toBe('看得到');
-    expect(htmlToText('<style>.a{color:red}</style>正文')).toBe('正文');
-  });
-
-  it('HTML 實體要解碼（狀態欄的值是用實體編碼的）', () => {
-    expect(htmlToText('<b>&#x5B89;&#x5168;</b> &#48;&#48;&amp;')).toBe('安全 00&');
-  });
-
-  it('🔴 只有空白的行要收掉 —— 剝完標籤留下的正是那種行', () => {
-    expect(htmlToText('<p>甲</p>\n   \n \n<p>乙</p>')).toBe('甲\n\n乙');
-  });
-
-  it('段落之間的空行要留著（不可以把文章擠成一團）', () => {
-    expect(htmlToText('第一段\n\n第二段')).toBe('第一段\n\n第二段');
-  });
-
-  it('🔴 純文字訊息的行首縮排是作者寫的，不可以順手改掉', () => {
-    expect(htmlToText('第一行\n    縮排的一行')).toBe('第一行\n    縮排的一行');
-  });
-
   it('🔴 {{user}} 要換掉 —— 使用者看到大括號只會覺得壞了', () => {
     const [m] = renderMessages([msg({ text: '{{char}}看著{{user}}' })], [], names);
     expect(m?.text).toBe('何某看著你');

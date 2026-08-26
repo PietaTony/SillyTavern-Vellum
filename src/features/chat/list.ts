@@ -5,6 +5,7 @@
  * 混進 `model.ts` 會讓那支同時服務兩個畫面，之後兩邊都不敢改。
  */
 import type { Chat } from './model';
+import { toPlainText } from './render/plain';
 
 /** 這段對話最後一次有動靜的時間。空對話沒有訊息 ⇒ 退回建立時間。 */
 export function lastActivityAt(chat: Chat): string {
@@ -16,7 +17,9 @@ export function lastActivityAt(chat: Chat): string {
  * 🔴 空對話顯示「尚未開始」——設計正本 `Friends-And-Cards--1` 的 `.v-listrow.is-empty` 就是這個狀態。
  */
 export function previewOf(chat: Chat): string {
-  const text = chat.messages.at(-1)?.text ?? '';
+  // 🔴 訊息可能含 HTML（卡片的狀態欄）——列表列塞不下，也不該塞。
+  //    M13 第一期起後端不再壓平，所以壓平的責任在這裡（`toPlainText` 就是從後端搬過來的那支）。
+  const text = toPlainText(chat.messages.at(-1)?.text ?? '');
   const oneLine = text.replace(/\s+/g, ' ').trim();
   return oneLine || '尚未開始';
 }

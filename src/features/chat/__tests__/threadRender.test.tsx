@@ -24,7 +24,13 @@ const msg = (o: Partial<Message>): Message => ({
  * `applyRules()` 會動 ≠ 使用者看不到那些標記 —— **中間少一個呼叫就全白費**。
  */
 describe('對話串的渲染', () => {
-  it('🔴 訊息當「文字」渲染，不是 HTML —— 卡片來自網路，這是 XSS 的第一道線', () => {
+  /**
+   * 🔴 **這條的契約在 M13 第一期被刻意改掉了。**
+   * 舊版斷言「標籤原樣印出 ＝ 沒有被當成 HTML 解析」——那是「訊息當純文字印」時代的守門測試。
+   * 現在訊息會渲染成 HTML（卡片的狀態欄、表格、粗體要看得到），**但守門的強度不可以降**：
+   * 安全的標籤要活著、危險的要死透。**改契約的時候把測試一起改成等強的版本，不是刪掉它。**
+   */
+  it('🔴 訊息渲染成 HTML，但 <script> 必須死透 —— 卡片來自網路，這是 XSS 的第一道線', () => {
     render(
       <Thread
         messages={[msg({ text: '<b>粗體</b><script>window.x=1</script>' })]}
@@ -32,10 +38,23 @@ describe('對話串的渲染', () => {
         name="某"
       />,
     );
-    // 標籤原樣出現在文字裡 ＝ 沒有被當成 HTML 解析
-    expect(screen.getByText(/<b>粗體<\/b>/)).toBeTruthy();
+    // 安全的標籤：真的變成粗體（不是印出 `<b>` 這四個字）
+    expect(screen.getByText('粗體').tagName).toBe('B');
+    // 危險的：元素不在、內容也不在（只檢查元素會漏掉「被當文字印出來」那種洩漏）
     expect(document.querySelector('script')).toBeNull();
-    expect(document.querySelector('b')).toBeNull();
+    expect(document.body.textContent).not.toContain('window.x');
+  });
+
+  it('🔴 on* 事件屬性在真的 render 之後也必須不見（純函式測試守不到這一層）', () => {
+    render(
+      <Thread
+        messages={[msg({ text: '<div onclick="steal()">點我</div>' })]}
+        streaming={null}
+        name="某"
+      />,
+    );
+    expect(screen.getByText('點我').getAttribute('onclick')).toBeNull();
+    expect(document.body.innerHTML).not.toContain('steal()');
   });
 
   it('沒有候選的訊息不顯示切換箭頭（按了沒反應比沒有更糟）', () => {
