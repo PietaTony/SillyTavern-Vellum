@@ -48,11 +48,43 @@ export function useBackgroundActions(chatId?: string | undefined) {
   });
 
   const pickChat = useMutation({
-    mutationFn: (name: string | null) => setChatBackground(chatId ?? '', name),
+    mutationFn: (name: string | null) => setChatBackground(chatId ?? '', { name }),
     onSuccess: async (_r, name) => {
       // `null` 在對話層的意思是「回去跟隨全站」，不是「沒有背景」—— 文案要分得出來。
       if (name) said(name, '這一間的');
       else pushToast({ severity: 'success', text: '這一間改回跟隨全站背景' });
+      await refresh();
+    },
+    onError: warn,
+  });
+
+  /**
+   * 🔴 **這一間自己的縮放，與全站那份完全分開**
+   * （Peter 2026-08-26：「兩邊都要能調整縮放方式，並且縮放方式各自獨立」）。
+   * 在此之前只有 `fitting`（全域）一個，對話頁調它會動到所有對話。
+   */
+  const chatFitting = useMutation({
+    mutationFn: (f: Fitting) => setChatBackground(chatId ?? '', { fitting: f }),
+    onSuccess: refresh,
+    onError: warn,
+  });
+
+  /**
+   * 「跟隨全站」那顆勾。**圖與縮放一起動，不是只動圖**
+   * （Peter 2026-08-26：「跟隨全站後縮放方式也跟隨全站；如果有人改動縮放，
+   * 跟隨全站就會 uncheck」）。
+   *
+   * 🔴 只清 `name` 的話，這一間會變成「圖跟著全站、縮放停在舊值」——
+   * 勾是打著的，行為卻不是跟隨。**勾的語意必須與實際狀態一致。**
+   */
+  const followChat = useMutation({
+    mutationFn: (body: { name: string | null; fitting: Fitting | null }) =>
+      setChatBackground(chatId ?? '', body),
+    onSuccess: async (_r, body) => {
+      pushToast({
+        severity: 'success',
+        text: body.name === null ? '這一間改回跟隨全站' : `這一間固定成 ${body.name}`,
+      });
       await refresh();
     },
     onError: warn,
@@ -80,5 +112,5 @@ export function useBackgroundActions(chatId?: string | undefined) {
     onError: warn,
   });
 
-  return { pickGlobal, pickChat, fitting, upload, remove };
+  return { pickGlobal, pickChat, fitting, chatFitting, followChat, upload, remove };
 }

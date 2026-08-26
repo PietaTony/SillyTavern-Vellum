@@ -12,10 +12,13 @@ import { useBackgroundOverride } from '@/features/backgrounds';
  * ⚠️ 呼叫端要把它放在**所有早退之前**（`q.isPending` 那幾個），
  * 否則 render 之間 hook 數量會變。
  */
-export function useChatBackgroundOverride(name: string | undefined): void {
-  const setOverride = useBackgroundOverride((s) => s.setName);
+export function useChatBackgroundOverride(
+  name: string | undefined,
+  fitting: string | undefined,
+): void {
+  const setOverride = useBackgroundOverride((s) => s.set);
   useEffect(() => {
-    setOverride(name);
-    return () => setOverride(undefined);
-  }, [name, setOverride]);
+    setOverride({ name, fitting });
+    return () => setOverride({ name: undefined, fitting: undefined });
+  }, [name, fitting, setOverride]);
 }

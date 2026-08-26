@@ -16,12 +16,18 @@ export const setGlobalBackground = (body: {
 }): Promise<{ name?: string; fitting: Fitting }> =>
   put<{ name?: string; fitting: Fitting }>('/api/backgrounds/global', body);
 
-/** `name: null` ＝ 這段對話回去跟隨全域（不是「沒有背景」）。 */
+/**
+ * 這段對話自己的背景與縮放。**兩個欄位各自獨立**，只送要改的那個。
+ * `null` ＝ 回去跟隨全站（不是「沒有背景」）。
+ */
 export const setChatBackground = (
   chatId: string,
-  name: string | null,
-): Promise<{ background: string | null }> =>
-  patch<{ background: string | null }>(`/api/chats/${chatId}/background`, { name });
+  body: { name?: string | null; fitting?: Fitting | null },
+): Promise<{ background: string | null; fitting: Fitting | null }> =>
+  patch<{ background: string | null; fitting: Fitting | null }>(
+    `/api/chats/${chatId}/background`,
+    body,
+  );
 
 export const deleteBackground = (name: string): Promise<{ ok: true }> =>
   del<{ ok: true }>(`/api/backgrounds/${encodeURIComponent(name)}`);

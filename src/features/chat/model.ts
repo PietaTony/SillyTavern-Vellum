@@ -21,6 +21,8 @@ export type Chat = {
    * 可空＝跟隨全域，**不要用空字串代表「沒有」** —— 那會分不出「沒設過」與「設成無背景」。
    */
   background?: string;
+  /** 🔴 這一間自己的縮放方式。可空＝跟隨全站（Peter 2026-08-26：「縮放方式各自獨立」）。 */
+  backgroundFitting?: string;
 };
 
 export type StreamEvent =

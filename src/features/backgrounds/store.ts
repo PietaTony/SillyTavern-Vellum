@@ -10,13 +10,24 @@ import { create } from 'zustand';
  * 🔴 **設了就一定要在離開時清掉**（`useEffect` 的 cleanup）。
  * 不清的話走出對話之後，好友列表會繼續套著那一間的背景。
  */
-type State = {
-  /** `undefined` ＝ 沒有覆蓋，跟隨全域。 */
+type Override = {
+  /** `undefined` ＝ 沒有覆蓋，跟隨全站。 */
   name: string | undefined;
-  setName: (n: string | undefined) => void;
+  /**
+   * 🔴 **縮放也要能各自獨立**（Peter 2026-08-26）。
+   * 只覆蓋圖不覆蓋縮放的話，對話頁調了縮放卻要等全站那份才生效 ——
+   * 那正好是「調了沒反應」。
+   */
+  fitting: string | undefined;
 };
+
+type State = Override & { set: (o: Override) => void };
+
+const same = (a: Override, b: Override) => a.name === b.name && a.fitting === b.fitting;
 
 export const useBackgroundOverride = create<State>((set) => ({
   name: undefined,
-  setName: (n) => set((s) => (s.name === n ? s : { name: n })),
+  fitting: undefined,
+  // 🔴 值沒變就回原物件 —— 每次都回新物件會讓訂閱者無限重繪。
+  set: (o) => set((s) => (same(s, o) ? s : o)),
 }));

@@ -35,7 +35,7 @@ function ChatPage() {
   });
 
   // 🔴 這一間自己的背景蓋過全站那張。**必須在所有早退之前**呼叫（理由見該檔檔頭）。
-  useChatBackgroundOverride(q.data?.background);
+  useChatBackgroundOverride(q.data?.background, q.data?.backgroundFitting);
 
   const [local, setLocal] = useState<Message[] | null>(null);
   const [streaming, setStreaming] = useState<string | null>(null);

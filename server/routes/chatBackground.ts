@@ -2,6 +2,7 @@ import { Hono } from 'hono';
 import { listBackgrounds, safeBackgroundName } from '../lib/backgrounds.ts';
 import type { Chat } from '../lib/chatModel.ts';
 import { safeId } from '../lib/ids.ts';
+import { FITTINGS, type Fitting } from '../lib/settings.ts';
 import { readJson, writeJson } from '../lib/storage.ts';
 
 /**
@@ -18,23 +19,40 @@ export const chatBackground = new Hono().patch('/:id/background', async (c) => {
   const id = safeId(c.req.param('id'));
   if (!id) return c.json({ error: '找不到這段對話' }, 404);
 
-  const body = (await c.req.json()) as { name?: unknown };
-  if (!('name' in body)) return c.json({ error: '參數不合法' }, 400);
+  const body = (await c.req.json()) as { name?: unknown; fitting?: unknown };
+  if (!('name' in body) && !('fitting' in body)) return c.json({ error: '參數不合法' }, 400);
 
   const chat = await readJson<Chat | null>(`chats/${id}.json`, null);
   if (!chat) return c.json({ error: '找不到這段對話' }, 404);
 
   const next = { ...chat };
-  if (body.name === null) delete next.background;
-  else {
-    const name = safeBackgroundName(typeof body.name === 'string' ? body.name : undefined);
-    // 🔴 **存之前要確認檔案真的在。** 存一個不存在的檔名 ＝ 這個聊天室永遠是破圖，
-    //    而且使用者看不出來是哪一步壞的。
-    if (!name || !(await listBackgrounds()).includes(name))
-      return c.json({ error: '找不到這張背景' }, 404);
-    next.background = name;
+
+  if ('name' in body) {
+    if (body.name === null) delete next.background;
+    else {
+      const name = safeBackgroundName(typeof body.name === 'string' ? body.name : undefined);
+      // 🔴 **存之前要確認檔案真的在。** 存一個不存在的檔名 ＝ 這個聊天室永遠是破圖，
+      //    而且使用者看不出來是哪一步壞的。
+      if (!name || !(await listBackgrounds()).includes(name))
+        return c.json({ error: '找不到這張背景' }, 404);
+      next.background = name;
+    }
+  }
+
+  /**
+   * 🔴 **縮放方式與圖是兩個獨立的欄位**（Peter 2026-08-26：「縮放方式各自獨立」）。
+   * `null` ＝ 這一間回去跟隨全站的縮放，與 `name: null` 同一種語意。
+   */
+  if ('fitting' in body) {
+    if (body.fitting === null) delete next.backgroundFitting;
+    else if ((FITTINGS as readonly string[]).includes(String(body.fitting)))
+      next.backgroundFitting = body.fitting as Fitting;
+    else return c.json({ error: '不認得的縮放模式' }, 400);
   }
 
   await writeJson(`chats/${id}.json`, next);
-  return c.json({ background: next.background ?? null });
+  return c.json({
+    background: next.background ?? null,
+    fitting: next.backgroundFitting ?? null,
+  });
 });

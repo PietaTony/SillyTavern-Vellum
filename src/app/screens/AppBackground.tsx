@@ -1,6 +1,11 @@
 import { useQuery } from '@tanstack/react-query';
 import { useEffect } from 'react';
-import { BackgroundCanvas, fetchBackgrounds, useBackgroundOverride } from '@/features/backgrounds';
+import {
+  BackgroundCanvas,
+  type Fitting,
+  fetchBackgrounds,
+  useBackgroundOverride,
+} from '@/features/backgrounds';
 import { useBackdrop } from '@/shared/lib/backdropStore';
 
 /**
@@ -19,11 +24,14 @@ import { useBackdrop } from '@/shared/lib/backdropStore';
  */
 export function AppBackground() {
   const bg = useQuery({ queryKey: ['backgrounds'], queryFn: fetchBackgrounds });
-  const override = useBackgroundOverride((s) => s.name);
+  const overrideName = useBackgroundOverride((s) => s.name);
+  const overrideFitting = useBackgroundOverride((s) => s.fitting);
   const setActive = useBackdrop((s) => s.setActive);
 
-  const name = override ?? bg.data?.global.name;
-  const fitting = bg.data?.global.fitting ?? 'classic';
+  // 🔴 **圖與縮放各自 cascade，不是綁在一起。**
+  // 一間對話可以「用全站的圖、但自己的縮放」，反之亦然（Peter 2026-08-26）。
+  const name = overrideName ?? bg.data?.global.name;
+  const fitting = (overrideFitting ?? bg.data?.global.fitting ?? 'classic') as Fitting;
 
   // 🔴 render 期間不可以改別人的 store（會在同一輪觸發別的元件重繪）⇒ 放進 effect。
   useEffect(() => setActive(Boolean(name)), [name, setActive]);

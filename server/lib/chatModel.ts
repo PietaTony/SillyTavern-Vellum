@@ -3,6 +3,7 @@
  * 放在 route 會讓 lib 反過來 import route ——那就是循環相依（`gate:boundaries` 會擋）。
  */
 import { z } from 'zod';
+import { FITTINGS } from './settings.ts';
 
 export const MessageSchema = z.object({
   id: z.string(),
@@ -32,6 +33,18 @@ export const ChatSchema = z.object({
    * 可空＝跟隨全域，**不要用空字串代表「沒有」** —— 那會分不出「沒設過」與「設成無背景」。
    */
   background: z.string().optional(),
+  /**
+   * 🔴 **這一間自己的縮放方式**（Peter 2026-08-26：「兩邊都要能調整縮放方式，
+   * 並且縮放方式各自獨立」）。可空＝跟隨全站的 fitting。
+   *
+   * 🔴 六題：① `backgroundFitting: Fitting`
+   * ② 在此之前 fitting **只有全域一份** ⇒ 在對話頁調它會影響所有對話，與「各自獨立」相反
+   * ③ `settings.background.fitting` 是全域定義；`background` 只存檔名，答不了「這一間怎麼縮放」
+   * ④ 新的可選欄位，舊對話讀進來是 `undefined` ⇒ 回退成全域，行為一個像素都不變
+   * ⑤ 寫：`PATCH /api/chats/:id/background`；讀：`app/screens/AppBackground.tsx` 合成有效值
+   * ⑥ 刪掉這個鍵即回退，不需要 migration
+   */
+  backgroundFitting: z.enum(FITTINGS).optional(),
   /**
    * 🔴 **匯入的對話，正本是那個 `.jsonl` 檔。**
    * `messages` 只是投影：實測 ST 的對話檔每一行鍵集都不同（`extra` 的子鍵 6 行 6 種），

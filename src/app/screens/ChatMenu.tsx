@@ -76,7 +76,7 @@ export function ChatMenu({
           <ListItemIcon>
             <WallpaperOutlinedIcon fontSize="small" />
           </ListItemIcon>
-          <ListItemText primary="背景" secondary="全站或只換這一間" />
+          <ListItemText primary="背景" secondary="只換這一間（全站的在設定裡）" />
         </MenuItem>
         <MenuItem onClick={() => open('providers')}>
           <ListItemIcon>
