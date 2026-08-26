@@ -1,4 +1,3 @@
-import Alert from '@mui/material/Alert';
 import CircularProgress from '@mui/material/CircularProgress';
 import InputAdornment from '@mui/material/InputAdornment';
 import MenuItem from '@mui/material/MenuItem';
@@ -9,7 +8,6 @@ import type { ToastMsg } from '@/shared/ui/toastMsg';
 import { effectiveModel, isOffList, modelOptions } from '../modelOptions';
 import { fetchModels } from '../registryApi';
 import { useModelTest } from '../useModelTest';
-import { ProviderErrorAlert } from './ProviderErrorAlert';
 
 /**
  * 選模型（規格 §6 優先序 2、驗收 B3）。
@@ -67,20 +65,25 @@ export function ModelPicker({
   return (
     <Stack spacing={2}>
       {manual ? (
-        <>
-          <Alert severity="info">{q.data?.ok === false ? q.data.message : ''}</Alert>
-          <DraftField
-            noDraft="模型名稱測過才存，沒有「還沒送出」這個狀態"
-            fullWidth
-            label="模型名稱"
-            value={value}
-            disabled={test.isPending}
-            onChange={onChange}
-            onBlur={() => value.trim() && test.mutate(value)}
-            helperText={test.isPending ? '測試中…' : '離開欄位就會自動測試，通過才會存起來'}
-            slotProps={{ input: spinner(test.isPending) }}
-          />
-        </>
+        <DraftField
+          noDraft="模型名稱測過才存，沒有「還沒送出」這個狀態"
+          fullWidth
+          label="模型名稱"
+          value={value}
+          disabled={test.isPending}
+          onChange={onChange}
+          onBlur={() => value.trim() && test.mutate(value)}
+          /*
+           * 🔴 **這一頁只用 tips，沒有常駐提示**（Peter 2026-08-26）——
+           * 「為什麼是手動輸入」原本是一則 Alert，改成欄位自己的說明。
+           */
+          helperText={
+            test.isPending
+              ? '測試中…'
+              : `${q.data?.ok === false ? `${q.data.message} · ` : ''}離開欄位就會自動測試，通過才會存`
+          }
+          slotProps={{ input: spinner(test.isPending) }}
+        />
       ) : (
         <DraftField
           noDraft="同上"
@@ -106,18 +109,6 @@ export function ModelPicker({
           ))}
         </DraftField>
       )}
-      {/*
-       * 🔴 **失敗留在畫面上，不用 tips。** 清單裡列得出來、打下去卻 404 的模型是真的存在
-       * （Google 自己會在錯誤訊息裡建議替代型號）—— 3 秒的提示讀不完那句話。
-       */}
-      {test.data?.ok === false ? (
-        <ProviderErrorAlert
-          raw={test.data.message}
-          provider={provider}
-          consoleUrl={consoleUrl}
-          onNotify={onNotify}
-        />
-      ) : null}
     </Stack>
   );
 }

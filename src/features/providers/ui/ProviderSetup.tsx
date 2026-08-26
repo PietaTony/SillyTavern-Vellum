@@ -3,7 +3,9 @@ import Stack from '@mui/material/Stack';
 import { useQuery } from '@tanstack/react-query';
 import { useState } from 'react';
 import { pushToast } from '@/shared/ui/toastStore';
+import { effectiveModel } from '../modelOptions';
 import { fetchKeyPreviews, type ProviderRow, STATUS_COPY } from '../registryApi';
+import { useModelTest } from '../useModelTest';
 import { KeyField } from './KeyField';
 import { KeySteps } from './KeySteps';
 import { ModelPicker } from './ModelPicker';
@@ -30,6 +32,12 @@ export function ProviderSetup({ p }: { p: ProviderRow }) {
   // 🔴 存的是「使用者選過的那個」，沒選過就是 `null` —— 不要在這裡塞 registry 預設，
   //    那會讓 `ModelPicker` 分不出「他選了預設那個」與「他還沒選」。
   const [model, setModel] = useState<string | null>(p.model);
+  /*
+   * 🔴 **金鑰過了不代表送得出去**（Peter 2026-08-26）。
+   * 實際踩到的：Anthropic 金鑰是好的、餘額是 0 —— 只跳「連線成功」是假綠燈。
+   * ⇒ 測完金鑰立刻用**真的會拿去用的那個模型**再打一次。
+   */
+  const modelTest = useModelTest(p.id, pushToast, p.consoleUrl);
 
   // 🔴 `planned` 走完全不同的分支：那幾家沒有金鑰可貼，版面沒有東西可以照抄。
   if (p.status === 'planned') {
@@ -54,7 +62,12 @@ export function ProviderSetup({ p }: { p: ProviderRow }) {
         keyHint={p.keyHint}
       />
 
-      <KeyField p={p} stored={preview.data?.[p.id] ?? ''} onNotify={pushToast} />
+      <KeyField
+        p={p}
+        stored={preview.data?.[p.id] ?? ''}
+        onNotify={pushToast}
+        onPassed={(models) => modelTest.mutate(effectiveModel(model, models, p.defaultModel))}
+      />
 
       {/*
        * **這一頁比 first-run 多出來的就是這一塊**（Peter 原話：「只是我們多了選模型」）。

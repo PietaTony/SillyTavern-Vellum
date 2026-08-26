@@ -1,7 +1,7 @@
 import { render, screen } from '@testing-library/react';
 import { act } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { ToastStack } from '../ToastStack';
+import { stayFor, ToastStack } from '../ToastStack';
 import { pushToast, useToasts } from '../toastStore';
 
 /**
@@ -38,26 +38,39 @@ describe('ToastStack', () => {
     expect(texts).toEqual(['舊的', '新的']);
   });
 
-  it('普通的 tips 停留 3 秒之後開始淡出', () => {
+  it('成功的 tips 停留 3 秒', () => {
     render(<ToastStack />);
-    push('會自己消失');
+    push('成功');
+    act(() => void vi.advanceTimersByTime(2999));
     expect(useToasts.getState().items[0]?.leaving).toBeFalsy();
-    act(() => void vi.advanceTimersByTime(3000));
+    act(() => void vi.advanceTimersByTime(1));
     expect(useToasts.getState().items[0]?.leaving).toBe(true);
   });
 
-  it('🔴 帶「複製」的不可以自己消失 —— 按不到已經消失的按鈕', () => {
+  it('🔴 錯誤／警告的 tips 停留 5 秒 —— 讀完再決定要不要按那顆按鈕', () => {
     render(<ToastStack />);
     push('錯誤訊息：…', { severity: 'warning', copy: '完整原文' });
-    act(() => void vi.advanceTimersByTime(10_000));
+    act(() => void vi.advanceTimersByTime(3000));
     expect(useToasts.getState().items[0]?.leaving).toBeFalsy();
+    act(() => void vi.advanceTimersByTime(2000));
+    expect(useToasts.getState().items[0]?.leaving).toBe(true);
   });
 
-  it('🔴 帶「去儲值」的也不可以自己消失', () => {
+  it('error 與 warning 同一組，success 與 info 同一組', () => {
+    expect(stayFor('error')).toBe(5000);
+    expect(stayFor('warning')).toBe(5000);
+    expect(stayFor('success')).toBe(3000);
+    expect(stayFor('info')).toBe(3000);
+  });
+
+  it('🔴 堆疊方向必須是上下，不是左右', () => {
     render(<ToastStack />);
-    push('餘額不足', { severity: 'warning', link: { label: '去儲值', url: 'https://x.test' } });
-    act(() => void vi.advanceTimersByTime(10_000));
-    expect(useToasts.getState().items[0]?.leaving).toBeFalsy();
+    push('上面那則');
+    push('下面那則');
+    const stack = document.querySelector('.MuiSnackbar-root > *') as HTMLElement;
+    // ⚠️ 實測 MUI `Stack` 在這裡算出來是 'row'，連顯式 `direction="column"` 都壓不過去 ——
+    // 所以改用 Box 直接寫 flexDirection。這條就是那次的收據。
+    expect(getComputedStyle(stack).flexDirection).toBe('column');
   });
 
   it('每一則都有自己的 ✕', () => {

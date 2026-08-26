@@ -1,8 +1,7 @@
-import OpenInNewIcon from '@mui/icons-material/OpenInNew';
 import Box from '@mui/material/Box';
-import Button from '@mui/material/Button';
 import Stack from '@mui/material/Stack';
 import Typography from '@mui/material/Typography';
+import { OpenLinkButton } from '@/shared/ui/OpenLinkButton';
 import { STEPS_BY_PROVIDER } from '../steps';
 
 /** 一行的最小高度。**「開啟」按鈕的高度**，讓有按鈕的那行不會比別行高。 */
@@ -40,7 +39,7 @@ export function KeySteps({
   if (!steps) {
     return (
       <StepRow n={1} text={`到 ${displayName} 的控制台建立 API key，格式大概像 ${keyHint}`}>
-        <OpenButton url={consoleUrl} />
+        <OpenLinkButton url={consoleUrl} />
       </StepRow>
     );
   }
@@ -50,7 +49,7 @@ export function KeySteps({
       {steps.map((s, i) => (
         <StepRow key={s} n={i + 1} text={s}>
           {/* 第一步才給按鈕 —— 每一步都給的話，使用者不知道該按哪一顆。 */}
-          {i === 0 ? <OpenButton url={consoleUrl} /> : null}
+          {i === 0 ? <OpenLinkButton url={consoleUrl} /> : null}
         </StepRow>
       ))}
     </Stack>
@@ -88,21 +87,5 @@ function StepRow({ n, text, children }: { n: number; text: string; children?: Re
       </Typography>
       {children}
     </Stack>
-  );
-}
-
-function OpenButton({ url }: { url: string }) {
-  return (
-    <Button
-      size="small"
-      variant="outlined"
-      endIcon={<OpenInNewIcon />}
-      href={url}
-      target="_blank"
-      rel="noreferrer"
-      sx={{ flex: 'none' }}
-    >
-      開啟
-    </Button>
   );
 }

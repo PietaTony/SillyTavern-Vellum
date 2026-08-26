@@ -12,7 +12,11 @@
  * ⚠️ **判準刻意寬鬆（多命中幾個沒關係）**：誤判成「去儲值」的代價是他點過去發現餘額還夠；
  * 漏判的代價是他卡在一句英文錯誤訊息前面。兩者不對稱。
  */
-export type ErrorHelp = { text: string; action: string; url: string } | null;
+/**
+ * 🔴 **沒有 `action` 文案** —— 按鈕一律是全站那顆「開啟」（`OpenLinkButton`）。
+ * 之前這裡回「去儲值」，於是同一個動作在兩個地方長得不一樣（Peter 2026-08-26 修掉）。
+ */
+export type ErrorHelp = { text: string; url: string } | null;
 
 /** 各家「儲值／帳單」頁。**查不到就退回該家的控制台網址**（呼叫端傳進來）。 */
 const BILLING_URLS: Record<string, string> = {
@@ -44,8 +48,7 @@ const NO_CREDIT = [
 export function explainProviderError(raw: string, provider: string, consoleUrl: string): ErrorHelp {
   if (!NO_CREDIT.some((re) => re.test(raw))) return null;
   return {
-    text: '這一家的餘額或額度用完了 —— 金鑰是好的，儲值之後就能用。',
-    action: '去儲值',
+    text: '這一家的餘額或額度用完了。金鑰是好的，把帳戶的額度補上就能用。',
     url: BILLING_URLS[provider] ?? consoleUrl,
   };
 }

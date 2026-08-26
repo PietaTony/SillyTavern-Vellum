@@ -10,6 +10,13 @@ const help = (raw: string, id = 'anthropic') =>
  * **誤判**只是他點過去發現餘額還夠 —— 兩者代價不對稱。
  */
 describe('explainProviderError', () => {
+  it('🔴 不可以再回「去儲值」那種文案 —— 按鈕一律是共用的「開啟」', () => {
+    const r = help('Your credit balance is too low');
+    expect(r).toBeTruthy();
+    expect(Object.keys(r ?? {}).sort()).toEqual(['text', 'url']);
+    expect(r?.text).not.toContain('去儲值');
+  });
+
   it('Anthropic 的原文（Peter 2026-08-26 實際遇到的那一句）', () => {
     const r = help(
       '{"type":"error","error":{"type":"invalid_request_error","message":"Your credit balance is too low to access the Anthropic API. Please go to Plans & Billing to upgrade or purchase credits."}}',

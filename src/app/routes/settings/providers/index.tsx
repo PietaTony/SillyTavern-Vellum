@@ -6,9 +6,10 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { createFileRoute, useNavigate } from '@tanstack/react-router';
 import {
   byUsefulness,
+  failureToast,
   fetchProviderRows,
   ProviderListRow,
-  setActiveProvider,
+  switchActiveProvider,
 } from '@/features/providers';
 import { Screen } from '@/shared/ui/Screen';
 import { pushToast } from '@/shared/ui/toastStore';
@@ -35,21 +36,28 @@ function ProvidersPage() {
   const q = useQuery({ queryKey: ['providerRows'], queryFn: fetchProviderRows });
 
   const pick = useMutation({
-    mutationFn: (id: string) => setActiveProvider(id),
-    onSuccess: (_r, id) => {
-      const name = q.data?.find((x) => x.id === id)?.displayName ?? id;
+    mutationFn: (id: string) => {
+      const row = q.data?.find((x) => x.id === id);
+      if (!row) throw new Error('找不到這一家供應商');
+      return switchActiveProvider(row);
+    },
+    onSuccess: (r, id) => {
+      const row = q.data?.find((x) => x.id === id);
+      const name = row?.displayName ?? id;
       pushToast({ severity: 'success', text: `對話改用 ${name}` });
       void qc.invalidateQueries({ queryKey: ['providerRows'] });
+      if (r.test.ok) return;
+      /*
+       * 🔴 **切換成功不代表它能用。** 只跳綠色的話，使用者要到下一次聊天
+       * 才發現送不出去（Peter 2026-08-26 實際踩到：Anthropic 金鑰好好的、餘額是 0）。
+       * tips 會堆疊 ⇒ 綠色與黃色同時看得到，不會互相蓋掉。
+       */
+      pushToast(failureToast(r.test.message, id, row?.consoleUrl ?? '', `${name} 現在送不出去：`));
     },
     // 後端已經寫好那句人話（「還沒有金鑰 —— 先設定金鑰才能用它對話」），照原文顯示。
     onError: (e: Error) => pushToast({ severity: 'warning', text: e.message }),
   });
 
-  /*
-   * 🔴 **已設定金鑰的排上面，其餘照流行度**（Peter 2026-08-26）。
-   * 排序規則住 `features/providers/popularity.ts` —— 它是一份會過期的判斷，
-   * 帶著日期與依據住在自己的檔案裡，不散在畫面 code 中。
-   */
   const rows = byUsefulness(q.data ?? []);
 
   return (

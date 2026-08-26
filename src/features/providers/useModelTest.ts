@@ -1,6 +1,6 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import type { ToastMsg } from '@/shared/ui/toastMsg';
-import { explainProviderError } from './errorHelp';
+import { failureToast } from './failureToast';
 import { testModel } from './registryApi';
 
 /**
@@ -19,18 +19,7 @@ export function useModelTest(provider: string, onNotify: (m: ToastMsg) => void, 
       if (r.ok) {
         onNotify({ severity: 'success', text: `測試成功，已存：${r.model}` });
       } else {
-        /*
-         * 🔴 **看得懂的錯誤就直接給出口**（餘額不足是最常見的那一種）。
-         * 給不出出口才照實顯示原文 —— 但原文永遠留在 `copy` 裡，判斷錯的時候還救得回來。
-         */
-        const help = explainProviderError(r.message, provider, consoleUrl);
-        onNotify({
-          severity: 'warning',
-          text: help ? help.text : `錯誤訊息：${r.message.slice(0, 120)}`,
-          // 🔴 **複製的是完整原文**，不是 tips 上那段截斷的。
-          copy: r.message,
-          ...(help ? { link: { label: help.action, url: help.url } } : {}),
-        });
+        onNotify(failureToast(r.message, provider, consoleUrl));
       }
       if (r.ok) void qc.invalidateQueries({ queryKey: ['providerRows'] });
     },

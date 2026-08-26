@@ -4,10 +4,10 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { DraftField } from '@/shared/ui/DraftField';
 import type { ToastMsg } from '@/shared/ui/toastMsg';
+import { failureToast } from '../failureToast';
 import { applyMaskedEdit, maskKey } from '../model';
 import { type ProviderRow, testAndSaveKey, testStoredKey } from '../registryApi';
 import { keyOkAdornment } from './KeyOk';
-import { ProviderErrorAlert } from './ProviderErrorAlert';
 
 /**
  * 貼金鑰並測試連線。
@@ -22,11 +22,19 @@ export function KeyField({
   p,
   stored,
   onNotify,
+  onPassed,
 }: {
   p: ProviderRow;
   stored: string;
-  /** 🔴 **Toast 由畫面層持有**：一個畫面兩個 Snackbar 會疊在同一個位置互相蓋掉。 */
+  /** 🔴 tips 走全站唯一的堆疊（`pushToast`），這一層只負責產出訊息內容。 */
   onNotify: (m: ToastMsg) => void;
+  /**
+   * 金鑰測過了 —— 把**這把金鑰拿得到的模型清單**交出去。
+   * 🔴 呼叫端會拿它自動挑一個模型再測一次（Peter 2026-08-26：
+   * 「測試一成功後，也自動挑個預設模型，也測試」）——
+   * 金鑰通得過不代表送得出去（餘額不足就是這樣）。
+   */
+  onPassed: (models: string[]) => void;
 }) {
   const qc = useQueryClient();
   /**
@@ -46,9 +54,14 @@ export function KeyField({
     mutationFn: () => (dirty ? testAndSaveKey(p.id, real) : testStoredKey(p.id)),
     onError: () => onNotify({ severity: 'warning', text: '連不上，沒有存' }),
     onSuccess: (r) => {
-      // 🔴 **失敗不用 tips。** 3 秒讀不完錯誤原文，而「把原文貼給我們」
-      // 是那 21 家 untested 唯一的修復路徑 —— 訊息必須留在畫面上。
-      if (!r.ok) return;
+      /*
+       * 🔴 **這一頁只用 tips，沒有常駐的提示訊息**（Peter 2026-08-26）。
+       * 原文不會消失 —— 它在 tips 的複製鈕裡，而錯誤類的 tips 停留 5 秒。
+       */
+      if (!r.ok) {
+        onNotify(failureToast(r.message, p.id, p.consoleUrl));
+        return;
+      }
       // 措辭與 first-run 的成功訊息一字不差 —— 同一件事在兩個入口不可以講得不一樣。
       onNotify({ severity: 'success', text: `連線成功 —— ${r.models.length} 個模型可用` });
       void qc.invalidateQueries({ queryKey: ['providerRows'] });
@@ -57,6 +70,8 @@ export function KeyField({
       // 存好了 ⇒ 回到「顯示伺服器那把的遮罩」，不要停在他剛打的那串。
       setDirty(false);
       setReal('');
+      // 金鑰過了，接著自動確認「真的送得出去」。
+      onPassed(r.models);
     },
   });
   const canTest = dirty ? Boolean(real.trim()) : p.keySet;
@@ -107,22 +122,8 @@ export function KeyField({
         disabled={!canTest}
         onClick={() => test.mutate()}
       >
-        {dirty ? '測試並存下這把新的' : '測試連線'}
+        {dirty ? '測試並儲存' : '測試連線'}
       </Button>
-      {test.data && !test.data.ok ? (
-        /*
-         * 🔴 **沒有「請把這段原文回報給我們」那句話**（Peter 2026-08-26 拿掉）——
-         * 複製鈕本身就在講同一件事，多一句只是把錯誤訊息推得更長。
-         * 那 21 家 `untested` 的修復仍然依賴原文，只是改用按鈕而不是拜託。
-         */
-        <ProviderErrorAlert
-          raw={test.data.message}
-          provider={p.id}
-          consoleUrl={p.consoleUrl}
-          onNotify={onNotify}
-          limit={600}
-        />
-      ) : null}
     </Stack>
   );
 }
