@@ -40,7 +40,18 @@ export const characterEdit = new Hono().patch('/:id', async (c) => {
   const id = safeId(c.req.param('id'));
   if (!id) return c.json({ error: '找不到這個角色' }, 404);
 
-  const parsed = EditBody.safeParse(await c.req.json());
+  /**
+   * 🔴 **`c.req.json()` 對非 JSON 會丟例外 ⇒ 500。**
+   * 500 的意思是「我壞了」，但這是**呼叫端送錯東西**，該是 400。
+   * ⚠️ 同型問題在其他 route 也有（既有 pattern），已記進 `plans/90-BACKLOG.md`。
+   */
+  let raw: unknown;
+  try {
+    raw = await c.req.json();
+  } catch {
+    return c.json({ error: '參數不合法：body 不是 JSON' }, 400);
+  }
+  const parsed = EditBody.safeParse(raw);
   if (!parsed.success)
     return c.json({ error: '參數不合法', detail: parsed.error.issues }, 400);
 

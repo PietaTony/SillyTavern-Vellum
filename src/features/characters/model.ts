@@ -35,3 +35,26 @@ export const canCreate = (d: Draft): boolean => d.name.trim().length > 0;
  */
 export const greetingsOf = (d: Draft): string[] =>
   [d.firstMessage, ...d.greetings].filter((g) => g.trim() !== '');
+
+/**
+ * 從後端的 `Character.greetings` 推出**額外問候語**（不含第一則）。
+ *
+ * 🔴 **不可以無條件 `slice(1)`。** 敵意審查 2026-08-26 抓到的資料損毀路徑：
+ * `server/lib/importCard.ts:81` 存的是
+ * `[firstMessage, ...alternateGreetings].filter(g => g.trim() !== '')`
+ * —— **那個 `filter` 讓「`greetings[0]` 就是第一則」不成立**。
+ * 卡片的 `first_mes` 是空的時候（`card.ts:119` 允許），`greetings[0]` 其實是第一則**額外**問候。
+ *
+ * 失敗劇本（未修前）：空 `first_mes` ＋ 3 則 alternate → 匯入存 `[alt1,alt2,alt3]`
+ * → `slice(1)` 只顯示 2 則、alt1 憑空消失 → 使用者**什麼都沒碰**按下開始
+ * → 送出時把顯示的那 2 則寫回 → **alt1 永久刪除**。
+ *
+ * ⇒ 用「第一則是不是真的等於 `firstMessage`」判斷，不用位置。
+ */
+export const alternatesOf = (c: {
+  greetings?: string[] | undefined;
+  firstMessage: string;
+}): string[] => {
+  const all = c.greetings ?? [];
+  return all[0] === c.firstMessage ? all.slice(1) : all;
+};

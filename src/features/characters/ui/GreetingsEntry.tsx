@@ -12,6 +12,11 @@ import ListItemText from '@mui/material/ListItemText';
  * ⇒ 與背景、供應商同一種形狀：**一列入口 → 全螢層**（Peter 2026-08-26 選的）。
  */
 export function GreetingsEntry({ count, onOpen }: { count: number; onOpen: () => void }) {
+  /*
+   * 🔴 **這個數字要與「實際會存下來的則數」一致**（敵意審查 2026-08-26）。
+   * 上一版直接用 `draft.greetings.length`，把還沒打字的空白則也算進去 ——
+   * 新增一則不打字就顯示（1），實際存 0。呼叫端負責濾。
+   */
   return (
     <ListItemButton onClick={onOpen} sx={{ px: 0 }}>
       <ListItemIcon>

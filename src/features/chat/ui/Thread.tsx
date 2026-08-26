@@ -64,16 +64,43 @@ export function Thread({
   avatar,
   name,
   onSwipe,
+  onAvatarClick,
 }: {
   messages: Message[];
   streaming: string | null;
   avatar?: string | undefined;
   name: string;
   onSwipe?: ((messageId: string, index: number) => void) | undefined;
+  /** 沒給就不綁 —— 一顆點了沒反應的頭像比不能點更糟。 */
+  onAvatarClick?: (() => void) | undefined;
 }) {
   const theirs = (key: string, text: string, message?: Message) => (
     <Stack key={key} direction="row" spacing={1.5} sx={{ alignItems: 'flex-start' }}>
-      <Avatar src={avatar} alt={name} sx={{ width: 32, height: 32, mt: 0.5 }}>
+      {/*
+       * 🔴 **點頭像進角色設定**（Peter 2026-08-26）。
+       * ⚠️ ST 點下去是開一張放大圖浮窗（實查 `script.js:12165`），**不是面板** ——
+       * 這一條是我們自己加的，不是照抄。
+       * 🔴 沒有 `onAvatarClick` 時**不可以看起來能點**：沒有游標變化、沒有 aria-label。
+       */}
+      <Avatar
+        src={avatar}
+        alt={name}
+        {...(onAvatarClick
+          ? {
+              component: 'button' as const,
+              type: 'button' as const,
+              'aria-label': `${name} 的角色設定`,
+              onClick: onAvatarClick,
+            }
+          : {})}
+        sx={{
+          width: 32,
+          height: 32,
+          mt: 0.5,
+          flex: 'none',
+          ...(onAvatarClick ? { cursor: 'pointer', border: 0, p: 0 } : {}),
+        }}
+      >
         {name.slice(0, 1)}
       </Avatar>
       <Box sx={{ borderLeft: 2, borderColor: 'vellum.blockThemRule', pl: 1.5, flex: 1 }}>

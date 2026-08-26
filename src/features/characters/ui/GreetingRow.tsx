@@ -27,6 +27,7 @@ export function GreetingRow({
   onChange,
   onMove,
   onDelete,
+  readOnly = false,
 }: {
   index: number;
   total: number;
@@ -35,6 +36,8 @@ export function GreetingRow({
   /** `-1` 上移、`+1` 下移。 */
   onMove: (delta: number) => void;
   onDelete: () => void;
+  /** 🔴 唯讀時**整組控制項都不出現**，不是停用 —— 一排灰掉的鈕只是噪音。 */
+  readOnly?: boolean;
 }) {
   return (
     <Box>
@@ -42,25 +45,29 @@ export function GreetingRow({
         <Typography variant="subtitle2" sx={{ flex: 1 }}>
           第 {index + 1} 則
         </Typography>
-        <IconButton
-          size="small"
-          aria-label={`第 ${index + 1} 則往上移`}
-          disabled={index === 0}
-          onClick={() => onMove(-1)}
-        >
-          <ArrowUpwardIcon fontSize="small" />
-        </IconButton>
-        <IconButton
-          size="small"
-          aria-label={`第 ${index + 1} 則往下移`}
-          disabled={index === total - 1}
-          onClick={() => onMove(1)}
-        >
-          <ArrowDownwardIcon fontSize="small" />
-        </IconButton>
-        <IconButton size="small" aria-label={`刪除第 ${index + 1} 則`} onClick={onDelete}>
-          <DeleteOutlineIcon fontSize="small" />
-        </IconButton>
+        {readOnly ? null : (
+          <>
+            <IconButton
+              size="small"
+              aria-label={`第 ${index + 1} 則往上移`}
+              disabled={index === 0}
+              onClick={() => onMove(-1)}
+            >
+              <ArrowUpwardIcon fontSize="small" />
+            </IconButton>
+            <IconButton
+              size="small"
+              aria-label={`第 ${index + 1} 則往下移`}
+              disabled={index === total - 1}
+              onClick={() => onMove(1)}
+            >
+              <ArrowDownwardIcon fontSize="small" />
+            </IconButton>
+            <IconButton size="small" aria-label={`刪除第 ${index + 1} 則`} onClick={onDelete}>
+              <DeleteOutlineIcon fontSize="small" />
+            </IconButton>
+          </>
+        )}
       </Box>
       <DraftField
         noDraft="整個陣列由 AddFriendScreen 存成一筆；逐則存會在排序後還原成錯的那一則"
@@ -71,6 +78,8 @@ export function GreetingRow({
         value={value}
         onChange={onChange}
         placeholder="這一則開場白的內容"
+        // 🔴 `readOnly` 不是 `disabled`：長文字灰掉會很難讀，而這裡的重點就是讀。
+        slotProps={{ input: { readOnly } }}
       />
     </Box>
   );

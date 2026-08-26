@@ -7,6 +7,7 @@ import {
   ADD_FRIEND_DRAFT,
   AddFriendForm,
   AddFriendSubmit,
+  alternatesOf,
   type Draft,
   emptyDraft,
   GreetingsSection,
@@ -116,13 +117,8 @@ export function AddFriendScreen({ onBack }: { onBack: () => void }) {
             description: c.description,
             firstMessage: c.firstMessage,
             avatar: c.avatar,
-            /*
-             * 🔴 **`c.greetings` 含第一則**（`importCard.ts:81` 存的是
-             * `[firstMessage, ...alternateGreetings]`）⇒ 這裡要 `slice(1)`。
-             * 表單這一層與 ST 的 `alternate_greetings` 對齊：**不含第一則**，
-             * 使用者看到的編號才等於陣列索引。
-             */
-            greetings: (c.greetings ?? []).slice(1),
+            // 🔴 **不可以無條件 `slice(1)`** —— 理由與失敗劇本見 `model.ts` 的 `alternatesOf`。
+            greetings: alternatesOf(c),
           });
         }}
       />

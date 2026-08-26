@@ -1,4 +1,4 @@
-import { useMutation } from '@tanstack/react-query';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from '@tanstack/react-router';
 import {
   createCharacter,
@@ -19,6 +19,7 @@ import { createChat } from '@/features/chat';
  */
 export function useAddFriendFinish(onDone: () => void) {
   const nav = useNavigate();
+  const qc = useQueryClient();
 
   /** 從零建立：建角色 → 開對話 → 進對話串（F22–F28：按下去直接開始對話）。 */
   const create = useMutation({
@@ -40,10 +41,29 @@ export function useAddFriendFinish(onDone: () => void) {
   const finishImported = useMutation({
     mutationFn: async (v: { imported: ImportedCharacter; draft: Draft }) => {
       const greetings = greetingsOf(v.draft);
-      await updateCharacter(v.imported.id, { greetings });
+      /**
+       * 🔴 **四個欄位都要送，不是只送 greetings**（敵意審查 2026-08-26 抓到）。
+       * 匯入之後那四個框**仍然可以編輯**，但上一版只寫回 `greetings` ⇒
+       *   ① 改過的名稱／描述／頭像**靜默丟掉**，而且 `onDone()` 會把草稿一起清掉
+       *   ② 更陰的：`greetingsOf` 會把新的初始訊息放進 `greetings[0]`，
+       *      但 `firstMessage` 欄位沒送 ⇒ **同一份 JSON 兩個欄位各講各話**
+       *      （`chats.ts` 開場讀 greetings、清單 fallback 讀 firstMessage）。
+       * 🔴 名字寫 `displayName`，**永不寫回卡片的 `name`**（D-h）。
+       */
+      await updateCharacter(v.imported.id, {
+        displayName: v.draft.name,
+        description: v.draft.description,
+        firstMessage: v.draft.firstMessage,
+        avatar: v.draft.avatar,
+        greetings,
+      });
       return { id: v.imported.id, count: greetings.length };
     },
     onSuccess: (r) => {
+      // 🔴 好友列表用快取的 `greetingCount` 決定要不要進「選開場」（staleTime 30s）
+      //    ⇒ 不失效的話，30 秒內會照舊值走。
+      void qc.invalidateQueries({ queryKey: ['characters'] });
+      void qc.invalidateQueries({ queryKey: ['character', r.id] });
       onDone();
       // 🔴 只有一則就沒什麼好選的，直接回列表（多開一張「選開場」的空畫面是死路）。
       if (r.count > 1)

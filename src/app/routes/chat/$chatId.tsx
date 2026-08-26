@@ -8,7 +8,7 @@ import { ChatFailure } from '@/app/screens/ChatFailure';
 import { ChatMenu } from '@/app/screens/ChatMenu';
 import { useBack } from '@/app/screens/useBack';
 import { useChatBackgroundOverride } from '@/app/screens/useChatBackgroundOverride';
-import { fetchCharacter } from '@/features/characters';
+import { CharacterLayer, fetchCharacter } from '@/features/characters';
 import {
   appendMessage,
   Composer,
@@ -37,6 +37,8 @@ function ChatPage() {
   // 🔴 這一間自己的背景蓋過全站那張。**必須在所有早退之前**呼叫（理由見該檔檔頭）。
   useChatBackgroundOverride(q.data?.background, q.data?.backgroundFitting);
 
+  // 點對方頭像開的角色設定層。🔴 對話中唯讀（Peter 2026-08-26）。
+  const [showChar, setShowChar] = useState(false);
   const [local, setLocal] = useState<Message[] | null>(null);
   const [streaming, setStreaming] = useState<string | null>(null);
   const [failure, setFailure] = useState<string | null>(null);
@@ -133,6 +135,13 @@ function ChatPage() {
         avatar={char.data?.avatar || undefined}
         name={q.data.characterName}
         onSwipe={(messageId, index) => void swipe.mutate({ messageId, index })}
+        onAvatarClick={() => setShowChar(true)}
+      />
+      <CharacterLayer
+        open={showChar}
+        onClose={() => setShowChar(false)}
+        characterId={q.data.characterId}
+        readOnly
       />
       {failure ? <ChatFailure message={failure} onDismiss={() => setFailure(null)} /> : null}
     </Screen>

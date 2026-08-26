@@ -30,9 +30,12 @@ export function GreetingsLayer({
   onClose,
   greetings,
   onChange,
+  readOnly = false,
 }: {
   open: boolean;
   onClose: () => void;
+  /** 🔴 對話中是唯讀（Peter 2026-08-26：「ST 不能對話中編輯的話，對話中編輯的功能就先鎖起來」）。 */
+  readOnly?: boolean;
   /** 🔴 **不含第一則問候**（與 ST 的 `alternate_greetings` 同語意）。 */
   greetings: string[];
   onChange: (next: string[]) => void;
@@ -59,9 +62,11 @@ export function GreetingsLayer({
       title={`額外問候語（${greetings.length}）`}
       onClose={onClose}
       action={
-        <Button size="small" startIcon={<AddIcon />} onClick={() => onChange([...greetings, ''])}>
-          新增
-        </Button>
+        readOnly ? null : (
+          <Button size="small" startIcon={<AddIcon />} onClick={() => onChange([...greetings, ''])}>
+            新增
+          </Button>
+        )
       }
     >
       <Stack spacing={2.5}>
@@ -70,7 +75,7 @@ export function GreetingsLayer({
         </Typography>
         {greetings.length === 0 ? (
           <Typography variant="body2" color="text.secondary" sx={{ py: 4, textAlign: 'center' }}>
-            還沒有額外問候語。用右上角的「新增」加一則。
+            {readOnly ? '這位角色沒有額外問候語。' : '還沒有額外問候語。用右上角的「新增」加一則。'}
           </Typography>
         ) : null}
         {greetings.map((g, i) => (
@@ -85,6 +90,7 @@ export function GreetingsLayer({
             onChange={(v) => at(i, v)}
             onMove={(d) => move(i, d)}
             onDelete={() => setConfirming(i)}
+            readOnly={readOnly}
           />
         ))}
       </Stack>

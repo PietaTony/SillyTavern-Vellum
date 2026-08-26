@@ -11,20 +11,27 @@ import { GreetingsLayer } from './GreetingsLayer';
 export function GreetingsSection({
   greetings,
   onChange,
+  readOnly = false,
 }: {
   /** 🔴 **不含第一則問候**（與 ST 的 `alternate_greetings` 同語意）。 */
   greetings: string[];
   onChange: (next: string[]) => void;
+  readOnly?: boolean;
 }) {
   const [open, setOpen] = useState(false);
   return (
     <>
-      <GreetingsEntry count={greetings.length} onOpen={() => setOpen(true)} />
+      {/* 🔴 濾掉空白才算數 —— 見 `GreetingsEntry` 檔頭。 */}
+      <GreetingsEntry
+        count={greetings.filter((g) => g.trim() !== '').length}
+        onOpen={() => setOpen(true)}
+      />
       <GreetingsLayer
         open={open}
         onClose={() => setOpen(false)}
         greetings={greetings}
         onChange={onChange}
+        readOnly={readOnly}
       />
     </>
   );

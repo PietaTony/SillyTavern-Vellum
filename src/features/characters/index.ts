@@ -16,9 +16,10 @@ export {
   updateCharacter,
 } from './api';
 export { loadAddFriendDraft } from './draftMigration';
-export { canCreate, type Draft, emptyDraft, greetingsOf } from './model';
+export { alternatesOf, canCreate, type Draft, emptyDraft, greetingsOf } from './model';
 export { ADD_FRIEND_DRAFT, AddFriendForm } from './ui/AddFriendForm';
 export { AddFriendSubmit } from './ui/AddFriendSubmit';
+export { CharacterLayer } from './ui/CharacterLayer';
 export { type FriendItem, FriendList } from './ui/FriendList';
 export { GreetingsSection } from './ui/GreetingsSection';
 export { ImportCardBox } from './ui/ImportCardBox';
