@@ -10,7 +10,10 @@ const MB = 1024 * 1024;
  * `.use('/api/*', bodyLimit(8MB))` 之後再 `.use('/api/backgrounds', bodyLimit(32MB))`，
  * **兩道都會跑**，小的先丟 413 ⇒ 那三條「放大」的宣稱全部是假的。
  * 兩行單獨看都對，而且沒有任何單元測試會送 10 MB 進來。
- * ⇒ 這裡守兩件事：**① 對照表是對的 ② `server/index.ts` 只掛一道**。
+ * ⇒ 這裡守兩件事：**① 對照表是對的 ② `server/app.ts` 只掛一道**。
+ * ⚠️ **2026-08-26：標的從 `index.ts` 搬到 `app.ts`**（組 app 與啟動拆開了）。
+ *    這種「掃原始碼」的測試在檔案搬家時會靜靜失效 —— 這次它紅了所以被抓到，
+ *    但下次搬家時要記得跟著改，不要只讓它通過。
  */
 describe('sizeFor —— 每條路徑的上限', () => {
   it.each([
@@ -28,11 +31,11 @@ describe('sizeFor —— 每條路徑的上限', () => {
   });
 });
 
-describe('server/index.ts', () => {
+describe('server/app.ts', () => {
   it('🔴 body 上限只准掛一道 —— 疊第二道的話小的會先丟 413', () => {
     // ⚠️ **不要用 `import.meta.url`** —— vitest 底下它不是 `file:` scheme，
     //    `new URL(...)` 會丟 `TypeError`，而那發生在測試裡＝這條規則等於沒守到。
-    const src = readFileSync(resolve(process.cwd(), 'server/index.ts'), 'utf8');
+    const src = readFileSync(resolve(process.cwd(), 'server/app.ts'), 'utf8');
     // 註解裡會提到 bodyLimit，所以只數「真的掛上去」的那種寫法。
     const mounted = src.match(/\.use\([^)]*(?:bodyLimit|apiBodyLimit)/g) ?? [];
     expect(mounted).toHaveLength(1);

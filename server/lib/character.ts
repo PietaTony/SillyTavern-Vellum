@@ -53,6 +53,16 @@ export const CharacterSchema = z.object({
       hash: z.string(),
     })
     .optional(),
+  /**
+   * 🔴 **「我同意執行這張卡的腳本」——綁在版本上，不是綁在卡片上。**
+   * `hash` 是盤點時算的內容指紋：卡片更新後指紋會變 ⇒ 重新詢問（供應鏈防線）。
+   * `externals` 是同意當下那些外連網域（Peter 2026-08-26 裁「乙」）——
+   * ⚠️ 指紋**蓋不到 CDN**：卡片寫 `import 'https://…'`，那份 code 在對方手上隨時會變。
+   *    所以外連要另外記、另外問。
+   */
+  scriptsConsent: z
+    .object({ hash: z.string(), externals: z.array(z.string()), at: z.string() })
+    .optional(),
   /** 第 2 層 · 「跟這個好友，我是誰」。可空＝往下找全域預設。 */
   personaId: z.string().optional(),
   /**

@@ -61,5 +61,17 @@ export function blockExternalMedia(html: string): string {
     if (!external) continue;
     el.replaceWith(holder(doc, '（外部圖片已封鎖）'));
   }
+  /**
+   * 🔴 **`style="background:url(…)"` 也是一條外連**（敵意審查 2026-08-26 指出）。
+   * 上一版只掃 `src`／`srcset` 這類屬性，於是**不用一行 JS**、只要一個 `<div style>`
+   * 就能在使用者打開訊息的瞬間把 IP 與時間打回外部伺服器。
+   * DOMPurify 預設**放行** `style` 屬性，所以這裡要自己收。
+   * ⚠️ 只拿掉那個屬性、不刪元素 —— 元素本身可能是正文的容器。
+   */
+  for (const el of Array.from(doc.body.querySelectorAll('[style]'))) {
+    const css = el.getAttribute('style') ?? '';
+    const urls = [...css.matchAll(/url\(\s*['"]?([^'")]+)/gi)].map((m) => m[1] ?? '');
+    if (urls.some(isExternal)) el.removeAttribute('style');
+  }
   return doc.body.innerHTML;
 }

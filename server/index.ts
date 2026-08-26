@@ -1,72 +1,10 @@
-/**
- * 後端入口。🔴 **刻意不重現 ST 的 `server-main.js`** ——
- * 它一次掛 47 個 router，實測相依閉包等於整個 `src/`（87 檔 32,348 行 ＝ 100%）。
- * 這裡只掛用得到的，需要什麼加什麼。
- */
 import { serve } from '@hono/node-server';
-import { Hono } from 'hono';
-import { apiBodyLimit } from './lib/bodyLimits.ts';
-import { hostGuard } from './lib/hostGuard.ts';
 import { distExists, mountStatic } from './static.ts';
-import { personas } from './routes/personas.ts';
-import { secrets } from './routes/secrets.ts';
-import { providerTests } from './routes/providerTests.ts';
-import { characters } from './routes/characters.ts';
-import { characterMedia } from './routes/characterMedia.ts';
-import { characterEdit } from './routes/characterEdit.ts';
-import { backgrounds } from './routes/backgrounds.ts';
-import { chatBackground } from './routes/chatBackground.ts';
-import { charWorld } from './routes/world.ts';
-import { worlds } from './routes/worlds.ts';
-import { chats } from './routes/chats.ts';
-import { chatImport } from './routes/chatImport.ts';
-import { generate } from './routes/generate.ts';
-import { update } from './routes/update.ts';
 import { currentVersion } from './lib/version.ts';
 import { describeData } from './lib/storage.ts';
 import { seedBackgrounds } from './lib/backgroundSeed.ts';
+import { app } from './app.ts';
 
-/**
- * 🔴 **body 上限只有一道，大小按路徑決定** —— 見 `lib/bodyLimits.ts` 檔頭。
- * 疊兩道 `bodyLimit` 的話**兩道都會跑**，小的先丟 413，
- * 於是「放大」的那幾條全部是假的（敵意審查 2026-08-26 用 curl 實測抓到）。
- */
-const app = new Hono()
-  .use('*', hostGuard())
-  .use('/api/*', apiBodyLimit())
-  .get('/api/version', (c) => c.json({ ok: true, name: 'vellum', version: currentVersion() }))
-  .route('/api/secrets', secrets)
-  // 🔴 三支「真的會往外發請求」的端點，與純本機讀寫的 secrets 分開（見該檔檔頭）。
-  .route('/api/secrets', providerTests)
-  .route('/api/personas', personas)
-  .route('/api/characters', characters)
-  // 同一個前綴掛兩支：角色本體與世界書副本是兩種節奏的東西，分開比較好讀。
-  .route('/api/characters', charWorld)
-  .route('/api/worlds', worlds)
-  .route('/api/characters', characterMedia)
-  // 同前綴再掛一支：建立與「就地修改」風險不同，分開比較好審（見該檔檔頭）。
-  .route('/api/characters', characterEdit)
-  .route('/api/chats', chats)
-  .route('/api/chats', chatImport)
-  // 同一個前綴掛兩支的理由見 `chatBackground.ts` 檔頭（`chats.ts` 已逼近 150 行上限）。
-  .route('/api/chats', chatBackground)
-  .route('/api/backgrounds', backgrounds)
-  .route('/api/generate', generate)
-  .route('/api/update', update)
-  /**
-   * 🔴 **一處守全部**（GAP-69）。`c.req.json()` 對非 JSON body 丟 `SyntaxError`，
-   * 沒攔就是 **500** —— 而 500 的意思是「我壞了」，這其實是**呼叫端送錯東西**、該回 400。
-   * 全 repo 有 17 處 `await c.req.json()`，逐處包 try/catch 會漏掉下一個新增的
-   * ⇒ 在這裡收，新的 route 自動受保護。
-   * 🔴 順便把其餘未捕捉的例外收斂成一句話 —— 預設會把 stack 吐給呼叫端。
-   */
-  .onError((err, c) => {
-    if (err instanceof SyntaxError) return c.json({ error: '參數不合法：body 不是 JSON' }, 400);
-    console.error('[vellum] 未預期的錯誤：', err);
-    return c.json({ error: '伺服器內部錯誤' }, 500);
-  });
-
-export type AppType = typeof app;
 
 // 🔴 **只有 production 才端前端。** 判斷不能只看「dist/ 在不在」——
 // dev 期間 dist/ 通常也在（build 過一次就留著），那會讓後端端出一份**過期的打包版**：

@@ -125,3 +125,18 @@ describe('外部媒體封鎖（⑤e，同 ST forbid_external_media 預設開）'
     expect(toHtml('<iframe src="https://evil.example"></iframe>')).not.toContain('evil.example');
   });
 });
+
+describe('style 屬性裡的 url() 也是外連（不用一行 JS 就能送信標）', () => {
+  it('🔴 background:url(外部) 要被拿掉', () => {
+    const out = toHtml('<div style="background:url(https://evil.example/p.png)">內容</div>');
+    expect(out).not.toContain('evil.example');
+    // 元素本身要留著 —— 它可能是正文的容器
+    expect(out).toContain('內容');
+  });
+
+  it('本機的 url() 不動（擋過頭會讓卡片自己的排版壞掉）', () => {
+    expect(toHtml('<div style="background:url(/backgrounds/a.jpg)">x</div>')).toContain(
+      '/backgrounds/a.jpg',
+    );
+  });
+});
