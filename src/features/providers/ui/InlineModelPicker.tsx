@@ -3,6 +3,7 @@ import MenuItem from '@mui/material/MenuItem';
 import { useQuery } from '@tanstack/react-query';
 import { DraftField } from '@/shared/ui/DraftField';
 import type { ToastMsg } from '@/shared/ui/Toast';
+import { effectiveModel, isOffList, modelOptions } from '../modelOptions';
 import { fetchModels } from '../registryApi';
 import { useModelTest } from '../useModelTest';
 
@@ -22,19 +23,29 @@ import { useModelTest } from '../useModelTest';
  */
 export function InlineModelPicker({
   provider,
-  value,
+  chosen,
+  fallback,
   onNotify,
+  consoleUrl,
 }: {
   provider: string;
-  value: string;
+  /** 使用者**選過**的那個。沒選過是 `null` —— 不要傳 registry 的預設進來。 */
+  chosen: string | null;
+  /** 連清單都拿不到時的占位（registry 那份）。 */
+  fallback: string;
   onNotify: (m: ToastMsg) => void;
+  /** 沒有帳單頁的那幾家，「去儲值」退回這個網址。 */
+  consoleUrl: string;
 }) {
   const q = useQuery({ queryKey: ['models', provider], queryFn: () => fetchModels(provider) });
-  const test = useModelTest(provider, onNotify);
+  const test = useModelTest(provider, onNotify, consoleUrl);
 
   if (q.isPending) return <CircularProgress size={14} />;
   // 沒有清單端點（或這把金鑰拉不到清單）⇒ 交回給呼叫端顯示純文字。
   if (!q.data?.ok) return null;
+  // narrowing 在 JSX 的 callback 裡會失效 —— 先取出來。
+  const { models } = q.data;
+  const value = effectiveModel(chosen, models, fallback);
 
   return (
     <>
@@ -52,9 +63,10 @@ export function InlineModelPicker({
         slotProps={{ input: { onClick: (e) => e.stopPropagation() } }}
         sx={{ minWidth: 200, maxWidth: '100%' }}
       >
-        {q.data.models.map((m) => (
+        {modelOptions(models, value).map((m) => (
           <MenuItem key={m} value={m}>
             {m}
+            {isOffList(models, m) ? '（清單裡沒有）' : ''}
           </MenuItem>
         ))}
       </DraftField>

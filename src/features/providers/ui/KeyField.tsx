@@ -1,4 +1,3 @@
-import Alert from '@mui/material/Alert';
 import Button from '@mui/material/Button';
 import Stack from '@mui/material/Stack';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
@@ -8,6 +7,7 @@ import type { ToastMsg } from '@/shared/ui/Toast';
 import { applyMaskedEdit, maskKey } from '../model';
 import { type ProviderRow, testAndSaveKey, testStoredKey } from '../registryApi';
 import { keyOkAdornment } from './KeyOk';
+import { ProviderErrorAlert } from './ProviderErrorAlert';
 
 /**
  * 貼金鑰並測試連線。
@@ -110,11 +110,18 @@ export function KeyField({
         {dirty ? '測試並存下這把新的' : '測試連線'}
       </Button>
       {test.data && !test.data.ok ? (
-        <Alert severity="warning">
-          測試沒有通過：{test.data.message}
-          {/* 🔴 `untested` 的那 21 家要引導使用者回報「錯誤原文」——沒有原文修不動 */}
-          {p.status === 'untested' ? '（請把這段原文回報給我們）' : ''}
-        </Alert>
+        /*
+         * 🔴 **沒有「請把這段原文回報給我們」那句話**（Peter 2026-08-26 拿掉）——
+         * 複製鈕本身就在講同一件事，多一句只是把錯誤訊息推得更長。
+         * 那 21 家 `untested` 的修復仍然依賴原文，只是改用按鈕而不是拜託。
+         */
+        <ProviderErrorAlert
+          raw={test.data.message}
+          provider={p.id}
+          consoleUrl={p.consoleUrl}
+          onNotify={onNotify}
+          limit={600}
+        />
       ) : null}
     </Stack>
   );

@@ -6,8 +6,10 @@ import Stack from '@mui/material/Stack';
 import { useQuery } from '@tanstack/react-query';
 import { DraftField } from '@/shared/ui/DraftField';
 import type { ToastMsg } from '@/shared/ui/Toast';
+import { effectiveModel, isOffList, modelOptions } from '../modelOptions';
 import { fetchModels } from '../registryApi';
 import { useModelTest } from '../useModelTest';
+import { ProviderErrorAlert } from './ProviderErrorAlert';
 
 /**
  * 選模型（規格 §6 優先序 2、驗收 B3）。
@@ -35,19 +37,31 @@ import { useModelTest } from '../useModelTest';
  */
 export function ModelPicker({
   provider,
-  value,
+  chosen,
+  fallback,
   onChange,
   onNotify,
+  consoleUrl,
 }: {
   provider: string;
-  value: string;
+  /** 使用者**選過**的那個。沒選過是 `null`。 */
+  chosen: string | null;
+  /** 連清單都拿不到時的占位（registry 那份）。 */
+  fallback: string;
   onChange: (model: string) => void;
   onNotify: (m: ToastMsg) => void;
+  consoleUrl: string;
 }) {
   const q = useQuery({ queryKey: ['models', provider], queryFn: () => fetchModels(provider) });
-  const test = useModelTest(provider, onNotify);
+  const test = useModelTest(provider, onNotify, consoleUrl);
 
   if (q.isPending) return <CircularProgress size={20} />;
+  /*
+   * 🔴 **有清單就用清單的第一個當預設，不是 registry 那份**（Peter 2026-08-26 甲案）。
+   * registry 的預設是一個會過期的猜測 —— 只在拿不到清單時才用得上。
+   */
+  const models = q.data?.ok ? q.data.models : [];
+  const value = effectiveModel(chosen, models, fallback);
 
   const manual = q.data && !q.data.ok;
   return (
@@ -80,15 +94,14 @@ export function ModelPicker({
             test.mutate(m);
           }}
           helperText={
-            test.isPending
-              ? '測試中…'
-              : `${q.data?.ok ? q.data.models.length : 0} 個可用 · 選了就自動測試，通過才會存`
+            test.isPending ? '測試中…' : `${models.length} 個可用 · 選了就自動測試，通過才會存`
           }
           slotProps={{ input: spinner(test.isPending) }}
         >
-          {(q.data?.ok ? q.data.models : []).map((m) => (
+          {modelOptions(models, value).map((m) => (
             <MenuItem key={m} value={m}>
               {m}
+              {isOffList(models, m) ? '（清單裡沒有）' : ''}
             </MenuItem>
           ))}
         </DraftField>
@@ -98,9 +111,12 @@ export function ModelPicker({
        * （Google 自己會在錯誤訊息裡建議替代型號）—— 3 秒的提示讀不完那句話。
        */}
       {test.data?.ok === false ? (
-        <Alert severity="warning">
-          這個模型測不過，沒有存。錯誤原文：{test.data.message.slice(0, 300)}
-        </Alert>
+        <ProviderErrorAlert
+          raw={test.data.message}
+          provider={provider}
+          consoleUrl={consoleUrl}
+          onNotify={onNotify}
+        />
       ) : null}
     </Stack>
   );

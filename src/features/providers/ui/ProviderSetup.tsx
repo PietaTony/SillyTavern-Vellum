@@ -27,7 +27,9 @@ import { PlannedNote } from './PlannedNote';
 export function ProviderSetup({ p }: { p: ProviderRow }) {
   // 🔴 遮罩預覽（前四後四）。只有在這裡讀 —— 它是全專案唯一回金鑰衍生資料的端點。
   const preview = useQuery({ queryKey: ['keyPreview'], queryFn: fetchKeyPreviews });
-  const [model, setModel] = useState(p.model ?? p.defaultModel);
+  // 🔴 存的是「使用者選過的那個」，沒選過就是 `null` —— 不要在這裡塞 registry 預設，
+  //    那會讓 `ModelPicker` 分不出「他選了預設那個」與「他還沒選」。
+  const [model, setModel] = useState<string | null>(p.model);
   // 🔴 **這個畫面只有一個 tips**：金鑰與模型共用，兩個 Snackbar 會疊在一起。
   const [toast, setToast] = useState<ToastMsg>(null);
 
@@ -63,7 +65,14 @@ export function ProviderSetup({ p }: { p: ProviderRow }) {
        * 擺一個選不了的下拉在那裡，比不擺更像壞掉。
        */}
       {p.keySet ? (
-        <ModelPicker provider={p.id} value={model} onChange={setModel} onNotify={setToast} />
+        <ModelPicker
+          provider={p.id}
+          chosen={model}
+          fallback={p.defaultModel}
+          onChange={setModel}
+          onNotify={setToast}
+          consoleUrl={p.consoleUrl}
+        />
       ) : null}
 
       <Toast msg={toast} onClose={() => setToast(null)} />

@@ -79,22 +79,13 @@ function ProvidersPage() {
              * 給一顆測了必失敗的按鈕，就是回到「選了、照做了、然後出不去」那條死路。
              */
             onOpen={() => void nav({ to: '/settings/providers/$id', params: { id: p.id } })}
-            /*
-             * 🔴 **沒有金鑰的不去打後端，直接帶他去設定。**
-             * 後端那道守衛留著（機械保證），但 UI 不該讓人先撞一次牆才知道要去哪裡。
-             */
             onNotify={setToast}
-            onPick={() => {
-              if (!p.keySet) {
-                setToast({
-                  severity: 'info',
-                  text: `先設定 ${p.displayName} 的金鑰，測試通過後就能用它對話`,
-                });
-                void nav({ to: '/settings/providers/$id', params: { id: p.id } });
-                return;
-              }
-              pick.mutate(p.id);
-            }}
+            /*
+             * 沒金鑰與 planned 的 radio 已經停用 ⇒ 這裡只會收到「可以用」的那幾家。
+             * 🔴 **後端那道守衛照樣留著**（`PUT /api/secrets/active/:provider` 會擋）——
+             * UI 停用只是體感，不是保證；能打 UI 的人也能直接打 API。
+             */
+            onPick={() => pick.mutate(p.id)}
           />
         ))}
       </List>

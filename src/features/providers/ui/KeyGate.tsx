@@ -32,7 +32,8 @@ export function KeyGate({
   onPassed: () => void;
 }) {
   // 預設就是 registry 的預設模型；選了會由 `ModelPicker` 自己存下來。
-  const [model, setModel] = useState(DEFAULT_MODEL_BY_PROVIDER[info.id] ?? '');
+  // 沒選過是 `null`；`ModelPicker` 會用官方清單的第一個當預設。
+  const [model, setModel] = useState<string | null>(null);
   const [toast, setToast] = useState<ToastMsg>(null);
   const [state, send] = useMachine(
     keyGateMachine.provide({
@@ -123,7 +124,14 @@ export function KeyGate({
         {passed ? (
           <>
             <Alert severity="success">連線成功 —— {state.context.models.length} 個模型可用</Alert>
-            <ModelPicker provider={info.id} value={model} onChange={setModel} onNotify={setToast} />
+            <ModelPicker
+              provider={info.id}
+              chosen={model}
+              fallback={DEFAULT_MODEL_BY_PROVIDER[info.id] ?? ''}
+              onChange={setModel}
+              onNotify={setToast}
+              consoleUrl={info.consoleUrl}
+            />
           </>
         ) : null}
         <Toast msg={toast} onClose={() => setToast(null)} />

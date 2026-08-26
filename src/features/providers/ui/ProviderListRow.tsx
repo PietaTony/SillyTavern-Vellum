@@ -17,11 +17,12 @@ import { InlineModelPicker } from './InlineModelPicker';
  * 不擋的話點一下會同時「切換」＋「跳頁」，而使用者只會看到跳頁 ——
  * 切換成功與否完全看不到。
  *
- * 🔴 **只有 `planned` 的四家 radio 停用**（真的送不出去，內頁的 `PlannedNote` 會說還缺什麼）。
- * **「還沒有金鑰」的那些 radio 照樣可以點** —— 點了帶他去設定該家的金鑰。
- * ⚠️ 初版把它們一起停用，畫面上就是 25 顆灰掉的圓鈕、沒有任何說明 ——
- * 那是「畫出引擎不支援的控制項」的鏡像：**畫出一個不告訴你為什麼不能用的控制項**。
- * 本專案的原則是每個死路都要有出口，停用的控制項給不出出口。
+ * 🔴 **不能用的 radio 一律停用**：`planned`（送不出去）與**沒有金鑰**的都算
+ * （Peter 2026-08-26 裁定，推翻了我「沒金鑰的可以點、點了帶去設定」那一版）。
+ * ⚠️ 🔴 **停用的 radio 預設是一塊死區** —— 實測點下去 URL 完全不變，
+ * 既不切換也不進設定頁。**那比灰圓鈕更糟**：使用者以為自己點到了什麼。
+ * ⇒ 停用時加 `pointerEvents: 'none'`，讓點擊落到外層的 `ListItemButton`，
+ * 照樣進得去設定頁。出口還在，只是不再假裝那顆圓鈕可以選。
  */
 export function ProviderListRow({
   p,
@@ -35,8 +36,8 @@ export function ProviderListRow({
   onNotify: (m: ToastMsg) => void;
 }) {
   const copy = STATUS_COPY[p.status];
-  // 🔴 只有 planned 是真的不能碰；沒金鑰是「還沒設定」，那是要引導不是要停用。
-  const blocked = p.status === 'planned';
+  // 送不出去（planned）或送出去必失敗（沒金鑰）—— 兩種都不給選。
+  const blocked = p.status === 'planned' || !p.keySet;
 
   return (
     <ListItemButton onClick={onOpen}>
@@ -52,7 +53,7 @@ export function ProviderListRow({
         slotProps={{
           input: { 'aria-label': `用 ${p.displayName} 對話` },
         }}
-        sx={{ mr: 1 }}
+        sx={{ mr: 1, ...(blocked ? { pointerEvents: 'none' } : {}) }}
       />
       <ListItemText
         primary={p.displayName}
@@ -70,14 +71,21 @@ export function ProviderListRow({
                */}
               <InlineModelPicker
                 provider={p.id}
-                value={p.model ?? p.defaultModel}
+                chosen={p.model}
+                fallback={p.defaultModel}
                 onNotify={onNotify}
+                consoleUrl={p.consoleUrl}
               />
             </Stack>
           ) : p.model ? (
             `模型 ${p.model}`
           ) : (
-            `預設模型 ${p.defaultModel}`
+            /*
+             * 🔴 **沒選過就標「未驗證」**：`defaultModel` 是 registry 寫死的猜測，
+             * 而那份會過期（實測 Anthropic 的 `claude-sonnet-4-5` 已下架）。
+             * 標出來比假裝它是事實好。
+             */
+            `預設模型 ${p.defaultModel}（未驗證）`
           )
         }
         slotProps={{ secondary: { variant: 'caption', component: 'div' } }}
