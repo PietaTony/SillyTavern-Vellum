@@ -2,11 +2,11 @@ import Alert from '@mui/material/Alert';
 import Button from '@mui/material/Button';
 import CircularProgress from '@mui/material/CircularProgress';
 import MenuItem from '@mui/material/MenuItem';
-import Snackbar from '@mui/material/Snackbar';
 import Stack from '@mui/material/Stack';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { DraftField } from '@/shared/ui/DraftField';
+import { Toast, type ToastMsg } from '@/shared/ui/Toast';
 import { fetchModels, testModel } from '../registryApi';
 
 /**
@@ -34,15 +34,17 @@ export function ModelPicker({
 }) {
   const qc = useQueryClient();
   const q = useQuery({ queryKey: ['models', provider], queryFn: () => fetchModels(provider) });
-  const [toast, setToast] = useState<string | null>(null);
+  const [toast, setToast] = useState<ToastMsg>(null);
 
   const test = useMutation({
     mutationFn: () => testModel(provider, value.trim()),
     onSuccess: (r) => {
-      setToast(r.ok ? `測試成功，已存：${r.model}` : `測試沒有通過：${r.message.slice(0, 120)}`);
+      // 🔴 只有成功走 tips。失敗的原文留在下面那則常駐 Alert ——
+      // 3 秒的提示讀不完，而 Google 常在錯誤訊息裡直接建議替代型號。
+      if (r.ok) setToast({ severity: 'success', text: `測試成功，已存：${r.model}` });
       if (r.ok) void qc.invalidateQueries({ queryKey: ['providerRows'] });
     },
-    onError: () => setToast('連不上，沒有存'),
+    onError: () => setToast({ severity: 'warning', text: '連不上，沒有存' }),
   });
   const failed = test.data?.ok === false;
 
@@ -51,16 +53,8 @@ export function ModelPicker({
   const manual = q.data && !q.data.ok;
   return (
     <Stack spacing={2}>
-      <Snackbar
-        open={toast !== null}
-        autoHideDuration={4000}
-        onClose={() => setToast(null)}
-        anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
-      >
-        <Alert severity={test.data?.ok ? 'success' : 'warning'} variant="filled">
-          {toast}
-        </Alert>
-      </Snackbar>
+      {/* 🔴 全站唯一的 tips —— 這裡本來自己寫了一個 4 秒版，效果與別處不同。 */}
+      <Toast msg={toast} onClose={() => setToast(null)} />
 
       {manual ? (
         <>

@@ -4,8 +4,10 @@ import Stack from '@mui/material/Stack';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { DraftField } from '@/shared/ui/DraftField';
+import { Toast, type ToastMsg } from '@/shared/ui/Toast';
 import { applyMaskedEdit, maskKey } from '../model';
 import { type ProviderRow, testAndSaveKey, testStoredKey } from '../registryApi';
+import { keyOkAdornment } from './KeyOk';
 
 /**
  * 貼金鑰並測試連線。
@@ -28,13 +30,21 @@ export function KeyField({ p, stored }: { p: ProviderRow; stored: string }) {
    */
   const [real, setReal] = useState('');
   const [dirty, setDirty] = useState(false);
+  // 🔴 結果用**全站共用的 tips**，不再是欄位下方的內嵌 Alert
+  // （Peter 2026-08-26：「測試連線，成功後應該要像是測試此模型一樣，跳出 tips 的方式」）。
+  const [toast, setToast] = useState<ToastMsg>(null);
 
   const test = useMutation({
     // 動過就測新的（成功時後端順便存起來）；沒動過就測伺服器上存著的那把 ——
     // 🔴 後者**金鑰完全不離開伺服器**，比「重貼一次再測」少一次傳輸。
     mutationFn: () => (dirty ? testAndSaveKey(p.id, real) : testStoredKey(p.id)),
+    onError: () => setToast({ severity: 'warning', text: '連不上，沒有存' }),
     onSuccess: (r) => {
+      // 🔴 **失敗不用 tips。** 3 秒讀不完錯誤原文，而「把原文貼給我們」
+      // 是那 21 家 untested 唯一的修復路徑 —— 訊息必須留在畫面上。
       if (!r.ok) return;
+      // 措辭與 first-run 的成功訊息一字不差 —— 同一件事在兩個入口不可以講得不一樣。
+      setToast({ severity: 'success', text: `連線成功 —— ${r.models.length} 個模型可用` });
       void qc.invalidateQueries({ queryKey: ['providerRows'] });
       // 換了新金鑰 ⇒ 遮罩也要跟著換，不然畫面上還是舊那把的前四後四。
       void qc.invalidateQueries({ queryKey: ['keyPreview'] });
@@ -59,7 +69,14 @@ export function KeyField({ p, stored }: { p: ProviderRow; stored: string }) {
         placeholder={`貼上金鑰（${p.keyHint}）`}
         autoComplete="off"
         spellCheck={false}
-        slotProps={{ htmlInput: { autoCapitalize: 'none', autoCorrect: 'off' } }}
+        /*
+         * 🔴 打勾的條件是**伺服器上有一把測過的金鑰、而且使用者沒有正在改它**。
+         * `dirty` 的時候不打勾 —— 他手上那串還沒測過，打勾會是謊話。
+         */
+        slotProps={{
+          htmlInput: { autoCapitalize: 'none', autoCorrect: 'off' },
+          input: keyOkAdornment(!dirty && p.keySet),
+        }}
         value={dirty ? maskKey(real) : stored}
         onChange={(next) => {
           if (!dirty) {
@@ -86,16 +103,15 @@ export function KeyField({ p, stored }: { p: ProviderRow; stored: string }) {
       >
         {dirty ? '測試並存下這把新的' : '測試連線'}
       </Button>
-      {test.data?.ok ? (
-        // 🔴 措辭與 first-run 的成功訊息一字不差 —— 同一件事在兩個入口不可以講得不一樣。
-        <Alert severity="success">連線成功 —— {test.data.models.length} 個模型可用</Alert>
-      ) : test.data && !test.data.ok ? (
+      {test.data && !test.data.ok ? (
         <Alert severity="warning">
           測試沒有通過：{test.data.message}
           {/* 🔴 `untested` 的那 21 家要引導使用者回報「錯誤原文」——沒有原文修不動 */}
           {p.status === 'untested' ? '（請把這段原文回報給我們）' : ''}
         </Alert>
       ) : null}
+      {/* 成功走全站共用的 tips（Peter 2026-08-26：「像是測試此模型一樣，跳出 tips」）。 */}
+      <Toast msg={toast} onClose={() => setToast(null)} />
     </Stack>
   );
 }

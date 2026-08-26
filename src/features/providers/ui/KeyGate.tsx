@@ -11,6 +11,7 @@ import { Screen } from '@/shared/ui/Screen';
 import { testKey } from '../api';
 import { keyGateMachine, type TestOutcome } from '../keyGate.machine';
 import { applyMaskedEdit, DEFAULT_MODEL_BY_PROVIDER, maskKey, type ProviderInfo } from '../model';
+import { keyOkAdornment } from './KeyOk';
 import { KeySteps } from './KeySteps';
 import { ModelPicker } from './ModelPicker';
 
@@ -88,7 +89,11 @@ export function KeyGate({
           placeholder={`貼上金鑰（${info.keyHint}）`}
           autoComplete="off"
           spellCheck={false}
-          slotProps={{ htmlInput: { autoCapitalize: 'none', autoCorrect: 'off' } }}
+          // 🔴 與設定頁共用同一顆勾勾，兩邊不會漂移。
+          slotProps={{
+            htmlInput: { autoCapitalize: 'none', autoCorrect: 'off' },
+            input: keyOkAdornment(passed),
+          }}
           // 🔴 **輸入當下就遮罩**，永遠只露前四後四。真值在 machine 的 context 裡。
           value={maskKey(value)}
           onChange={(next) =>
