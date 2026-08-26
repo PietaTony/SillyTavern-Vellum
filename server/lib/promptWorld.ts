@@ -10,10 +10,12 @@
 import type { CharWorld } from './charWorld.ts';
 import type { Chat } from './chatModel.ts';
 import type { Persona } from './persona.ts';
+import { loadSettings } from './settings.ts';
 import { readJson } from './storage.ts';
 import { planInjection, type InjectionPlan } from './wiInject.ts';
 import { orderLayers } from './wiLayers.ts';
 import { buildScanText, selectEntries, type ScanMessage } from './wiSelect.ts';
+import type { WbEntry } from './worldbook.ts';
 
 /** 同 depth 的插入優先序。數字小的**最後插入**，因此排在最前面。 */
 export const DEPTH_PRIORITY = { world: 0, persona: 1, card: 2 } as const;
@@ -40,7 +42,21 @@ export async function worldForChat(
     ? await readJson<CharWorld | null>(`worlds/${persona.lorebookId}.json`, null)
     : null;
 
+  /**
+   * 🔴 **全域層**（Peter 2026-08-27）。「所有對話都套用」的那幾本。
+   * ⚠️ **在此之前這一層永遠是空的** —— `orderLayers()` 早就吃 `global`、
+   * 連 `CHAR_STRATEGY`（global 與 character 誰先）都照 ST 抄好了，
+   * 但沒有任何地方告訴它「哪幾本算全域」。**引擎有了、門沒有**，這裡就是那道門。
+   * 名單在 `settings.globalWorlds`（對照 ST 的 `settings.world_info.globalSelect`）。
+   */
+  const globals: WbEntry[] = [];
+  for (const b of (await loadSettings()).globalWorlds ?? []) {
+    const w = await readJson<CharWorld | null>(`worlds/${b.id}.json`, null);
+    if (w) globals.push(...w.entries);
+  }
+
   const ordered = orderLayers({
+    global: globals,
     character: own?.entries ?? [],
     persona: personaWorld?.entries ?? [],
   });

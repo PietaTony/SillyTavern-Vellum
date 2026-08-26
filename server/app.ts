@@ -22,6 +22,7 @@ import { charWorld } from './routes/world.ts';
 import { worlds } from './routes/worlds.ts';
 import { chats } from './routes/chats.ts';
 import { chatVariables } from './routes/chatVariables.ts';
+import { globalWorlds } from './routes/globalWorlds.ts';
 import { chatImport } from './routes/chatImport.ts';
 import { generate } from './routes/generate.ts';
 import { update } from './routes/update.ts';
@@ -39,6 +40,7 @@ export const app = new Hono()
   // 同一個前綴掛兩支：角色本體與世界書副本是兩種節奏的東西，分開比較好讀。
   .route('/api/characters', charWorld)
   .route('/api/worlds', worlds)
+  .route('/api/global-worlds', globalWorlds)
   .route('/api/characters', characterMedia)
   // 同前綴再掛一支：建立與「就地修改」風險不同，分開比較好審（見該檔檔頭）。
   .route('/api/characters', characterEdit)

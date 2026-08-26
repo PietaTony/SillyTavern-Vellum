@@ -7,6 +7,22 @@ import { readJson, writeJson } from './storage.ts';
 export type Settings = {
   defaultPersonaId?: string | undefined;
   /**
+   * 🔴 **哪幾本世界書是「全域」** —— 所有對話都套用（Peter 2026-08-27）。
+   * 對照 ST：`settings.world_info.globalSelect`，UI 標籤 "Active World(s) for all chats"。
+   *
+   * 六題：① `globalWorlds: { id, name }[]`（`id` 對應 `worlds/<id>.json`）
+   *    🔴 **名字存在這裡，不是存在書檔裡**：我們的世界書檔沒有書名欄位
+   *    （它原本是從卡片來的，書名等於角色）。硬把書名塞進「第一條的名稱」是個 hack，
+   *    改名時會靜靜改掉一條真的條目。
+   * ② **非加不可**：層序引擎 `orderLayers()` 早就吃 `global`，但沒有任何地方告訴它
+   *    「哪幾本算全域」⇒ 那一層永遠是空的（`/api/worlds/bindings` 自承 `wired: false`）
+   * ③ **不能用既有的**：好友那份的 id 就是 characterId，答不了「這本不屬於任何角色」
+   * ④ **對既有資料的影響：零** —— 舊 `settings.json` 讀進來是 `undefined` ⇒ 空陣列 ⇒ 行為不變
+   * ⑤ 誰讀誰寫：寫 `POST/PATCH/DELETE /api/global-worlds`；讀 `promptWorld.ts` 的 `worldForChat`
+   * ⑥ 可逆：刪掉這個鍵即回退，書檔還在（只是不再全域）
+   */
+  globalWorlds?: { id: string; name: string }[] | undefined;
+  /**
    * 每一家選好的模型。**鍵是 registry 的 provider id。**
    *
    * 🔴 加這個欄位的六題（鐵律 #11 的精神；這不是 DB 而是設定檔，但判準一樣）：

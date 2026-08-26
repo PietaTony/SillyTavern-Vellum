@@ -49,6 +49,13 @@ export type WbEntry = {
   raw?: Record<string, unknown>;
 };
 
+/**
+ * 🔴 全域世界書的 `characterId` 是這個定值 —— 它不屬於任何角色。
+ * **與後端的 `server/lib/globalWorld.ts` 是同一個字面值**；改一邊要改兩邊，
+ * 由 `worldbookModel.test.ts` 釘住（不然詳情頁會把全域書講成「這一位好友的」）。
+ */
+export const GLOBAL_OWNER = '__global__';
+
 export type World = {
   version: 1;
   characterId: string;

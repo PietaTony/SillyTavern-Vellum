@@ -10,6 +10,7 @@ import {
   EntryList,
   fetchLines,
   fetchWorld,
+  GLOBAL_OWNER,
   groupByPosition,
   LineSwitcher,
   setEntryEnabled,
@@ -66,9 +67,15 @@ function WorldPage() {
 
   const entries = q.data?.entries ?? [];
   const enabled = entries.filter((e) => e.enabled).length;
+  /**
+   * 🔴 **全域書與好友那一份副本，說明文字完全相反 —— 不可以共用一句。**
+   * 這一頁原本寫死「改動只影響這一位好友」；套到全域書上就是一句謊
+   * （它影響的是**所有**對話）。判準用書檔自己的 `characterId`，不必多打一次 API。
+   */
+  const isGlobal = q.data?.characterId === GLOBAL_OWNER;
 
   return (
-    <Screen title="世界書" onBack={() => void nav({ to: '/worlds' })}>
+    <Screen title={isGlobal ? '全域世界書' : '世界書'} onBack={() => void nav({ to: '/worlds' })}>
       {q.isPending ? <CircularProgress size={24} /> : null}
       {q.isError ? (
         <Alert
@@ -106,7 +113,9 @@ function WorldPage() {
              * ——而那正是 ST 讓人踩到的陷阱（在一段對話關掉，全部對話一起關）。
              */}
             <br />
-            改動只影響這一位好友，不會動到卡片本身，也不會影響用同一張卡的其他好友。
+            {isGlobal
+              ? '🔴 這是全域世界書 —— 開著的條目會套用到你「所有」的對話，不是只有某一位好友。'
+              : '改動只影響這一位好友，不會動到卡片本身，也不會影響用同一張卡的其他好友。'}
           </Typography>
           <EntryList
             groups={groupByPosition(entries)}

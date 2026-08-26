@@ -105,3 +105,19 @@ describe('單條的說明文字', () => {
     expect(entryHint(e({ position: WI_POSITION.afterChar, constant: true }))).not.toContain('深度');
   });
 });
+
+/**
+ * 🔴 **前端與後端各有一份 `GLOBAL_OWNER`，它們必須是同一個字面值。**
+ * 分岔的話：詳情頁會把全域世界書講成「這一位好友的」——
+ * 而那句話的意思與事實**完全相反**（它影響的是所有對話，不是一位好友）。
+ * ⚠️ 這種錯**typecheck 不會紅、畫面也長得正常**，只有這條測試守得住。
+ */
+describe('全域世界書的擁有者標記', () => {
+  it('前端與後端同一個值', async () => {
+    const front = await import('../types');
+    const back = await import('../../../../server/lib/globalWorld.ts');
+    expect(front.GLOBAL_OWNER).toBe(back.GLOBAL_OWNER);
+    // 尺沒壞的證明：那個值真的存在、而且不是空字串。
+    expect(front.GLOBAL_OWNER).toBe('__global__');
+  });
+});

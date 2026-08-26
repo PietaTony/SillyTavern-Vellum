@@ -58,8 +58,45 @@ export async function fetchBindings(): Promise<Bindings> {
 
 export async function fetchLines(worldId: string): Promise<{ lines: WiLine[]; hasWorld: boolean }> {
   const r = await fetch(`/api/characters/${worldId}/lines`);
+  /**
+   * 🔴 **404 不是錯誤，是「這本書沒有線」。**
+   * 「線」是從**角色的開場白**裡的 `<!-- lore -->` 標記推出來的 ——
+   * 全域世界書不屬於任何角色，本來就沒有開場白，自然沒有線（2026-08-27）。
+   * 丟例外的話，全域那一頁會平白多一則紅字說「讀不到線路」，而其實一切正常。
+   */
+  if (r.status === 404) return { lines: [], hasWorld: true };
   if (!r.ok) throw new Error('讀不到線路');
   return (await r.json()) as { lines: WiLine[]; hasWorld: boolean };
+}
+
+/** 全域世界書（所有對話都套用）。清單與名字存在設定裡，書檔與其他世界書同一種。 */
+export type GlobalWorld = { id: string; name: string; entryCount: number; enabledCount: number };
+
+export async function fetchGlobalWorlds(): Promise<{ items: GlobalWorld[]; missing: number }> {
+  const r = await fetch('/api/global-worlds');
+  if (!r.ok) throw new Error('讀不到全域世界書');
+  return (await r.json()) as { items: GlobalWorld[]; missing: number };
+}
+
+/** 從樣板建一本。🔴 樣板的三條**預設都關著** —— 新建一本不該立刻改變你所有對話。 */
+export async function createGlobalWorld(): Promise<{ id: string; name: string }> {
+  const r = await fetch('/api/global-worlds', { method: 'POST' });
+  if (!r.ok) throw new Error('建不起來');
+  return (await r.json()) as { id: string; name: string };
+}
+
+export async function deleteGlobalWorld(id: string): Promise<void> {
+  const r = await fetch(`/api/global-worlds/${id}`, { method: 'DELETE' });
+  if (!r.ok) throw new Error('刪不掉');
+}
+
+export async function renameGlobalWorld(id: string, name: string): Promise<void> {
+  const r = await fetch(`/api/global-worlds/${id}`, {
+    method: 'PATCH',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ name }),
+  });
+  if (!r.ok) throw new Error('改不了名字');
 }
 
 /**
