@@ -11,4 +11,6 @@ export { byRecency, lastActivityAt, latestChatOf, previewOf, relativeTime } from
 export { type Chat, type Message, parseSse, type StreamEvent } from './model';
 export { ChatList, type ChatListItem } from './ui/ChatList';
 export { Composer } from './ui/Composer';
+export { SwipePicker } from './ui/SwipePicker';
 export { Thread } from './ui/Thread';
+export { useChatStream } from './useChatStream';

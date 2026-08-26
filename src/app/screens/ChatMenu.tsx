@@ -1,3 +1,4 @@
+import AutoStoriesOutlinedIcon from '@mui/icons-material/AutoStoriesOutlined';
 import MenuIcon from '@mui/icons-material/Menu';
 import PersonOutlineIcon from '@mui/icons-material/PersonOutlined';
 import SmartToyOutlinedIcon from '@mui/icons-material/SmartToyOutlined';
@@ -36,10 +37,18 @@ export function ChatMenu({
   chatId,
   persona,
   onPersonaChanged,
+  onGreetings,
 }: {
   chatId: string;
   persona?: { id?: string | undefined; name?: string | undefined; layer: string } | undefined;
   onPersonaChanged: () => void;
+  /**
+   * 🔴 **「換開場」的入口**（M12 第三批，Peter 2026-08-26 實機回報「現在在哪裡選擇人生？？？」）。
+   * 這張卡的 9 則開場是**九條人生線**、而且各自會開不同的世界書 ——
+   * 那是進對話第一個要做的決定，不該埋在一則兩千字訊息末端的 `N/9` 小計數器後面。
+   * ⚠️ **沒給就不畫這一項**：第一則沒有多個候選時列出來，就是一顆點了沒東西的選單項。
+   */
+  onGreetings?: (() => void) | undefined;
 }) {
   const [anchor, setAnchor] = useState<HTMLElement | null>(null);
   const [layer, setLayer] = useState<Layer | null>(null);
@@ -72,6 +81,19 @@ export function ChatMenu({
             secondary="這段對話的「我是誰」"
           />
         </MenuItem>
+        {onGreetings ? (
+          <MenuItem
+            onClick={() => {
+              setAnchor(null);
+              onGreetings();
+            }}
+          >
+            <ListItemIcon>
+              <AutoStoriesOutlinedIcon fontSize="small" />
+            </ListItemIcon>
+            <ListItemText primary="換開場" secondary="這張卡的開場等於不同的故事線" />
+          </MenuItem>
+        ) : null}
         <MenuItem onClick={() => open('backgrounds')}>
           <ListItemIcon>
             <WallpaperOutlinedIcon fontSize="small" />
