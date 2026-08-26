@@ -62,7 +62,14 @@ export function ProviderListPane({ onOpen }: { onOpen: (id: string) => void }) {
     mutationFn: (row: (typeof rows)[number]) => verifyProvider(row),
     onSuccess: (r, row) => {
       if (r.test.ok) return;
-      pushToast(failureToast(r.test, row.id, row.consoleUrl, `${row.displayName} 現在送不出去：`));
+      pushToast(
+        failureToast(
+          r.test,
+          { id: row.id, displayName: row.displayName },
+          row.consoleUrl,
+          `${row.displayName} 現在送不出去：`,
+        ),
+      );
       // 額度不足時後端已把模型存下 ⇒ 讓清單跟著更新。
       if (r.test.saved) void qc.invalidateQueries({ queryKey: ['providerRows'] });
     },

@@ -14,7 +14,8 @@ import { explainProviderError } from './errorHelp';
  */
 export function failureToast(
   fail: { message: string; reason?: string | null },
-  provider: string,
+  /** 🔴 帶名字進來 —— 文案不可以寫「這一家」（理由見 `errorHelp.ts`）。 */
+  provider: { id: string; displayName?: string | undefined } | string,
   consoleUrl: string,
   fallbackPrefix = '錯誤訊息：',
 ): NonNullable<ToastMsg> {

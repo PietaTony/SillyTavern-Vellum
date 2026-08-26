@@ -59,7 +59,7 @@ export function KeyField({
        * 原文不會消失 —— 它在 tips 的複製鈕裡，而錯誤類的 tips 停留 5 秒。
        */
       if (!r.ok) {
-        onNotify(failureToast(r, p.id, p.consoleUrl));
+        onNotify(failureToast(r, { id: p.id, displayName: p.displayName }, p.consoleUrl));
         return;
       }
       // 措辭與 first-run 的成功訊息一字不差 —— 同一件事在兩個入口不可以講得不一樣。

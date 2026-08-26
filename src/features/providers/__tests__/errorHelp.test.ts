@@ -68,3 +68,31 @@ describe('modelOptions / effectiveModel', () => {
     expect(effectiveModel(null, [], 'gpt-4o')).toBe('gpt-4o');
   });
 });
+
+/**
+ * 🔴 **文案裡一定要出現供應商的名字**（Peter 2026-08-27：「『這一家』改為 agent 供應商名字」）。
+ * tips 掛在 root、離開那一頁還看得到 —— 使用者剛按過三家的測試鈕時，
+ * 一句「這一家」他分不出是哪一家。這是**看得懂 vs 看不懂**的差別，不是措辭偏好。
+ */
+describe('額度用完的文案要指名道姓', () => {
+  const named = (p: { id: string; displayName?: string }) =>
+    explainProviderError('no-credit', p, 'https://console.example.com');
+
+  it('🔴 有 displayName 就用它，而且不可以再出現「這一家」', () => {
+    const r = named({ id: 'openrouter', displayName: 'OpenRouter' });
+    expect(r?.text).toContain('OpenRouter');
+    expect(r?.text).not.toContain('這一家');
+  });
+
+  it('🔴 沒有 displayName 退回 id —— 寧可顯示 openrouter，也不要顯示「這一家」', () => {
+    const r = named({ id: 'openrouter' });
+    expect(r?.text).toContain('openrouter');
+    expect(r?.text).not.toContain('這一家');
+  });
+
+  it('帳單網址仍然照 id 對應（名字換了不影響出口）', () => {
+    expect(named({ id: 'deepseek', displayName: '深度求索' })?.url).toBe(
+      'https://platform.deepseek.com/top_up',
+    );
+  });
+});

@@ -21,14 +21,22 @@ const BILLING_URLS: Record<string, string> = {
   xai: 'https://console.x.ai/team/default/billing',
 };
 
+/**
+ * 🔴 **要帶供應商的名字，不可以寫「這一家」**（Peter 2026-08-27）。
+ * tips 是**離開這一頁之後也看得到**的東西（`ToastStack` 掛在 root）——
+ * 使用者可能剛按過三家的測試鈕，一句「這一家」他分不出是哪一家。
+ * ⚠️ `displayName` 沒給就退回 id：**寧可顯示 `openrouter` 也不要顯示「這一家」**。
+ */
 export function explainProviderError(
   reason: string | null | undefined,
-  provider: string,
+  provider: { id: string; displayName?: string | undefined } | string,
   consoleUrl: string,
 ): ErrorHelp {
   if (reason !== 'no-credit') return null;
+  const id = typeof provider === 'string' ? provider : provider.id;
+  const name = typeof provider === 'string' ? provider : (provider.displayName ?? provider.id);
   return {
-    text: '這一家的餘額或額度用完了。',
-    url: BILLING_URLS[provider] ?? consoleUrl,
+    text: `${name} 的餘額或額度用完了。`,
+    url: BILLING_URLS[id] ?? consoleUrl,
   };
 }
