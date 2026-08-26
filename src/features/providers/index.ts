@@ -15,5 +15,12 @@ export { useProviderChoice } from './store';
 export { verifyProvider } from './switchActive';
 export { KeyGate } from './ui/KeyGate';
 export { ProviderCard } from './ui/ProviderCard';
+export {
+  ProviderDetailPane,
+  ProviderStatusChip,
+  useProviderRow,
+} from './ui/ProviderDetailPane';
+export { ProviderListPane } from './ui/ProviderListPane';
 export { ProviderListRow } from './ui/ProviderListRow';
 export { ProviderSetup } from './ui/ProviderSetup';
+export { ProvidersLayer } from './ui/ProvidersLayer';

@@ -27,6 +27,12 @@ export const ChatSchema = z.object({
   /** 第 1 層 · 這一段對話的 persona（優先序最高）。可空＝往下找好友層。 */
   personaId: z.string().optional(),
   /**
+   * 🔴 **這一段對話自己的背景**（`backgrounds/` 底下的檔名）。有值就蓋過全域。
+   * 形狀照抄 ST 的 `chat_metadata.custom_background`（實查 `backgrounds.js:14`）。
+   * 可空＝跟隨全域，**不要用空字串代表「沒有」** —— 那會分不出「沒設過」與「設成無背景」。
+   */
+  background: z.string().optional(),
+  /**
    * 🔴 **匯入的對話，正本是那個 `.jsonl` 檔。**
    * `messages` 只是投影：實測 ST 的對話檔每一行鍵集都不同（`extra` 的子鍵 6 行 6 種），
    * 照我們的四個欄位重建會把其餘的全部丟掉。匯出一律從 `.jsonl` 重建。

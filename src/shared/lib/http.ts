@@ -70,3 +70,19 @@ export const postBytes = <T>(path: string, bytes: ArrayBuffer): Promise<T> =>
     body: bytes,
     headers: { 'Content-Type': 'application/octet-stream' },
   });
+
+export const del = <T>(path: string): Promise<T> => request<T>(path, { method: 'DELETE' });
+
+/**
+ * 傳表單（背景圖上傳）。
+ * 🔴 **不可以自己設 `Content-Type`** —— `multipart/form-data` 必須帶 `boundary`，
+ * 那個值只有瀏覽器知道。手寫一個沒有 boundary 的 header，後端會解析出 0 個欄位，
+ * 然後回「沒有收到檔案」——看起來像前端沒送，實際上是 header 蓋掉了。
+ * ⇒ 這裡刻意繞過 `request()`（它無條件塞 JSON header）。
+ */
+export async function postForm<T>(path: string, form: FormData): Promise<T> {
+  const res = await fetch(path, { method: 'POST', body: form });
+  const body = parseBody(await res.text());
+  if (!res.ok) throw new ApiError(messageOf(body, res.status), res.status);
+  return body as T;
+}

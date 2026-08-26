@@ -51,7 +51,34 @@ export type Settings = {
    * ⑥ 可逆性 —— 刪掉這個鍵即回退，不需要 migration。
    */
   activeProvider?: string | undefined;
+  /**
+   * **全域背景。** 對話畫面墊在最底下的那張圖，以及它的縮放方式。
+   *
+   * 🔴 加這個欄位的六題：
+   * ① 加了什麼 —— `background: { name?: <backgrounds/ 底下的檔名>, fitting?: Fitting }`
+   * ② 為何非加不可 —— 背景在此之前**完全不存在**（實測：掃 233 檔，`background` 只有
+   *    3 處命中，全是 MUI 的 palette）。Peter 2026-08-26：「順便把背景功能完成」。
+   * ③ 為何不能用既有的 —— 沒有既有的可以用。`secrets.json` 只放機密；
+   *    對話檔那一份是**聊天室各自的背景**（`Chat.background`），回答不了「全域是哪張」。
+   * ④ 對既有資料的影響 —— 新的可選欄位。舊的 `settings.json` 讀進來是 `undefined`
+   *    ⇒ 沒有背景，畫面與現在一個像素都不差。
+   * ⑤ 誰讀誰寫 —— 寫：`PUT /api/backgrounds/global`、`DELETE /api/backgrounds/:name`
+   *    （刪到正在用的那張時要一起清掉，否則畫面指向 404）；
+   *    讀：`GET /api/backgrounds`。
+   * ⑥ 可逆性 —— 刪掉這個鍵即回退，不需要 migration。`data/backgrounds/` 那個目錄
+   *    是檔案不是設定，刪掉設定不會動到圖。
+   */
+  background?: { name?: string | undefined; fitting?: Fitting | undefined } | undefined;
 };
+
+/**
+ * 圖片縮放模式，**照抄 ST 的五個**（`public/css/backgrounds.css:2-38`）。
+ * 🔴 `classic` 與 `cover` **不一樣**，不是重複選項：
+ * `classic` 只有 `background-size: cover`（沿用預設的 `0% 0%` ⇒ 貼齊左上），
+ * `cover` 另外加 `background-position: center`。差別在人像類的圖上很明顯。
+ */
+export const FITTINGS = ['classic', 'cover', 'contain', 'stretch', 'center'] as const;
+export type Fitting = (typeof FITTINGS)[number];
 
 export const loadSettings = (): Promise<Settings> => readJson<Settings>('settings.json', {});
 export const saveSettings = (s: Settings): Promise<void> => writeJson('settings.json', s);

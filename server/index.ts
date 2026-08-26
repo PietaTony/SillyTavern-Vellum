@@ -5,7 +5,7 @@
  */
 import { serve } from '@hono/node-server';
 import { Hono } from 'hono';
-import { bodyLimit } from 'hono/body-limit';
+import { apiBodyLimit } from './lib/bodyLimits.ts';
 import { hostGuard } from './lib/hostGuard.ts';
 import { distExists, mountStatic } from './static.ts';
 import { personas } from './routes/personas.ts';
@@ -13,6 +13,8 @@ import { secrets } from './routes/secrets.ts';
 import { providerTests } from './routes/providerTests.ts';
 import { characters } from './routes/characters.ts';
 import { characterMedia } from './routes/characterMedia.ts';
+import { backgrounds } from './routes/backgrounds.ts';
+import { chatBackground } from './routes/chatBackground.ts';
 import { charWorld } from './routes/world.ts';
 import { worlds } from './routes/worlds.ts';
 import { chats } from './routes/chats.ts';
@@ -21,23 +23,16 @@ import { generate } from './routes/generate.ts';
 import { update } from './routes/update.ts';
 import { currentVersion } from './lib/version.ts';
 import { describeData } from './lib/storage.ts';
+import { seedBackgrounds } from './lib/backgroundSeed.ts';
 
 /**
- * 🔴 **上限 8 MB。** 頭像走 base64 dataUrl 進 JSON body，前端已縮到 256px，
- * 正常一張幾十 KB。沒有上限的話任何人都能一直 POST 大檔把磁碟塞滿
- * （實測：5 MB 的 avatar 直接落成 5 MB 的 json，而且每次都是新 UUID 檔）。
+ * 🔴 **body 上限只有一道，大小按路徑決定** —— 見 `lib/bodyLimits.ts` 檔頭。
+ * 疊兩道 `bodyLimit` 的話**兩道都會跑**，小的先丟 413，
+ * 於是「放大」的那幾條全部是假的（敵意審查 2026-08-26 用 curl 實測抓到）。
  */
 const app = new Hono()
   .use('*', hostGuard())
-  .use('/api/*', bodyLimit({ maxSize: 8 * 1024 * 1024 }))
-  /**
-   * 🔴 **匯入角色卡另給一條上限。** 8 MB 對卡片來說不夠 ——
-   * 實測一張真卡就 6.8 MB，而卡片作者把桌寵貼圖（近 200 萬字元 base64）塞在卡裡是常態。
-   * 卡進不來的話「完整匯入」整件事就是假的。這條路徑不落成無限：仍然有上限，只是放大。
-   */
-  .use('/api/characters/import', bodyLimit({ maxSize: 64 * 1024 * 1024 }))
-  // 對話檔同理：長期對話的 JSONL 動輒數 MB，8 MB 對它也不夠。
-  .use('/api/chats/import', bodyLimit({ maxSize: 64 * 1024 * 1024 }))
+  .use('/api/*', apiBodyLimit())
   .get('/api/version', (c) => c.json({ ok: true, name: 'vellum', version: currentVersion() }))
   .route('/api/secrets', secrets)
   // 🔴 三支「真的會往外發請求」的端點，與純本機讀寫的 secrets 分開（見該檔檔頭）。
@@ -50,6 +45,9 @@ const app = new Hono()
   .route('/api/characters', characterMedia)
   .route('/api/chats', chats)
   .route('/api/chats', chatImport)
+  // 同一個前綴掛兩支的理由見 `chatBackground.ts` 檔頭（`chats.ts` 已逼近 150 行上限）。
+  .route('/api/chats', chatBackground)
+  .route('/api/backgrounds', backgrounds)
   .route('/api/generate', generate)
   .route('/api/update', update);
 
@@ -73,6 +71,14 @@ serve({ fetch: app.fetch, port, hostname }, (info) => {
   console.log(`[vellum] v${currentVersion()}  http://${hostname}:${info.port}  —— ${where}`);
   // 🔴 資料在哪、有多少 —— 忘記掛 volume 的話這一行會顯示 0，不會靜靜地假裝正常
   void describeData().then((d) => console.log(`[vellum] ${d}`));
+  // 🔴 首次啟動才複製內建背景（目錄已存在就跳過）—— 否則使用者刪掉的圖會自己長回來。
+  // 🔴 **一定要 `.catch`。** 少了它，複製失敗會變成 unhandled rejection ——
+  //    使用者看到的是「背景清單是空的」，而 log 裡什麼都沒有。
+  void seedBackgrounds()
+    .then((n) => {
+      if (n > 0) console.log(`[vellum] 已放入 ${n} 張內建背景`);
+    })
+    .catch((e: unknown) => console.error('[vellum] 內建背景複製失敗：', e));
   if (hostname === '127.0.0.1')
     console.log('[vellum] 只有這台電腦連得到。要讓手機／平板連進來：HOST=0.0.0.0 pnpm start');
 });

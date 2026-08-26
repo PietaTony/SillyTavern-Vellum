@@ -2,13 +2,16 @@ import ChevronRightIcon from '@mui/icons-material/ChevronRight';
 import InfoOutlinedIcon from '@mui/icons-material/InfoOutlined';
 import PaletteOutlinedIcon from '@mui/icons-material/PaletteOutlined';
 import SmartToyOutlinedIcon from '@mui/icons-material/SmartToyOutlined';
+import WallpaperOutlinedIcon from '@mui/icons-material/WallpaperOutlined';
 import Divider from '@mui/material/Divider';
 import List from '@mui/material/List';
 import ListItemButton from '@mui/material/ListItemButton';
 import ListItemIcon from '@mui/material/ListItemIcon';
 import ListItemText from '@mui/material/ListItemText';
 import { createFileRoute, useNavigate } from '@tanstack/react-router';
+import { useState } from 'react';
 import { TabBar } from '@/app/screens/TabBar';
+import { BackgroundsLayer } from '@/features/backgrounds';
 import { Screen } from '@/shared/ui/Screen';
 
 export const Route = createFileRoute('/settings/')({ component: SettingsPage });
@@ -21,6 +24,11 @@ export const Route = createFileRoute('/settings/')({ component: SettingsPage });
  */
 function SettingsPage() {
   const nav = useNavigate();
+  // 🔴 **背景走全螢層，不是第四個路由**（Peter 2026-08-26：「這個頁面也要有背景設定」）。
+  //    理由有兩個：① 對話頁 ☰ 已經是全螢層，兩個入口長一樣才不用學兩次
+  //    ② `design/screens.json` 是 `gate:screens` 的正本，多開一個 route 要先改設計正本。
+  //    ⚠️ 這裡**不傳 `chatId`** ⇒ 只有「全域」分頁，沒有「這段對話」——在設定頁沒有對話可談。
+  const [bg, setBg] = useState(false);
 
   return (
     <Screen title="設定" footer={<TabBar active="settings" />}>
@@ -44,6 +52,16 @@ function SettingsPage() {
 
         <Divider component="li" />
 
+        <ListItemButton onClick={() => setBg(true)}>
+          <ListItemIcon>
+            <WallpaperOutlinedIcon />
+          </ListItemIcon>
+          <ListItemText primary="背景" secondary="所有對話的預設桌布、縮放方式" />
+          <ChevronRightIcon color="disabled" />
+        </ListItemButton>
+
+        <Divider component="li" />
+
         <ListItemButton onClick={() => void nav({ to: '/settings/providers' })}>
           <ListItemIcon>
             <SmartToyOutlinedIcon />
@@ -52,6 +70,7 @@ function SettingsPage() {
           <ChevronRightIcon color="disabled" />
         </ListItemButton>
       </List>
+      <BackgroundsLayer open={bg} onClose={() => setBg(false)} />
     </Screen>
   );
 }

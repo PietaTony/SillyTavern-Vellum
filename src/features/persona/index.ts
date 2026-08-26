@@ -12,4 +12,3 @@ export {
 } from './api';
 export { ChatPersona } from './ui/ChatPersona';
 export { PERSONA_DRAFT, PersonaEditor } from './ui/PersonaEditor';
-export { PersonaSwitcher } from './ui/PersonaSwitcher';

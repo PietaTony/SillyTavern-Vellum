@@ -16,6 +16,11 @@ export type Chat = {
   characterName: string;
   messages: Message[];
   createdAt: string;
+  /**
+   * 🔴 **這一間自己的背景**（`backgrounds/` 底下的檔名）。有值就蓋過全域。
+   * 可空＝跟隨全域，**不要用空字串代表「沒有」** —— 那會分不出「沒設過」與「設成無背景」。
+   */
+  background?: string;
 };
 
 export type StreamEvent =

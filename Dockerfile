@@ -41,6 +41,9 @@ RUN pnpm install --frozen-lockfile --prod --ignore-scripts --config.minimumRelea
 
 COPY --from=build /app/dist ./dist
 COPY --from=build /app/dist-server ./dist-server
+# 🔴 內建背景（23 張，11 MB）。**不 COPY 的話容器裡的 `seedBackgrounds()` 會靜靜地
+# 複製 0 張** —— 畫面看起來就是「背景清單是空的」，而且不會有任何錯誤訊息。
+COPY --from=build /app/default ./default
 
 # 🔴 角色卡、對話、金鑰都在這裡。**沒有掛 volume 就會隨容器一起消失。**
 VOLUME /app/data

@@ -4,7 +4,10 @@ import CircularProgress from '@mui/material/CircularProgress';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { createFileRoute, useNavigate } from '@tanstack/react-router';
 import { useRef, useState } from 'react';
+import { ChatFailure } from '@/app/screens/ChatFailure';
+import { ChatMenu } from '@/app/screens/ChatMenu';
 import { useBack } from '@/app/screens/useBack';
+import { useChatBackgroundOverride } from '@/app/screens/useChatBackgroundOverride';
 import { fetchCharacter } from '@/features/characters';
 import {
   appendMessage,
@@ -15,7 +18,6 @@ import {
   swipeMessage,
   Thread,
 } from '@/features/chat';
-import { ChatPersona } from '@/features/persona';
 import { Screen } from '@/shared/ui/Screen';
 
 export const Route = createFileRoute('/chat/$chatId')({ component: ChatPage });
@@ -31,6 +33,9 @@ function ChatPage() {
     queryFn: () => fetchCharacter(q.data?.characterId ?? ''),
     enabled: Boolean(q.data?.characterId),
   });
+
+  // 🔴 這一間自己的背景蓋過全站那張。**必須在所有早退之前**呼叫（理由見該檔檔頭）。
+  useChatBackgroundOverride(q.data?.background);
 
   const [local, setLocal] = useState<Message[] | null>(null);
   const [streaming, setStreaming] = useState<string | null>(null);
@@ -113,7 +118,11 @@ function ChatPage() {
       title={q.data.characterName}
       onBack={onBack}
       action={
-        <ChatPersona chatId={chatId} persona={q.data.persona} onChanged={() => void q.refetch()} />
+        <ChatMenu
+          chatId={chatId}
+          persona={q.data.persona}
+          onPersonaChanged={() => void q.refetch()}
+        />
       }
       scroll={false}
       footer={<Composer chatId={chatId} busy={streaming !== null} onSend={send} />}
@@ -125,18 +134,7 @@ function ChatPage() {
         name={q.data.characterName}
         onSwipe={(messageId, index) => void swipe.mutate({ messageId, index })}
       />
-      {failure ? (
-        <Alert
-          severity="warning"
-          action={
-            <Button size="small" onClick={() => setFailure(null)}>
-              重新送出上一句
-            </Button>
-          }
-        >
-          這一輪沒有生成成功：{failure}
-        </Alert>
-      ) : null}
+      {failure ? <ChatFailure message={failure} onDismiss={() => setFailure(null)} /> : null}
     </Screen>
   );
 }
