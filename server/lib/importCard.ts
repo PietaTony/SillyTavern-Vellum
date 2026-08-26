@@ -14,6 +14,7 @@ import { listJson, writeBin, writeJson } from './storage.ts';
 import { displayNameOf, uniqueDisplayName } from './displayName.ts';
 import { fromRegexScripts } from './outputRules.ts';
 import type { Character } from './character.ts';
+import { scriptsOf } from './cardScripts.ts';
 
 export type ImportedAsset = { path: string; mime: string; bytes: number; from: string };
 
@@ -67,6 +68,11 @@ export async function intoCharacter(png: Buffer) {
   const id = crypto.randomUUID();
   const imported = await importCardFiles(png, id);
   const { view, assets, world } = imported;
+  const exts = (imported.card.payloads[imported.card.primary] as {
+    data?: { extensions?: { regex_scripts?: unknown; tavern_helper?: unknown } };
+  }).data?.extensions;
+  const scripts = scriptsOf(exts?.tavern_helper);
+
   const base = view.name || '未命名角色';
   // D-h：加入時主動避開重名。第一個保持原名，第二個起 `(1)`、`(2)`…
   const existing = (await listJson<Character>('characters')).map(displayNameOf);
@@ -79,10 +85,15 @@ export async function intoCharacter(png: Buffer) {
     firstMessage: view.firstMessage,
     // 🔴 全部候選都存下來。選哪一則是使用者的事——M12 起是**進對話後**左右切（同 ST）。
     greetings: [view.firstMessage, ...view.alternateGreetings].filter((g) => g.trim() !== ''),
-    outputRules: fromRegexScripts(
-      ((imported.card.payloads[imported.card.primary] as { data?: { extensions?: { regex_scripts?: unknown } } }).data
-        ?.extensions?.regex_scripts) ?? [],
-    ),
+    outputRules: fromRegexScripts(exts?.regex_scripts ?? []),
+    /**
+     * 🔴 **卡片自帶腳本要盤點下來**（M13 第二期）。
+     * 在此之前我們只取 `regex_scripts`，`tavern_helper`（那張卡是 **2 MB**）整包丟掉。
+     * ✅ 資料本來就沒丟（PNG 原文完整保留），但**沒有被投影出來 ＝ 上層看不到它存在**，
+     * 於是「這張卡需要腳本才會動」這件事對使用者是隱形的。
+     * ⚠️ 這裡只存盤點結果（幾支／多大／會不會去外面抓 code／指紋），**不存內容**。
+     */
+    ...(scripts ? { cardScripts: scripts } : {}),
     // 相對路徑：dev 由 Vite 代理到後端、Docker 是同一個 process，兩邊都通。
     avatar: `/api/characters/${id}/avatar.png`,
     createdAt: new Date().toISOString(),

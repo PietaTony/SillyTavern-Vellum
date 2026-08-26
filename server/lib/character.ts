@@ -33,7 +33,26 @@ export const CharacterSchema = z.object({
    * 🔴 **以前只存 `firstMessage`，8 則額外問候在匯入時被丟掉** —— 而那張卡真正的開場頁
    * 全在額外問候裡，只留第一則等於「匯進來了但看不到內容」。
    */
-  greetings: z.array(z.string()).optional(),
+    greetings: z.array(z.string()).optional(),
+  /**
+   * 🔴 **卡片自帶腳本的「盤點結果」，不是腳本內容**（M13 第二期）。
+   * 內容留在 PNG 裡（那張卡是 2 MB），塞進這份 JSON 會拖垮每一次角色列表。
+   * 這裡只存「有幾支、多大、會不會去外面抓 code、內容指紋」——
+   * 同意視窗要問使用者的東西全在這裡。見 `lib/cardScripts.ts` 檔頭。
+   */
+  cardScripts: z
+    .object({
+      scripts: z.array(
+        z.object({
+          name: z.string(),
+          enabled: z.boolean(),
+          bytes: z.number(),
+          externals: z.array(z.string()),
+        }),
+      ),
+      hash: z.string(),
+    })
+    .optional(),
   /** 第 2 層 · 「跟這個好友，我是誰」。可空＝往下找全域預設。 */
   personaId: z.string().optional(),
   /**
