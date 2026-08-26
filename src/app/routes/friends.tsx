@@ -5,7 +5,6 @@ import Button from '@mui/material/Button';
 import CircularProgress from '@mui/material/CircularProgress';
 import Divider from '@mui/material/Divider';
 import List from '@mui/material/List';
-import ListItemAvatar from '@mui/material/ListItemAvatar';
 import ListItemButton from '@mui/material/ListItemButton';
 import ListItemText from '@mui/material/ListItemText';
 import Stack from '@mui/material/Stack';
@@ -75,18 +74,30 @@ function FriendsPage() {
       {/*
        * 🔴 **第一列是自己**（Peter 的 P-2，照 LINE）。點頭像改「我是誰」。
        * 放在清單裡而不是另開一個設定頁：使用者不會想到「我自己」是一個設定項。
+       *
+       * 🔴 **自己的頭像靠右，好友的靠左**（Peter 2026-08-26 實測後指定）。
+       * 與聊天串裡「自己的訊息靠右」是同一個邏輯 ——
+       * **使用者不必讀文字就知道哪一列是自己**。
        */}
       <List disablePadding>
         <ListItemButton onClick={() => void nav({ to: '/profile' })}>
-          <ListItemAvatar>
-            <Avatar src={myPersona?.avatar || undefined}>我</Avatar>
-          </ListItemAvatar>
           <ListItemText
             primary={myPersona?.name ?? '設定「我是誰」'}
             secondary={
               myPersona?.description?.slice(0, 40) || '對方會怎麼稱呼你、知道你是什麼樣的人'
             }
           />
+          {/*
+           * 靠右時不能用 `ListItemAvatar`：它自帶給左側用的固定寬度與右邊距。
+           * 🔴 **比好友大一號**（56 vs MUI 預設的 40，Peter 2026-08-26 指定）——
+           * 大小差異是第二個「這是我」的訊號，與靠右互相補強。
+           */}
+          <Avatar
+            src={myPersona?.avatar || undefined}
+            sx={{ ml: 2, flex: 'none', width: 56, height: 56 }}
+          >
+            我
+          </Avatar>
         </ListItemButton>
       </List>
       <Divider sx={{ mb: 1 }} />
