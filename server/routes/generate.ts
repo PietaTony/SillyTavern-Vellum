@@ -16,6 +16,7 @@ import { adapterFor } from '../providers/dispatch.ts';
 import { byId, isSelectable } from '../providers/registry.ts';
 import type { Chat, Message } from '../lib/chatModel.ts';
 import { buildTurn } from '../lib/buildTurn.ts';
+import { getProviderModel } from '../lib/settings.ts';
 
 const Body = z.object({
   chatId: z.string(),
@@ -35,7 +36,9 @@ export const generate = new Hono().post('/', async (c) => {
   const cfg = byId(parsed.data.provider);
   if (!cfg) return c.json({ error: '不認得這一家供應商' }, 400);
   if (!isSelectable(cfg)) return c.json({ error: `Vellum 還沒接上 ${cfg.displayName}` }, 400);
-  const model = parsed.data.model ?? cfg.defaultModel;
+  // 🔴 三段回退：**這次指定的 → 使用者選好存下來的 → registry 的預設**。
+  // 少了中間那段的話，選模型 UI 就是「選了沒作用」——又一個孤兒。
+  const model = parsed.data.model ?? (await getProviderModel(cfg.id)) ?? cfg.defaultModel;
   // 🔴 chatId 會被接進檔案路徑 ⇒ 先過白名單（見 lib/ids.ts）
   const chatId = safeId(parsed.data.chatId);
   if (!chatId) return c.json({ error: '找不到這段對話' }, 404);

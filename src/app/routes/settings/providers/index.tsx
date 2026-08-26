@@ -1,3 +1,4 @@
+import ChevronRightIcon from '@mui/icons-material/ChevronRight';
 import Alert from '@mui/material/Alert';
 import Chip from '@mui/material/Chip';
 import CircularProgress from '@mui/material/CircularProgress';
@@ -8,11 +9,10 @@ import Stack from '@mui/material/Stack';
 import Typography from '@mui/material/Typography';
 import { useQuery } from '@tanstack/react-query';
 import { createFileRoute, useNavigate } from '@tanstack/react-router';
-import { useState } from 'react';
-import { fetchProviderRows, ModelPicker, STATUS_COPY } from '@/features/providers';
+import { fetchProviderRows, STATUS_COPY } from '@/features/providers';
 import { Screen } from '@/shared/ui/Screen';
 
-export const Route = createFileRoute('/settings/providers')({ component: ProvidersPage });
+export const Route = createFileRoute('/settings/providers/')({ component: ProvidersPage });
 
 /**
  * AI 供應商與模型（派工⑤ 優先序 2）。
@@ -27,11 +27,7 @@ export const Route = createFileRoute('/settings/providers')({ component: Provide
 function ProvidersPage() {
   const nav = useNavigate();
   const q = useQuery({ queryKey: ['providerRows'], queryFn: fetchProviderRows });
-  const [open, setOpen] = useState<string | null>(null);
-  const [model, setModel] = useState('');
-
   const rows = q.data ?? [];
-  const current = rows.find((r) => r.id === open);
 
   return (
     <Screen title="AI 供應商與金鑰" onBack={() => void nav({ to: '/settings' })}>
@@ -47,48 +43,33 @@ function ProvidersPage() {
       <List disablePadding>
         {rows.map((p) => {
           const copy = STATUS_COPY[p.status];
-          const selectable = p.status !== 'planned';
           return (
             <ListItemButton
               key={p.id}
-              disabled={!selectable}
-              selected={open === p.id}
-              onClick={() => {
-                setOpen(open === p.id ? null : p.id);
-                setModel(p.defaultModel);
-              }}
+              /*
+               * 🔴 **每一家都點得進去**（Peter 2026-08-26）——包含還沒接上的四家。
+               * 那四家的內頁不給「測試連線」，改成說明還缺什麼：
+               * 給一顆測了必失敗的按鈕，就是回到「選了、照做了、然後出不去」那條死路。
+               */
+              onClick={() => void nav({ to: '/settings/providers/$id', params: { id: p.id } })}
             >
               <ListItemText
                 primary={
-                  <Stack direction="row" sx={{ gap: 1, alignItems: 'center' }}>
+                  <Stack direction="row" sx={{ gap: 1, alignItems: 'center', flexWrap: 'wrap' }}>
                     {p.displayName}
                     {copy.label ? <Chip size="small" label={copy.label} /> : null}
                     {p.keySet ? <Chip size="small" color="success" label="已設定金鑰" /> : null}
                   </Stack>
                 }
-                secondary={copy.note || `預設模型 ${p.defaultModel}`}
+                /* 選過模型就顯示選的那個；沒選過顯示預設，並標明「預設」——兩者要分得出來。 */
+                secondary={p.model ? `模型 ${p.model}` : `預設模型 ${p.defaultModel}`}
                 slotProps={{ secondary: { variant: 'caption' } }}
               />
+              <ChevronRightIcon color="disabled" />
             </ListItemButton>
           );
         })}
       </List>
-
-      {current?.keySet ? (
-        <Stack spacing={1} sx={{ p: 2 }}>
-          <Typography variant="subtitle2">{current.displayName} 的模型</Typography>
-          <ModelPicker provider={current.id} value={model} onChange={setModel} />
-          <Typography variant="caption" color="text.secondary">
-            {/* 🔴 誠實：切換模型的持久化還沒做，不要讓人以為選了就記住了。 */}⏸
-            選好的模型還沒有存起來的地方（那是取樣參數那一批的事）。目前生成仍用預設模型。
-          </Typography>
-        </Stack>
-      ) : current ? (
-        <Alert severity="info" sx={{ m: 2 }}>
-          還沒設定 {current.displayName} 的金鑰。設定金鑰的流程目前在首次啟動的引導裡，
-          之後會搬到這一頁。
-        </Alert>
-      ) : null}
     </Screen>
   );
 }

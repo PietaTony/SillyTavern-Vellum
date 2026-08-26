@@ -1,6 +1,7 @@
 import { Hono } from 'hono';
 import { z } from 'zod';
-import { setKey, whichAreSet, redact, getKey } from '../lib/secrets.ts';
+import { setKey, whichAreSet, redact, getKey, previews } from '../lib/secrets.ts';
+import { loadSettings, setProviderModel } from '../lib/settings.ts';
 import { adapterFor } from '../providers/dispatch.ts';
 import { byId, isSelectable, PROVIDERS } from '../providers/registry.ts';
 
@@ -11,8 +12,19 @@ const WriteBody = z.object({
 });
 
 export const secrets = new Hono()
-  /** 只回「哪些已設定」，不回值（F3）*/
+  /**
+   * 只回「哪些已設定」的**布林**（F3）。
+   * 🔴 **形狀不可以改成物件**：`app/setup.ts` 的 `isSetUp()` 做的是
+   * `Object.values(status).some(Boolean)` —— 換成物件的話**空物件也是 truthy**，
+   * 於是「一把金鑰都沒有」會被判定成「設定完成」，first-run 守衛整個失效。
+   */
   .get('/', async (c) => c.json(await whichAreSet()))
+
+  /**
+   * 🔴 **全專案唯一一個回傳金鑰衍生資料的端點**（前四後四，見 `lib/secrets.ts`）。
+   * 亮線就是「只有這一支」—— `server/__tests__/secretsPreview.test.ts` 釘住它。
+   */
+  .get('/preview', async (c) => c.json(await previews()))
 
   .post('/', async (c) => {
     const parsed = WriteBody.safeParse(await c.req.json());
@@ -54,6 +66,7 @@ export const secrets = new Hono()
    */
   .get('/providers', async (c) => {
     const set = await whichAreSet();
+    const chosen = (await loadSettings()).providerModels ?? {};
     return c.json(
       PROVIDERS.map((p) => ({
         id: p.id,
@@ -65,8 +78,45 @@ export const secrets = new Hono()
         defaultModel: p.defaultModel,
         hasModelList: Boolean(p.modelsUrl),
         keySet: Boolean(set[p.id]),
+        // 🔴 選過的才回，沒選過回 null —— **不要偷偷回 defaultModel**，
+        //    那會讓「還沒選」與「選了預設那個」在畫面上長得一樣。
+        model: chosen[p.id] ?? null,
       })),
     );
+  })
+
+  /**
+   * 測**已經存著的那把**金鑰（不必重貼）。
+   *
+   * 🔴 **這比「重貼一次再測」更安全**：現在的流程要測就得把金鑰再送一次網路，
+   * 而這支完全不讓金鑰離開伺服器 —— 前端只送 provider id，伺服器自己去讀、自己去打。
+   * ⇒ **少一次傳輸，不是多一個洞。**
+   */
+  .post('/test-stored/:provider', async (c) => {
+    const cfg = byId(c.req.param('provider'));
+    if (!cfg) return c.json({ ok: false, message: '不認得這一家供應商。' }, 400);
+    if (!isSelectable(cfg))
+      return c.json({ ok: false, message: `Vellum 還沒接上 ${cfg.displayName}。` }, 400);
+    const key = await getKey(cfg.id);
+    if (!key) return c.json({ ok: false, message: `還沒設定 ${cfg.displayName} 的金鑰。` }, 400);
+    const r = await adapterFor(cfg.format).listModels(cfg, key);
+    // 🔴 供應商的錯誤原文可能夾帶金鑰片段 ⇒ 送出前一律 redact（與 /test 同一條）
+    return r.ok
+      ? c.json({ ok: true, models: r.models })
+      : c.json({ ok: false, status: r.status, message: redact(r.message, [key]) });
+  })
+
+  /**
+   * 存下這一家選好的模型。
+   * 🔴 **只動這一家那一格** —— 別家的選擇不可以被順手洗掉（見 `lib/settings.ts`）。
+   */
+  .put('/model/:provider', async (c) => {
+    const cfg = byId(c.req.param('provider'));
+    if (!cfg) return c.json({ ok: false, message: '不認得這一家供應商。' }, 400);
+    const body = z.object({ model: z.string().min(1) }).safeParse(await c.req.json());
+    if (!body.success) return c.json({ ok: false, message: '參數不合法' }, 400);
+    await setProviderModel(cfg.id, body.data.model);
+    return c.json({ ok: true, provider: cfg.id, model: body.data.model });
   })
 
   /**

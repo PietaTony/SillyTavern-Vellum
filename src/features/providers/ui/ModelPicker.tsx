@@ -1,10 +1,12 @@
 import Alert from '@mui/material/Alert';
 import CircularProgress from '@mui/material/CircularProgress';
 import MenuItem from '@mui/material/MenuItem';
+import Snackbar from '@mui/material/Snackbar';
 import Stack from '@mui/material/Stack';
-import { useQuery } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useEffect, useState } from 'react';
 import { DraftField } from '@/shared/ui/DraftField';
-import { fetchModels } from '../registryApi';
+import { fetchModels, saveModel } from '../registryApi';
 
 /**
  * 選模型（規格 §6 優先序 2、驗收 B3）。
@@ -24,13 +26,42 @@ export function ModelPicker({
   value: string;
   onChange: (model: string) => void;
 }) {
+  const qc = useQueryClient();
   const q = useQuery({ queryKey: ['models', provider], queryFn: () => fetchModels(provider) });
+  // 🔴 **選了就存**。在此之前這一頁自己寫著「還沒有存起來的地方」——
+  // 那是誠實，但誠實的孤兒還是孤兒（總則四）。
+  const save = useMutation({
+    mutationFn: (m: string) => saveModel(provider, m),
+    onSuccess: () => void qc.invalidateQueries({ queryKey: ['providerRows'] }),
+  });
+  const pick = (m: string) => {
+    onChange(m);
+    if (m.trim()) save.mutate(m.trim());
+  };
+  // 🔴 **存檔要看得見。** 只把「已存」寫在 helperText 裡的話，
+  // 使用者盯著的是剛選好的模型名，那行小字他不會看到 ——
+  // 而「有沒有存到」正是他最需要確認的事（Peter 2026-08-26）。
+  const [toast, setToast] = useState<string | null>(null);
+  useEffect(() => {
+    if (save.isSuccess) setToast(`已存：${save.variables}`);
+    if (save.isError) setToast('存不起來 —— 下一次生成還是會用舊的');
+  }, [save.isSuccess, save.isError, save.variables]);
 
   if (q.isPending) return <CircularProgress size={20} />;
 
   const manual = q.data && !q.data.ok;
   return (
     <Stack spacing={1}>
+      <Snackbar
+        open={toast !== null}
+        autoHideDuration={2500}
+        onClose={() => setToast(null)}
+        anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
+      >
+        <Alert severity={save.isError ? 'warning' : 'success'} variant="filled">
+          {toast}
+        </Alert>
+      </Snackbar>
       {manual ? (
         <>
           <Alert severity="info">{q.data?.ok === false ? q.data.message : ''}</Alert>
@@ -40,7 +71,7 @@ export function ModelPicker({
             size="small"
             label="模型名稱"
             value={value}
-            onChange={onChange}
+            onChange={pick}
           />
         </>
       ) : (
@@ -51,8 +82,12 @@ export function ModelPicker({
           size="small"
           label="模型"
           value={value}
-          onChange={onChange}
-          helperText={`${q.data?.ok ? q.data.models.length : 0} 個可用`}
+          onChange={pick}
+          helperText={
+            save.isError
+              ? '存不起來 —— 下一次生成還是會用舊的'
+              : `${q.data?.ok ? q.data.models.length : 0} 個可用${save.isSuccess ? '，已存' : ''}`
+          }
         >
           {(q.data?.ok ? q.data.models : []).map((m) => (
             <MenuItem key={m} value={m}>

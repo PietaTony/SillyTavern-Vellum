@@ -116,3 +116,14 @@ export function applyMaskedEdit(real: string, shown: string, next: string): stri
     return real.slice(0, Math.max(0, real.length - (shown.length - next.length)));
   return '';
 }
+
+/**
+ * first-run 那兩家的預設模型。
+ * 🔴 **權威來源是後端的 `server/providers/registry.ts`** —— 這裡只是 first-run
+ * 在拿到 `/api/secrets/providers` 之前的初值，避免選模型框一開始是空的。
+ * ⚠️ 兩邊不同步時以後端為準；改預設模型請改後端那份。
+ */
+export const DEFAULT_MODEL_BY_PROVIDER: Record<string, string> = {
+  google: 'gemini-3.1-flash-lite',
+  anthropic: 'claude-sonnet-4-5',
+};

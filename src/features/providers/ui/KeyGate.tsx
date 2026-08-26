@@ -4,12 +4,14 @@ import Button from '@mui/material/Button';
 import Stack from '@mui/material/Stack';
 import Typography from '@mui/material/Typography';
 import { useMachine } from '@xstate/react';
+import { useState } from 'react';
 import { fromPromise } from 'xstate';
 import { DraftField } from '@/shared/ui/DraftField';
 import { Screen } from '@/shared/ui/Screen';
 import { testKey } from '../api';
 import { keyGateMachine, type TestOutcome } from '../keyGate.machine';
-import { applyMaskedEdit, maskKey, type ProviderInfo } from '../model';
+import { applyMaskedEdit, DEFAULT_MODEL_BY_PROVIDER, maskKey, type ProviderInfo } from '../model';
+import { ModelPicker } from './ModelPicker';
 
 /**
  * 取得金鑰 —— 四個狀態（空白／已貼上／失敗／成功）共用一份版面。
@@ -26,6 +28,8 @@ export function KeyGate({
   onBack: () => void;
   onPassed: () => void;
 }) {
+  // 預設就是 registry 的預設模型；選了會由 `ModelPicker` 自己存下來。
+  const [model, setModel] = useState(DEFAULT_MODEL_BY_PROVIDER[info.id] ?? '');
   const [state, send] = useMachine(
     keyGateMachine.provide({
       actors: {
@@ -105,8 +109,19 @@ export function KeyGate({
           測試連線
         </Button>
 
+        {/*
+         * 🔴 **測過就讓他選模型**（Peter 2026-08-26：「兩邊都要新增選擇模型的功能」）。
+         * 在此之前這裡只顯示「N 個模型可用」的**數字** —— 使用者看得到有幾個、選不了任何一個，
+         * 而 `listModels()` 早就把清單拉回來了。那是孤兒引擎的又一次。
+         *
+         * 🔴 **不擋「下一步」**：first-run 的核心不變式是「測過金鑰才能走」，
+         * 不是「選過模型才能走」。沒選就用預設 —— 多加一道門會讓引導變長。
+         */}
         {passed ? (
-          <Alert severity="success">連線成功 —— {state.context.models.length} 個模型可用</Alert>
+          <>
+            <Alert severity="success">連線成功 —— {state.context.models.length} 個模型可用</Alert>
+            <ModelPicker provider={info.id} value={model} onChange={setModel} />
+          </>
         ) : null}
         {state.matches('failed') ? (
           <Alert severity="warning">測試沒有通過：{state.context.error}</Alert>
