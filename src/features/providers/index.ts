@@ -22,7 +22,7 @@ export {
   testStoredKey,
 } from './registryApi';
 export { useProviderChoice } from './store';
-export { switchActiveProvider } from './switchActive';
+export { verifyProvider } from './switchActive';
 export { KeyField } from './ui/KeyField';
 export { KeyGate } from './ui/KeyGate';
 export { KeySteps } from './ui/KeySteps';

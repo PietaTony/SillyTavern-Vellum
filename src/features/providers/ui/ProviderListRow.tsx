@@ -1,5 +1,7 @@
 import ChevronRightIcon from '@mui/icons-material/ChevronRight';
+import Box from '@mui/material/Box';
 import Chip from '@mui/material/Chip';
+import CircularProgress from '@mui/material/CircularProgress';
 import ListItemButton from '@mui/material/ListItemButton';
 import ListItemText from '@mui/material/ListItemText';
 import Radio from '@mui/material/Radio';
@@ -29,10 +31,16 @@ export function ProviderListRow({
   onOpen,
   onPick,
   onNotify,
+  busy = false,
 }: {
   p: Row;
   onOpen: () => void;
   onPick: () => void;
+  /**
+   * 這一列正在切換或背景驗證。
+   * 🔴 **轉圈要蓋在 radio 的位置上，而且尺寸一樣** —— 換成別的大小會讓整列跳動。
+   */
+  busy?: boolean;
   onNotify: (m: ToastMsg) => void;
 }) {
   const copy = STATUS_COPY[p.status];
@@ -41,20 +49,34 @@ export function ProviderListRow({
 
   return (
     <ListItemButton onClick={onOpen}>
-      <Radio
-        checked={p.active}
-        disabled={blocked}
-        size="small"
-        edge="start"
-        onClick={(e) => {
-          e.stopPropagation();
-          onPick();
-        }}
-        slotProps={{
-          input: { 'aria-label': `用 ${p.displayName} 對話` },
-        }}
-        sx={{ mr: 1, ...(blocked ? { pointerEvents: 'none' } : {}) }}
-      />
+      {busy ? (
+        <Box
+          sx={{
+            width: 42,
+            mr: 1,
+            display: 'grid',
+            placeItems: 'center',
+            flex: 'none',
+          }}
+        >
+          <CircularProgress size={18} />
+        </Box>
+      ) : (
+        <Radio
+          checked={p.active}
+          disabled={blocked}
+          size="small"
+          edge="start"
+          onClick={(e) => {
+            e.stopPropagation();
+            onPick();
+          }}
+          slotProps={{
+            input: { 'aria-label': `用 ${p.displayName} 對話` },
+          }}
+          sx={{ mr: 1, ...(blocked ? { pointerEvents: 'none' } : {}) }}
+        />
+      )}
       <ListItemText
         primary={p.displayName}
         /*
