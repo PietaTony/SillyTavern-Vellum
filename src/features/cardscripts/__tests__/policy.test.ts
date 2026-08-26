@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { policyOf } from '../ui/ScriptFrame';
+import { policyOf } from '../runtime/srcdoc';
 
 /**
  * 🔴 **這一支守的是「乙」那道防線**（Peter 2026-08-26 裁定）。

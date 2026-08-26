@@ -26,6 +26,11 @@ export function CardFrontend({
 }) {
   if (!cards.enabled) return <FrontendNotice bytes={code.length} onEnable={cards.ask} />;
   return (
-    <ScriptFrame visible code={code} allow={cards.allow} name={`card-${characterId}-${index}`} />
+    <ScriptFrame
+      mode="inline"
+      code={code}
+      allow={cards.allow}
+      name={`card-${characterId}-${index}`}
+    />
   );
 }

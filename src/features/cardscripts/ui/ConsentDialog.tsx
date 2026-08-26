@@ -23,9 +23,9 @@ import { VENDOR_HOSTS } from '../runtime/preamble';
  *
  * 🔴 **同意綁「這張卡的這個版本」**（`hash`），不是綁這張卡。卡片更新 ⇒ 指紋變 ⇒ 重問。
  *
- * 🔴 **哪些現在會跑、哪些還不會，要分開講。** 這一期只跑「介面」；
- * 背景腳本盤點得出來但還不執行（`useCardScripts.ts` 檔頭有理由）。
- * 混在一起講就變成一份誇大的同意書 —— 使用者以為授權了更多，實際沒發生。
+ * 🔴 **兩種程式要分開講**：一種是**訊息裡看得到、你會直接點**的介面，
+ * 另一種是**背景腳本**（桌寵、變數、世界書連動）—— 它們在你沒看的時候也在跑。
+ * 混成一句「有 10 支腳本」會讓使用者不知道自己授權了什麼。
  */
 
 const kb = (n: number) => (n < 1024 ? `${n} 字元` : `${Math.round(n / 1024).toLocaleString()} KB`);
@@ -87,12 +87,10 @@ export function ConsentDialog({
 
           {background.length > 0 ? (
             <Box>
-              <Typography variant="subtitle2">
-                這一版還不會跑的：{background.length} 支背景腳本
-              </Typography>
+              <Typography variant="subtitle2">在背景跑的：{background.length} 支腳本</Typography>
               <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
-                盤點出來了，但還沒接執行環境。列在這裡是因為它們<b>是這張卡的一部分</b>——
-                下一版接上時指紋不會變，不會再問你一次。
+                看不見的那一半 —— 桌面寵物、變數、世界書連動。
+                <b>你沒在看畫面的時候它們也在跑</b>（例如桌寵會自己冒話）。
               </Typography>
               {list(background)}
             </Box>

@@ -1,9 +1,16 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { fetchScripts, type Inventory, type ScriptsState, setScriptsConsent } from './api';
+import {
+  fetchScriptContent,
+  fetchScripts,
+  type Inventory,
+  type ScriptsState,
+  setScriptsConsent,
+} from './api';
 import { type BridgeDeps, buildBridge } from './runtime/bridge';
 import { installBridgeHost } from './runtime/host';
 import { VENDOR_HOSTS } from './runtime/preamble';
+import { wrap } from './runtime/srcdoc';
 
 /**
  * 對話頁要用的一整包：盤點、同意、以及**把橋掛上去**（M13 第二期）。
@@ -12,11 +19,11 @@ import { VENDOR_HOSTS } from './runtime/preamble';
  * 在 2026-08-26 上午都寫好了，但沒有任何地方呼叫 —— 使用者按下「啟用」會得到
  * 一個永遠不回應的介面。**同意視窗與執行環境一定要一起上。**
  *
- * 🔴 **這一期只跑「介面」，不跑背景腳本。** 兩者都盤點、都在同意視窗裡列出來，
- * 但背景腳本（`kind: 'script'`）留到第三期（`PLAN.md` ⑦b）。
- * 理由是實測的：那 7 支裡 99.2% 是桌寵貼圖（沙箱下畫在看不見的 frame 裡＝白跑），
- * 其餘幾支要的是我們還沒接的世界書 API。**先跑它們＝多 2 MB、多風險、零可見效果。**
- * ⇒ 同意視窗要照實寫「哪些現在會跑、哪些還不會」，不要讓使用者以為都跑了。
+ * 🔴 **背景腳本全部塞進同一個 frame，不是一支一個**（第三期）。
+ * 酒館助手是一支一個 iframe，但它**沒有沙箱** ⇒ 那些 iframe 全都同源、共用主頁的全域。
+ * 我們有沙箱 ⇒ 一支一個 frame 會讓它們**互相看不見**，而卡片就是靠共用全域在協作的
+ * （桌寵讀 `__HESINIAN_DESK_DIALOGUE_CONFIG__`、MVU 掛 `Mvu`）。
+ * ⇒ 同一個 frame 才是**行為上**照抄，不是形式上照抄。
  */
 
 export type CardScriptsView = {
@@ -25,6 +32,11 @@ export type CardScriptsView = {
   enabled: boolean;
   /** iframe 內 CSP 白名單。🔴 沒同意就是空陣列 ＝ 完全斷網。 */
   allow: string[];
+  /**
+   * 🔴 背景腳本的程式碼，**已經逐支包好 `<script>`**（含不含 `import` 決定要不要 module）。
+   * `null` ＝ 還沒同意、或這張卡沒有背景腳本 ⇒ **不要建那個 frame**。
+   */
+  background: string | null;
   /** 開同意視窗。**沒有可同意的東西時是 `undefined`** —— 不要畫一顆沒有去處的鈕。 */
   ask: (() => void) | undefined;
   asking: boolean;
@@ -83,6 +95,22 @@ export function useCardScripts(deps: BridgeDeps): CardScriptsView {
   const enabled = consented(q.data);
 
   /**
+   * 內容只在**同意過**之後才拿（後端也會擋，指紋對不上回 403）。
+   * ⚠️ 那張卡是 **2 MB**（99.2% 是桌寵那張 96 格貼圖），所以 `staleTime: Infinity` ——
+   * 換一次開場就重抓 2 MB 是沒必要的。
+   */
+  const content = useQuery({
+    queryKey: ['card-scripts-content', deps.characterId],
+    queryFn: () => fetchScriptContent(deps.characterId),
+    enabled,
+    staleTime: Number.POSITIVE_INFINITY,
+  });
+  const background = useMemo(() => {
+    const list = content.data?.scripts ?? [];
+    return list.length > 0 ? list.map((x) => wrap(x.content)).join('') : null;
+  }, [content.data]);
+
+  /**
    * 🔴 白名單 ＝ **我們自己的 vendor ＋ 使用者同意過的那些**。
    * `VENDOR_HOSTS` 也要列進同意視窗 —— 那是我們自己去 CDN 抓 jQuery／toastr，
    * 不講的話就變成「我們替使用者做了一個他不知道的外連」。
@@ -96,6 +124,7 @@ export function useCardScripts(deps: BridgeDeps): CardScriptsView {
     inventory,
     enabled,
     allow,
+    background,
     ask: inventory ? () => setAsking(true) : undefined,
     asking,
     close: () => setAsking(false),

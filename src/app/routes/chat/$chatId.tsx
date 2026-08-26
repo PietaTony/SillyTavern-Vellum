@@ -1,6 +1,7 @@
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { createFileRoute } from '@tanstack/react-router';
 import { useState } from 'react';
+import { CardBackground } from '@/app/screens/CardBackground';
 import { CardFrontend } from '@/app/screens/CardFrontend';
 import { ChatFailure } from '@/app/screens/ChatFailure';
 import { ChatMenu } from '@/app/screens/ChatMenu';
@@ -130,6 +131,7 @@ function ChatPage() {
         characterId={q.data.characterId}
         readOnly
       />
+      <CardBackground cards={cards} characterId={q.data.characterId} />
       {cards.inventory ? (
         <ConsentDialog
           open={cards.asking}
