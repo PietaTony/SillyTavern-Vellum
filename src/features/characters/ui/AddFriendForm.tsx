@@ -1,4 +1,3 @@
-import Alert from '@mui/material/Alert';
 import Avatar from '@mui/material/Avatar';
 import Button from '@mui/material/Button';
 import Stack from '@mui/material/Stack';
@@ -6,6 +5,7 @@ import Typography from '@mui/material/Typography';
 import { useMutation } from '@tanstack/react-query';
 import { readImageScaled } from '@/shared/lib/image';
 import { DraftField } from '@/shared/ui/DraftField';
+import { pushToast } from '@/shared/ui/toastStore';
 import { draftFromImage } from '../api';
 import type { Draft } from '../model';
 
@@ -32,8 +32,14 @@ export function AddFriendForm({
    */
   imported?: boolean;
 }) {
+  /*
+   * 🔴 **生成失敗走 tips，不佔版面**（Peter 2026-08-26）。
+   * 上一版是一條 `Alert` 橫幅釘在按鈕下面 —— 它會把下面兩欄往下推，
+   * 而使用者的下一步其實是「換一張圖再按一次」，橫幅擋在中間反而礙事。
+   */
   const gen = useMutation({
     mutationFn: (dataUrl: string) => draftFromImage(dataUrl),
+    onError: (e: Error) => pushToast({ severity: 'warning', text: `生成失敗：${e.message}` }),
     onSuccess: (r) =>
       setDraft({
         ...draft,
@@ -81,31 +87,21 @@ export function AddFriendForm({
         variant="outlined"
         size="small"
         loading={gen.isPending}
-        disabled={imported || !draft.avatar}
+        disabled={!draft.avatar}
         onClick={() => gen.mutate(draft.avatar)}
       >
         透過圖片自動生成內容
       </Button>
       {imported ? (
         <Typography variant="caption" color="text.secondary">
-          這是匯入的角色卡，內容已經有了 —— 用 AI 生成會把卡片原本的內容蓋掉。
+          {/*
+           * 🔴 **匯入的卡也可以用圖片生成**（Peter 2026-08-26）。
+           * 上一版是把按鈕停用掉，理由是「會蓋掉卡片原本的內容」——
+           * 但那是**使用者的選擇**，不是我們該替他做的決定。
+           * ⇒ 改成照做但講清楚，並且旁邊就有「重設回卡片內容」可以反悔。
+           */}
+          這是匯入的角色卡 —— 用 AI 生成會蓋掉卡片原本的內容，要還原按上面的「重設」。
         </Typography>
-      ) : !draft.avatar ? (
-        <Typography variant="caption" color="text.secondary">
-          先放一張圖，就能請 AI 幫你把下面兩欄填好。
-        </Typography>
-      ) : null}
-      {gen.isError ? (
-        <Alert
-          severity="warning"
-          action={
-            <Button size="small" onClick={() => gen.reset()}>
-              再試一次
-            </Button>
-          }
-        >
-          生成失敗：{gen.error instanceof Error ? gen.error.message : '未知錯誤'}
-        </Alert>
       ) : null}
 
       <DraftField

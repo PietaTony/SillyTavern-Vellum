@@ -7,8 +7,8 @@ import {
   ADD_FRIEND_DRAFT,
   AddFriendForm,
   AddFriendSubmit,
-  alternatesOf,
   type Draft,
+  draftOfCard,
   emptyDraft,
   GreetingsSection,
   greetingsOf,
@@ -53,7 +53,9 @@ export function AddFriendScreen({ onBack }: { onBack: () => void }) {
   /** 剛匯入的那一位。有值時這一頁的意義從「建立」變成「確認並開始」。 */
   const [imported, setImported] = useState<ImportedCharacter | null>(null);
 
-  const { create, finishImported } = useAddFriendFinish(() => {
+  const fillFromCard = (c: ImportedCharacter) => setDraft(draftOfCard(c));
+
+  const { create, finishImported, saveGreetings } = useAddFriendFinish(() => {
     clearAllDrafts();
     setDraftState(emptyDraft);
   });
@@ -109,23 +111,37 @@ export function AddFriendScreen({ onBack }: { onBack: () => void }) {
          * 🔴 **匯入成功不跳走，把資料填進下面既有的欄位**（Peter 2026-08-25）。
          * 那四個框本來就在，再做一張預覽卡等於同一份資料有兩個長相。
          */
+        imported={imported}
+        /*
+         * 🔴 **重設要還原兩個地方，不是一個**（Peter 2026-08-26）。
+         * 表單是一份、**已經 PATCH 回去的額外問候語是另一份** ——
+         * 只還原表單的話，使用者看到「已經復原了」，但角色身上還是改過的版本。
+         */
+        onReset={() => {
+          if (!imported) return;
+          fillFromCard(imported);
+          saveGreetings.mutate({ id: imported.id, draft: draftOfCard(imported) });
+        }}
         onImported={(c) => {
           void qc.invalidateQueries({ queryKey: ['characters'] });
           setImported(c);
-          setDraft({
-            name: c.displayName ?? c.name,
-            description: c.description,
-            firstMessage: c.firstMessage,
-            avatar: c.avatar,
-            // 🔴 **不可以無條件 `slice(1)`** —— 理由與失敗劇本見 `model.ts` 的 `alternatesOf`。
-            greetings: alternatesOf(c),
-          });
+          fillFromCard(c);
         }}
       />
       <AddFriendForm draft={draft} setDraft={setDraft} imported={imported !== null} />
       <GreetingsSection
         greetings={draft.greetings}
         onChange={(g) => setDraft({ ...draft, greetings: g })}
+        /*
+         * 🔴 **匯入的角色已經在資料庫裡** ⇒ 關掉那一層就存，不必等最下面那顆鈕
+         * （Peter 2026-08-26）。從零建立的還沒有 id，只能留在草稿裡等送出。
+         */
+        {...(imported
+          ? {
+              onCommit: (g: string[]) =>
+                saveGreetings.mutate({ id: imported.id, draft: { ...draft, greetings: g } }),
+            }
+          : {})}
       />
     </Screen>
   );

@@ -8,6 +8,7 @@ import {
   updateCharacter,
 } from '@/features/characters';
 import { createChat } from '@/features/chat';
+import { pushToast } from '@/shared/ui/toastStore';
 
 /**
  * 「加入好友」那顆送出鈕背後的兩條路。**抽出來的理由有兩個**：
@@ -20,6 +21,22 @@ import { createChat } from '@/features/chat';
 export function useAddFriendFinish(onDone: () => void) {
   const nav = useNavigate();
   const qc = useQueryClient();
+
+  /**
+   * 🔴 **匯入的角色已經在資料庫裡了** —— 它是複製一份出來用的
+   * （Peter 2026-08-26），所以額外問候語**編完就存**，不必等最下面那顆鈕。
+   * ⚠️ 只有「已經存在」的角色能走這條；從零建立的還沒有 id。
+   */
+  const saveGreetings = useMutation({
+    mutationFn: (v: { id: string; draft: Draft }) =>
+      updateCharacter(v.id, { greetings: greetingsOf(v.draft) }),
+    onSuccess: async (r) => {
+      pushToast({ severity: 'success', text: '額外問候語已存好' });
+      await qc.invalidateQueries({ queryKey: ['characters'] });
+      await qc.invalidateQueries({ queryKey: ['character', r.id] });
+    },
+    onError: (e: Error) => pushToast({ severity: 'warning', text: e.message }),
+  });
 
   /** 從零建立：建角色 → 開對話 → 進對話串（F22–F28：按下去直接開始對話）。 */
   const create = useMutation({
@@ -74,5 +91,5 @@ export function useAddFriendFinish(onDone: () => void) {
     },
   });
 
-  return { create, finishImported };
+  return { create, finishImported, saveGreetings };
 }

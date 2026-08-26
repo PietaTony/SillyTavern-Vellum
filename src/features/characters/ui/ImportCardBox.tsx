@@ -8,6 +8,7 @@ import { useState } from 'react';
 import { readDraft } from '@/shared/lib/draftStore';
 import { readImageScaled } from '@/shared/lib/image';
 import { DraftField } from '@/shared/ui/DraftField';
+import { pushToast } from '@/shared/ui/toastStore';
 import { type ImportedCharacter, importCardByUrl, importCardFile } from '../api';
 
 /**
@@ -24,8 +25,20 @@ const URL_DRAFT = 'vellum.draft.import-card.url';
 export function ImportCardBox({
   onImported,
   onUseAsAvatar,
+  imported = null,
+  onReset,
 }: {
   onImported: (c: ImportedCharacter) => void;
+  /**
+   * 🔴 **這一頁已經匯入過的那位。** 有值時「匯入」那顆鈕的意義變成**重設**
+   * （Peter 2026-08-26：「要是本地有角色卡，不會重新再下載一個，
+   * 而是再次 reset 改過的資料，包含了角色描述等等」）。
+   * ⚠️ 再下載一次的話會**再建一個新角色**（每次匯入都是新的 UUID），
+   *    使用者只是想把改壞的內容還原，結果多出一位好友。
+   */
+  imported?: ImportedCharacter | null;
+  /** 把表單重設回卡片原本的內容。`imported` 有值時必須給。 */
+  onReset?: (() => void) | undefined;
   /** 🔴 **死路要有出口**：不是卡片的圖，就讓它變成頭像，不要只留一句錯誤訊息。 */
   onUseAsAvatar?: ((dataUrl: string) => void) | undefined;
 }) {
@@ -36,7 +49,24 @@ export function ImportCardBox({
     mutationFn: (input: string | ArrayBuffer) =>
       typeof input === 'string' ? importCardByUrl(input) : importCardFile(input),
     onSuccess: (c) => {
-      setUrl('');
+      /*
+       * 🔴 **成功走 tips，不留橫幅**（Peter 2026-08-26）。
+       * 上一版是一條綠色 `Alert` 釘在匯入框下面，**而且不會自己消失** ——
+       * 使用者已經看到下面的欄位被填好了，那條橫幅只是把表單往下推。
+       * ⚠️ 「匯入完不跳走、也不另外做一張預覽卡」（Peter 2026-08-25）仍然成立：
+       *    下面本來就有四個欄位，填進去就好，不要讓同一份資料有兩個長相。
+       */
+      pushToast({
+        severity: 'success',
+        text: `已加入「${c.displayName ?? c.name}」，內容已經填在下面`,
+      });
+      /*
+       * 🔴 **匯入成功不清空網址**（Peter 2026-08-26）。
+       * 同一張卡常常要加入好幾次（不同的 persona、不同的開場線各開一段），
+       * 清掉的話每次都要重貼一次網址。留著 ⇒「匯入」那顆鈕可以直接再按一次。
+       * ⚠️ 這也表示 `disabled` 只能看「網址是不是空的」與「正在跑」，
+       *    **不可以加上「已經匯入過」** —— 那正是我們要拿掉的行為。
+       */
       onImported(c);
     },
   });
@@ -57,13 +87,18 @@ export function ImportCardBox({
           placeholder="https://…/角色卡.png"
           disabled={m.isPending}
         />
+        {/*
+         * 🔴 **本地已經有這張卡 ⇒ 這顆鈕不再下載，改成「重設」。**
+         * 判準是「這一頁匯入過了沒」，不是「網址一不一樣」——
+         * 使用者按第二次的意圖是「把我改壞的還原」，不是「再加一個」。
+         */}
         <Button
           variant="contained"
           loading={m.isPending}
-          disabled={url.trim() === ''}
-          onClick={() => m.mutate(url.trim())}
+          disabled={imported ? false : url.trim() === ''}
+          onClick={() => (imported ? onReset?.() : m.mutate(url.trim()))}
         >
-          匯入
+          {imported ? '重設' : '匯入'}
         </Button>
       </Stack>
       <Button component="label" size="small" sx={{ mt: 1 }} disabled={m.isPending}>
@@ -103,16 +138,6 @@ export function ImportCardBox({
           }
         >
           {m.error instanceof Error ? m.error.message : '匯入失敗'}
-        </Alert>
-      ) : null}
-      {/*
-       * 🔴 **匯入完不跳走、也不另外做一張預覽卡**（Peter 2026-08-25）：
-       * 下面本來就有頭像／名稱／描述／初始訊息四個欄位，**填進去就好**。
-       * 多做一個框等於同一份資料有兩個長相，使用者還要對照哪個才算數。
-       */}
-      {m.isSuccess ? (
-        <Alert severity="success" sx={{ mt: 1 }}>
-          已加入「{m.data.displayName ?? m.data.name}」，內容已經填在下面
         </Alert>
       ) : null}
     </Paper>

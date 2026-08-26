@@ -58,3 +58,26 @@ export const alternatesOf = (c: {
   const all = c.greetings ?? [];
   return all[0] === c.firstMessage ? all.slice(1) : all;
 };
+
+/**
+ * 卡片內容 → 表單的那份 draft。
+ *
+ * 🔴 **匯入與「重設」共用同一份轉換**（Peter 2026-08-26 要求「重設」＝
+ * 回到卡片原本的內容）。兩邊各寫一次的話遲早會分岔，
+ * 而分岔的症狀是「重設之後跟剛匯入時不一樣」—— 使用者只會覺得重設壞了。
+ * 🔴 `alternatesOf` 不是 `slice(1)` —— 理由與失敗劇本見上面那支。
+ */
+export const draftOfCard = (c: {
+  name: string;
+  displayName?: string | undefined;
+  description: string;
+  firstMessage: string;
+  avatar: string;
+  greetings?: string[] | undefined;
+}): Draft => ({
+  name: c.displayName ?? c.name,
+  description: c.description,
+  firstMessage: c.firstMessage,
+  avatar: c.avatar,
+  greetings: alternatesOf(c),
+});
