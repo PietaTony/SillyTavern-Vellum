@@ -1,5 +1,6 @@
 import DOMPurify from 'dompurify';
 import showdown from 'showdown';
+import { blockExternalMedia } from './media';
 
 /**
  * 訊息內容 → 可以塞進 DOM 的 HTML。
@@ -49,5 +50,11 @@ export function toHtml(text: string): string {
    * ⚠️ 我們**不加** `custom-style` —— 那是 ST 用來讓 `<style>` 穿過淨化的技倆，
    * 而我們第一期根本不渲染 `<style>`。
    */
-  return DOMPurify.sanitize(rendered, { USE_PROFILES: { html: true } });
+  const clean = DOMPurify.sanitize(rendered, { USE_PROFILES: { html: true } });
+  /**
+   * 🔴 **封鎖在淨化「之後」**（⑤e）。順序不能反：
+   * 淨化會改寫／移除元素，先擋再淨化的話擋過的東西可能又被還原成別的形狀。
+   * 見 `media.ts` 檔頭（也解釋了為什麼不用全域的 `DOMPurify.addHook`）。
+   */
+  return blockExternalMedia(clean);
 }

@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { hasFrontend, isFrontend, segments } from '../render/frontend';
 import { toHtml } from '../render/html';
+import { isExternal } from '../render/media';
 
 /**
  * M13 第一期的兩支純函式。
@@ -90,5 +91,37 @@ describe('前端區塊偵測（照抄酒館助手 is_frontend.ts:1-3）', () => 
   it('多個前端區塊都要抓到', () => {
     const text = '```\n<body>A</body>\n```\n中間\n```\n<body>B</body>\n```';
     expect(segments(text).filter((p) => p.kind === 'frontend')).toHaveLength(2);
+  });
+});
+
+describe('外部媒體封鎖（⑤e，同 ST forbid_external_media 預設開）', () => {
+  it('🔴 外部圖片要擋下來，而且要留看得見的佔位（靜默刪掉＝使用者以為壞了）', () => {
+    const out = toHtml('<img src="https://evil.example/pixel.png?who=me">');
+    expect(out).not.toContain('evil.example');
+    expect(out).toContain('外部圖片已封鎖');
+  });
+
+  it('協定相對網址也會發請求，不可以漏', () => {
+    expect(toHtml('<img src="//evil.example/p.png">')).not.toContain('evil.example');
+  });
+
+  it('srcset 裡任何一個候選是外部的就整個擋掉', () => {
+    const out = toHtml(
+      '<img src="/local.png" srcset="/local.png 1x, https://evil.example/2x.png 2x">',
+    );
+    expect(out).not.toContain('evil.example');
+  });
+
+  it('🔴 相對路徑與 data: 不算外部 —— 擋過頭會把自己的圖也弄不見', () => {
+    expect(isExternal('/backgrounds/a.jpg')).toBe(false);
+    expect(isExternal('data:image/png;base64,AAAA')).toBe(false);
+    expect(isExternal('https://x.example/a.png')).toBe(true);
+    expect(isExternal('//x.example/a.png')).toBe(true);
+    // 尺沒壞的證明：本機圖真的活著出來
+    expect(toHtml('<img src="/backgrounds/a.jpg">')).toContain('/backgrounds/a.jpg');
+  });
+
+  it('iframe 也算媒體（它是最直接的外連）', () => {
+    expect(toHtml('<iframe src="https://evil.example"></iframe>')).not.toContain('evil.example');
   });
 });
