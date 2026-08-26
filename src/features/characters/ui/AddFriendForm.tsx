@@ -3,7 +3,7 @@ import Button from '@mui/material/Button';
 import Stack from '@mui/material/Stack';
 import Typography from '@mui/material/Typography';
 import { useMutation } from '@tanstack/react-query';
-import { readImageScaled } from '@/shared/lib/image';
+import { readImageScaled, toDataUrl } from '@/shared/lib/image';
 import { DraftField } from '@/shared/ui/DraftField';
 import { pushToast } from '@/shared/ui/toastStore';
 import { draftFromImage } from '../api';
@@ -38,7 +38,8 @@ export function AddFriendForm({
    * 而使用者的下一步其實是「換一張圖再按一次」，橫幅擋在中間反而礙事。
    */
   const gen = useMutation({
-    mutationFn: (dataUrl: string) => draftFromImage(dataUrl),
+    // 🔴 **先轉成 data URL** —— 匯入的角色頭像是一個路徑，直接送過去會被擋（見 `toDataUrl`）。
+    mutationFn: async (src: string) => draftFromImage(await toDataUrl(src)),
     onError: (e: Error) => pushToast({ severity: 'warning', text: `生成失敗：${e.message}` }),
     onSuccess: (r) =>
       setDraft({
