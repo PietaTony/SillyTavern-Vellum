@@ -116,8 +116,21 @@ export const chats = new Hono()
     msg.text = msg.swipes[idx] ?? msg.text;
     await writeJson(`chats/${id}.json`, chat);
 
+    /**
+     * 🔴 **判準是內容，不是位置**（敵意審查 2026-08-26 B2）。
+     * `msg.swipes` 與 `ch.greetings` 是**兩份資料**，index 對得上只是「碰巧」：
+     *   · **匯入的 ST 對話** —— 第一則的候選來自別人的檔案，與這個角色的 `greetings` 無關；
+     *     `chatImport` 的 `characterId` 是 query 參數，任何對話檔都掛得到任何角色。
+     *   · **建完對話之後改過問候語** —— 對話存的是建立當下的快照（`:73`）。
+     *   · **空 `first_mes` 的卡** —— `importCard.ts:81` 濾空白會讓兩邊平移一格（M11 ⑨ B1 同型）。
+     * 🔴 對錯的後果不是顯示錯：`applyGreetingLore` **會寫 `worlds/<id>.json`** ⇒
+     * 世界書被開錯／關錯，之後每次生成的 prompt 都被污染，而畫面上完全看不出來。
+     * ⇒ 兩個條件都要成立：**是第一則** ＋ **那一則的內容真的等於角色的第 idx 則開場**。
+     */
     const ch = await read<Character | null>(`characters/${chat.characterId}.json`, null);
-    const raw = ch?.greetings?.[idx];
+    const target = msg.swipes[idx];
+    const isGreeting = chat.messages[0]?.id === msg.id && ch?.greetings?.[idx] === target;
+    const raw = isGreeting ? target : undefined;
     const lore = raw ? await applyGreetingLore(chat.characterId, raw) : null;
     return c.json({ id: msg.id, swipeIndex: idx, text: msg.text, lore });
   })

@@ -12,7 +12,7 @@ export type Character = {
   createdAt: string;
   /** 最後一次就地修改的時間。樂觀鎖用的（GAP-71）；沒改過就沒有這個欄位。 */
   updatedAt?: string;
-  /** 所有開場白候選。>1 時，進對話前要先讓使用者挑（Peter 指定的落點）。 */
+  /** 開場白候選數。>1 時對話的第一則訊息會長出左右切換（M12 起不再攔在進對話之前）。 */
   greetings?: string[];
 };
 

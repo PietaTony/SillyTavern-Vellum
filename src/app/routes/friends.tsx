@@ -50,13 +50,13 @@ function FriendsPage() {
       void nav({ to: '/chat/$chatId', params: { chatId: existing.id } });
       return;
     }
-    // 🔴 還沒聊過、而且有多種開場 ⇒ **先挑再進去**（Peter 指定的落點）。
-    // 不同的開場會開啟不同的世界書設定，進去之後才發現選錯，前面聊的都白費了。
-    const character = (chars.data ?? []).find((c) => c.id === characterId);
-    if ((character?.greetingCount ?? 0) > 1) {
-      void nav({ to: '/pick-greeting/$characterId', params: { characterId } });
-      return;
-    }
+    /**
+     * 🔴 **不再先跳「選開場」頁**（M12 G1，Peter 2026-08-26 裁定）。
+     * 上一版：`greetingCount > 1` 就導去 `/pick-greeting` 先挑。
+     * ST 沒有這道關卡 —— 多種開場就是第一則訊息的 swipe，進去再左右切。
+     * ⚠️ 選哪一則**仍然會決定世界書開哪幾條**（那是當初做這頁的理由），
+     *    所以候選清單沒有消失，只是搬進對話裡當疊層（`SwipePicker`）。
+     */
     const chat = await createChat(characterId);
     void nav({ to: '/chat/$chatId', params: { chatId: chat.id } });
   };

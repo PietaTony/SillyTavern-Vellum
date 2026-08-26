@@ -11,14 +11,12 @@ export function AddFriendSubmit({
   busy,
   onCreate,
   imported = false,
-  greetings = 0,
 }: {
   draft: Draft;
   busy: boolean;
   onCreate: () => void;
   /** 🔴 匯入的角色**已經建立好了**，這顆鈕的意義變成「開始聊天」。 */
   imported?: boolean;
-  greetings?: number;
 }) {
   return (
     <Box sx={{ flex: 'none', p: 2, borderTop: 1, borderColor: 'divider' }}>
@@ -30,7 +28,13 @@ export function AddFriendSubmit({
         disabled={!imported && !canCreate(draft)}
         onClick={onCreate}
       >
-        {imported ? (greetings > 1 ? '選一個開場，開始聊天' : '開始聊天') : '建立角色'}
+        {/*
+          🔴 **不可以再寫「選一個開場」**（M12 G1）。那頁已經拿掉了，
+          按下去是**直接進對話**——鈕上的字與實際去處不一致就是「說謊的按鈕」。
+          ⚠️ 連帶把只服務那句話的 `greetings` prop 一起刪掉，
+          留著就是下一個 GAP-60（死 prop，還會讓人以為這裡仍有分支）。
+        */}
+        {imported ? '開始聊天' : '建立角色'}
       </Button>
     </Box>
   );

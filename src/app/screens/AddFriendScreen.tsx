@@ -11,7 +11,6 @@ import {
   draftOfCard,
   emptyDraft,
   GreetingsSection,
-  greetingsOf,
   ImportCardBox,
   type ImportedCharacter,
   loadAddFriendDraft,
@@ -71,8 +70,6 @@ export function AddFriendScreen({ onBack }: { onBack: () => void }) {
           draft={draft}
           busy={busy}
           imported={imported !== null}
-          // 🔴 用**編輯後**的數量，不是匯入當下的 —— 使用者剛加/刪過就對不上了。
-          greetings={greetingsOf(draft).length}
           onCreate={() =>
             imported ? finishImported.mutate({ imported, draft }) : create.mutate(draft)
           }

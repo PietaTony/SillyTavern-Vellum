@@ -1,12 +1,11 @@
-import ChevronLeftIcon from '@mui/icons-material/ChevronLeft';
-import ChevronRightIcon from '@mui/icons-material/ChevronRight';
 import Avatar from '@mui/material/Avatar';
 import Box from '@mui/material/Box';
-import IconButton from '@mui/material/IconButton';
 import Stack from '@mui/material/Stack';
 import Typography from '@mui/material/Typography';
 import { SERIF } from '@/app/theme';
 import type { Message } from '../model';
+import { useSwipeKeys } from '../useSwipeKeys';
+import { SwipeBar } from './SwipeBar';
 
 /**
  * 對話串。兩種形狀來自設計正本 `Foundations.dc.html` 的 Semantic 層：
@@ -28,41 +27,12 @@ function Content({ text }: { text: string }) {
   );
 }
 
-/**
- * 同一則訊息的候選切換（swipe）。
- * 🔴 **只有真的有候選才顯示** —— 沒有候選卻畫出箭頭，等於告訴使用者「這裡可以切」然後按了沒反應。
- */
-function Swipes({
-  message,
-  onSwipe,
-}: {
-  message: Message;
-  onSwipe: (messageId: string, index: number) => void;
-}) {
-  const total = message.swipes?.length ?? 0;
-  if (total < 2) return null;
-  const at = message.swipeIndex ?? 0;
-  const go = (d: number) => onSwipe(message.id, (at + d + total) % total);
-  return (
-    <Stack direction="row" spacing={0.5} sx={{ alignItems: 'center', mt: 0.5 }}>
-      <IconButton size="small" aria-label="上一個開場" onClick={() => go(-1)}>
-        <ChevronLeftIcon fontSize="small" />
-      </IconButton>
-      <Typography variant="caption" color="text.secondary">
-        {at + 1} / {total}
-      </Typography>
-      <IconButton size="small" aria-label="下一個開場" onClick={() => go(1)}>
-        <ChevronRightIcon fontSize="small" />
-      </IconButton>
-    </Stack>
-  );
-}
-
 export function Thread({
   messages,
   streaming,
   avatar,
   name,
+  characterId,
   onSwipe,
   onAvatarClick,
 }: {
@@ -70,10 +40,18 @@ export function Thread({
   streaming: string | null;
   avatar?: string | undefined;
   name: string;
+  /** 候選清單層要靠它去讀「這則開場會開啟幾條世界書」。沒給就只列候選文字。 */
+  characterId?: string | undefined;
   onSwipe?: ((messageId: string, index: number) => void) | undefined;
   /** 沒給就不綁 —— 一顆點了沒反應的頭像比不能點更糟。 */
   onAvatarClick?: (() => void) | undefined;
 }) {
+  // `←` `→` 切候選（ST 有，M12 G5）。掛在「最後一則有候選的訊息」上，同 ST 的 `.last_mes`。
+  useSwipeKeys(messages, onSwipe);
+
+  // 🔴 只有第一則的候選是角色的開場白（`server/routes/chats.ts:73` 建的就只有它）。
+  const firstId = messages[0]?.id;
+
   const theirs = (key: string, text: string, message?: Message) => (
     <Stack key={key} direction="row" spacing={1.5} sx={{ alignItems: 'flex-start' }}>
       {/*
@@ -105,7 +83,14 @@ export function Thread({
       </Avatar>
       <Box sx={{ borderLeft: 2, borderColor: 'vellum.blockThemRule', pl: 1.5, flex: 1 }}>
         <Content text={text} />
-        {message && onSwipe ? <Swipes message={message} onSwipe={onSwipe} /> : null}
+        {message && onSwipe ? (
+          <SwipeBar
+            message={message}
+            characterId={characterId}
+            isGreeting={message.id === firstId}
+            onSwipe={onSwipe}
+          />
+        ) : null}
       </Box>
     </Stack>
   );

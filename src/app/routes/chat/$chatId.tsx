@@ -1,11 +1,9 @@
-import Alert from '@mui/material/Alert';
-import Button from '@mui/material/Button';
-import CircularProgress from '@mui/material/CircularProgress';
 import { useMutation, useQuery } from '@tanstack/react-query';
-import { createFileRoute, useNavigate } from '@tanstack/react-router';
+import { createFileRoute } from '@tanstack/react-router';
 import { useRef, useState } from 'react';
 import { ChatFailure } from '@/app/screens/ChatFailure';
 import { ChatMenu } from '@/app/screens/ChatMenu';
+import { ChatLoading, ChatUnavailable } from '@/app/screens/ChatUnavailable';
 import { useBack } from '@/app/screens/useBack';
 import { useChatBackgroundOverride } from '@/app/screens/useChatBackgroundOverride';
 import { CharacterLayer, fetchCharacter } from '@/features/characters';
@@ -24,7 +22,6 @@ export const Route = createFileRoute('/chat/$chatId')({ component: ChatPage });
 
 function ChatPage() {
   const { chatId } = Route.useParams();
-  const nav = useNavigate();
   const onBack = useBack();
   const q = useQuery({ queryKey: ['chat', chatId], queryFn: () => fetchChat(chatId) });
   // 頭像從角色現取，不複製進對話（避免每段對話多帶一份 base64，也避免換圖後過期）
@@ -45,14 +42,18 @@ function ChatPage() {
   const abortRef = useRef<AbortController | null>(null);
 
   /**
-   * 切換開場白的候選。**成功之後要重讀對話**（文字換了）**也要重讀世界書**——
-   * 🔴 切開場白會連帶重算世界書開關，那是驗收 B3 的完整路徑。
+   * 切候選。🔴 **`setLocal(null)` 不可以省**（敵意審查 2026-08-26 B1）：
+   * `messages` 是 `local ?? q.data.messages`，送過一則訊息之後 `local` 就不是 null，
+   * 全檔又沒有別的地方歸零 ⇒ `refetch()` 的新資料被 `??` 短路，
+   * **箭頭／鍵盤／清單層三個入口同時變成「按了沒反應」**（伺服器已經換了、畫面不動）。
+   * ⚠️ 先 `await refetch()` 再歸零；反過來會閃一下舊資料。
    */
   const swipe = useMutation({
     mutationFn: ({ messageId, index }: { messageId: string; index: number }) =>
       swipeMessage(chatId, messageId, index),
-    onSuccess: () => {
-      void q.refetch();
+    onSuccess: async () => {
+      await q.refetch();
+      setLocal(null);
     },
   });
 
@@ -93,26 +94,10 @@ function ChatPage() {
     );
   }
 
-  if (q.isPending)
-    return (
-      <Screen title="⋯">
-        <CircularProgress size={24} />
-      </Screen>
-    );
+  if (q.isPending) return <ChatLoading />;
   if (q.isError)
     return (
-      <Screen title="打不開這段對話" onBack={onBack}>
-        <Alert
-          severity="warning"
-          action={
-            <Button size="small" onClick={() => void nav({ to: '/add-friend' })}>
-              重新加一個好友
-            </Button>
-          }
-        >
-          找不到這段對話：{q.error instanceof Error ? q.error.message : ''}
-        </Alert>
-      </Screen>
+      <ChatUnavailable why={q.error instanceof Error ? q.error.message : ''} onBack={onBack} />
     );
 
   return (
@@ -134,6 +119,7 @@ function ChatPage() {
         streaming={streaming}
         avatar={char.data?.avatar || undefined}
         name={q.data.characterName}
+        characterId={q.data.characterId}
         onSwipe={(messageId, index) => void swipe.mutate({ messageId, index })}
         onAvatarClick={() => setShowChar(true)}
       />

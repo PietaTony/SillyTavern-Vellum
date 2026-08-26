@@ -7,6 +7,7 @@ import { BadCardUrl, fetchCardBytes } from '../lib/fetchCard.ts';
 import { extractLoreTags, stripLoreTags, titleOfGreeting } from '../lib/loreTags.ts';
 import { getKey, redact } from '../lib/secrets.ts';
 import { draftFromImage } from '../lib/gemini.ts';
+import { altNumbering } from '../lib/greetings.ts';
 import { safeId } from '../lib/ids.ts';
 
 const CreateBody = CharacterSchema.omit({ id: true, createdAt: true });
@@ -36,25 +37,18 @@ export const characters = new Hono()
     );
   })
 
-  /** 開場白清單（含各自的名字）。挑開場那一頁用。 */
+  /** 開場白清單（含各自的名字）。對話裡的候選清單層（`SwipePicker`）用。 */
   .get('/:id/greetings', async (c) => {
     const id = safeId(c.req.param('id'));
     if (!id) return c.json({ error: '找不到這個角色' }, 404);
     const ch = await readJson<Character | null>(`characters/${id}.json`, null);
     if (!ch) return c.json({ error: '找不到這個角色' }, 404);
-    /**
-     * 🔴 **編號要與「額外問候語」那一層對得起來**（GAP-67）。
-     * 那一層的「第 1 則」是**第一則額外問候**（與 ST 的 `alternate_greetings` 對齊），
-     * 這裡的 `index` 卻是含第一則問候的陣列索引 ⇒ 同一則內容前後兩頁差 1。
-     * ⚠️ 不可以無條件假設 `greetings[0]` 就是第一則問候：`importCard.ts:81` 會濾掉空白，
-     *    空 `first_mes` 的卡，`greetings[0]` 其實是第一則額外問候（同 `alternatesOf`）。
-     * ⇒ `alt` ＝ 在「額外問候語」那一層的編號；`null` 代表它就是原本的開場。
-     */
+    // 編號規則（GAP-67）抽成純函式 `altNumbering`，理由與判準見該檔檔頭。
     const all = ch.greetings ?? [];
-    const firstIsIntro = all[0] === ch.firstMessage;
+    const alts = altNumbering(all, ch.firstMessage);
     const list = all.map((g, i) => ({
       index: i,
-      alt: firstIsIntro ? (i === 0 ? null : i) : i + 1,
+      alt: alts[i] ?? null,
       title: titleOfGreeting(g),
       preview: stripLoreTags(g).slice(0, 300),
       lore: extractLoreTags(g).include.length,

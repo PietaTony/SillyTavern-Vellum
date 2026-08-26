@@ -77,7 +77,7 @@ export async function intoCharacter(png: Buffer) {
     ...(displayName !== base ? { displayName } : {}),
     description: view.description,
     firstMessage: view.firstMessage,
-    // 🔴 全部候選都存下來。選哪一則是使用者的事（Peter：進對話前要能挑）。
+    // 🔴 全部候選都存下來。選哪一則是使用者的事——M12 起是**進對話後**左右切（同 ST）。
     greetings: [view.firstMessage, ...view.alternateGreetings].filter((g) => g.trim() !== ''),
     outputRules: fromRegexScripts(
       ((imported.card.payloads[imported.card.primary] as { data?: { extensions?: { regex_scripts?: unknown } } }).data

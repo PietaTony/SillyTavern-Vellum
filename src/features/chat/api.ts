@@ -3,7 +3,11 @@ import { type Chat, type Message, parseSse, type StreamEvent } from './model';
 
 export const fetchChats = (): Promise<Chat[]> => get<Chat[]>('/api/chats');
 export const fetchChat = (id: string): Promise<Chat> => get<Chat>(`/api/chats/${id}`);
-/** `greetingIndex` ＝ 用哪一則開場白開場（Peter：進對話前要能挑）。省略＝第一則。 */
+/**
+ * `greetingIndex` ＝ 開場時**先站在哪一則候選**。省略＝第一則。
+ * ⚠️ M12 起**沒有人會傳它**：進對話不再有選開場關卡，一律從第一則開始、進去再左右切。
+ * 參數留著是因為端點語意仍然成立（「從第 N 則開場」），刪掉會讓 API 少一個維度。
+ */
 export const createChat = (characterId: string, greetingIndex?: number): Promise<Chat> =>
   post<Chat>('/api/chats', {
     characterId,

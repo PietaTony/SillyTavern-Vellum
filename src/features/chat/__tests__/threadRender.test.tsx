@@ -47,7 +47,7 @@ describe('對話串的渲染', () => {
         onSwipe={() => {}}
       />,
     );
-    expect(screen.queryByLabelText('下一個開場')).toBeNull();
+    expect(screen.queryByLabelText('下一個候選')).toBeNull();
   });
 
   it('只有一個候選也不顯示（1/1 的箭頭沒有意義）', () => {
@@ -59,7 +59,7 @@ describe('對話串的渲染', () => {
         onSwipe={() => {}}
       />,
     );
-    expect(screen.queryByLabelText('下一個開場')).toBeNull();
+    expect(screen.queryByLabelText('下一個候選')).toBeNull();
   });
 
   it('有多個候選時顯示位置，且位置是 1-based（使用者不從 0 開始數）', () => {
@@ -72,6 +72,14 @@ describe('對話串的渲染', () => {
       />,
     );
     expect(screen.getByText('2 / 3')).toBeTruthy();
+    /**
+     * 🔴 **這兩行是「尺沒壞」的證明，不是多餘的。**
+     * 上面那幾條全是 `toBeNull()` —— aria-label 改個字它們照樣全綠
+     * （M12 改名時就真的發生了：`下一個開場` → `下一個候選`，六條測試沒有一條紅）。
+     * ⇒ 同一支選擇器**至少要有一條正向斷言**，否則它守的是空氣。
+     */
+    expect(screen.getByLabelText('下一個候選')).toBeTruthy();
+    expect(screen.getByLabelText('上一個候選')).toBeTruthy();
   });
 
   it('🔴 沒有傳 onSwipe 就不顯示箭頭 —— 畫得出來但按不動等於騙人', () => {
@@ -82,7 +90,7 @@ describe('對話串的渲染', () => {
         name="某"
       />,
     );
-    expect(screen.queryByLabelText('下一個開場')).toBeNull();
+    expect(screen.queryByLabelText('下一個候選')).toBeNull();
   });
 
   it('使用者自己的訊息不會長出切換箭頭', () => {
@@ -94,6 +102,6 @@ describe('對話串的渲染', () => {
         onSwipe={() => {}}
       />,
     );
-    expect(screen.queryByLabelText('下一個開場')).toBeNull();
+    expect(screen.queryByLabelText('下一個候選')).toBeNull();
   });
 });

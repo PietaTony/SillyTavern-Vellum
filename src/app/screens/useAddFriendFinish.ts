@@ -76,18 +76,20 @@ export function useAddFriendFinish(onDone: () => void) {
         // 🔴 樂觀鎖（GAP-71）。匯入當下那份還沒被改過，通常是 undefined ＝ 不檢查。
         ifUnmodifiedSince: v.imported.updatedAt,
       });
-      return { id: v.imported.id, count: greetings.length };
+      /**
+       * 🔴 **不再跳「選開場」頁**（M12 G1，Peter 2026-08-26 裁定）。
+       * ST **沒有**進對話前的選開場關卡（實查 `script.js:7651-7683`）：
+       * 額外問候語就是第一則訊息的 swipe，進去之後左右切；
+       * 要一次看完所有候選是從訊息的計數器叫出**疊層清單**（ST `swipe-picker.js`）。
+       * ⇒ 這裡與「從零建立」那條走同一個結局：**建對話、直接進去**。
+       */
+      return createChat(v.imported.id);
     },
-    onSuccess: (r) => {
-      // 🔴 好友列表用快取的 `greetingCount` 決定要不要進「選開場」（staleTime 30s）
-      //    ⇒ 不失效的話，30 秒內會照舊值走。
+    onSuccess: (chat) => {
       void qc.invalidateQueries({ queryKey: ['characters'] });
-      void qc.invalidateQueries({ queryKey: ['character', r.id] });
+      void qc.invalidateQueries({ queryKey: ['character', chat.characterId] });
       onDone();
-      // 🔴 只有一則就沒什麼好選的，直接回列表（多開一張「選開場」的空畫面是死路）。
-      if (r.count > 1)
-        void nav({ to: '/pick-greeting/$characterId', params: { characterId: r.id } });
-      else void nav({ to: '/friends' });
+      void nav({ to: '/chat/$chatId', params: { chatId: chat.id } });
     },
   });
 
