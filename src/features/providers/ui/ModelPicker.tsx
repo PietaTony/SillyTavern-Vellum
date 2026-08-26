@@ -1,12 +1,13 @@
 import Alert from '@mui/material/Alert';
+import Button from '@mui/material/Button';
 import CircularProgress from '@mui/material/CircularProgress';
 import MenuItem from '@mui/material/MenuItem';
 import Snackbar from '@mui/material/Snackbar';
 import Stack from '@mui/material/Stack';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { DraftField } from '@/shared/ui/DraftField';
-import { fetchModels, saveModel } from '../registryApi';
+import { fetchModels, testModel } from '../registryApi';
 
 /**
  * 選模型（規格 §6 優先序 2、驗收 B3）。
@@ -14,6 +15,11 @@ import { fetchModels, saveModel } from '../registryApi';
  * 🔴 **這解掉又一個「引擎有了沒有門」**：`listModels()` 早就把清單拉回來了，
  * 但在此之前只有 `KeyGate` 顯示一個「N 個模型可用」的**數字** ——
  * 使用者看得到有幾個，卻選不了任何一個。
+ *
+ * 🔴 **選了不會馬上存，要測過才存**（Peter 2026-08-26，與金鑰同一套）。
+ * 理由不是對稱好看：**models 端點會列出打不通的模型** ——
+ * 實測 `gemini-2.5-flash` 在清單裡，打下去回 404「no longer available to new users」。
+ * 「選了就存」會存到一個用不了的，而使用者要到下一次對話才發現。
  *
  * 🔴 **沒有清單端點的那幾家要能手動輸入**，不是給一個空下拉讓人卡住。
  */
@@ -28,24 +34,17 @@ export function ModelPicker({
 }) {
   const qc = useQueryClient();
   const q = useQuery({ queryKey: ['models', provider], queryFn: () => fetchModels(provider) });
-  // 🔴 **選了就存**。在此之前這一頁自己寫著「還沒有存起來的地方」——
-  // 那是誠實，但誠實的孤兒還是孤兒（總則四）。
-  const save = useMutation({
-    mutationFn: (m: string) => saveModel(provider, m),
-    onSuccess: () => void qc.invalidateQueries({ queryKey: ['providerRows'] }),
-  });
-  const pick = (m: string) => {
-    onChange(m);
-    if (m.trim()) save.mutate(m.trim());
-  };
-  // 🔴 **存檔要看得見。** 只把「已存」寫在 helperText 裡的話，
-  // 使用者盯著的是剛選好的模型名，那行小字他不會看到 ——
-  // 而「有沒有存到」正是他最需要確認的事（Peter 2026-08-26）。
   const [toast, setToast] = useState<string | null>(null);
-  useEffect(() => {
-    if (save.isSuccess) setToast(`已存：${save.variables}`);
-    if (save.isError) setToast('存不起來 —— 下一次生成還是會用舊的');
-  }, [save.isSuccess, save.isError, save.variables]);
+
+  const test = useMutation({
+    mutationFn: () => testModel(provider, value.trim()),
+    onSuccess: (r) => {
+      setToast(r.ok ? `測試成功，已存：${r.model}` : `測試沒有通過：${r.message.slice(0, 120)}`);
+      if (r.ok) void qc.invalidateQueries({ queryKey: ['providerRows'] });
+    },
+    onError: () => setToast('連不上，沒有存'),
+  });
+  const failed = test.data?.ok === false;
 
   if (q.isPending) return <CircularProgress size={20} />;
 
@@ -54,24 +53,25 @@ export function ModelPicker({
     <Stack spacing={1}>
       <Snackbar
         open={toast !== null}
-        autoHideDuration={2500}
+        autoHideDuration={4000}
         onClose={() => setToast(null)}
         anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
       >
-        <Alert severity={save.isError ? 'warning' : 'success'} variant="filled">
+        <Alert severity={test.data?.ok ? 'success' : 'warning'} variant="filled">
           {toast}
         </Alert>
       </Snackbar>
+
       {manual ? (
         <>
           <Alert severity="info">{q.data?.ok === false ? q.data.message : ''}</Alert>
           <DraftField
-            noDraft="模型名稱改完就存，沒有「還沒送出」這個狀態"
+            noDraft="模型名稱測過才存，沒有「還沒送出」這個狀態"
             fullWidth
             size="small"
             label="模型名稱"
             value={value}
-            onChange={pick}
+            onChange={onChange}
           />
         </>
       ) : (
@@ -82,12 +82,8 @@ export function ModelPicker({
           size="small"
           label="模型"
           value={value}
-          onChange={pick}
-          helperText={
-            save.isError
-              ? '存不起來 —— 下一次生成還是會用舊的'
-              : `${q.data?.ok ? q.data.models.length : 0} 個可用${save.isSuccess ? '，已存' : ''}`
-          }
+          onChange={onChange}
+          helperText={`${q.data?.ok ? q.data.models.length : 0} 個可用 · 測過才會存起來`}
         >
           {(q.data?.ok ? q.data.models : []).map((m) => (
             <MenuItem key={m} value={m}>
@@ -96,6 +92,26 @@ export function ModelPicker({
           ))}
         </DraftField>
       )}
+
+      <Button
+        variant="outlined"
+        loading={test.isPending}
+        disabled={!value.trim()}
+        onClick={() => test.mutate()}
+        sx={{ alignSelf: 'flex-start' }}
+      >
+        測試此模型
+      </Button>
+      {/*
+       * 🔴 **失敗要說得出「那怎麼辦」。** 清單裡列得出來、打下去卻 404 的模型是真的存在
+       * （Google 自己會在錯誤訊息裡建議替代型號）—— 讓使用者看得到那句話。
+       */}
+      {failed ? (
+        <Alert severity="warning">
+          這個模型測不過，沒有存。錯誤原文：
+          {test.data?.ok === false ? test.data.message.slice(0, 300) : ''}
+        </Alert>
+      ) : null}
     </Stack>
   );
 }

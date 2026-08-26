@@ -13,12 +13,14 @@ export {
   fetchProviderRows,
   type ProviderRow,
   STATUS_COPY,
-  saveModel,
   testAndSaveKey,
+  testModel,
   testStoredKey,
 } from './registryApi';
 export { useProviderChoice } from './store';
+export { KeyField } from './ui/KeyField';
 export { KeyGate } from './ui/KeyGate';
+export { KeySteps } from './ui/KeySteps';
 export { ModelPicker } from './ui/ModelPicker';
 export { PlannedNote } from './ui/PlannedNote';
 export { ProviderCard } from './ui/ProviderCard';

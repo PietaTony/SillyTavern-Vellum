@@ -1,9 +1,9 @@
 import { Hono } from 'hono';
 import { z } from 'zod';
 import { setKey, whichAreSet, redact, getKey, previews } from '../lib/secrets.ts';
-import { loadSettings, setProviderModel } from '../lib/settings.ts';
+import { loadSettings } from '../lib/settings.ts';
 import { adapterFor } from '../providers/dispatch.ts';
-import { byId, isSelectable, PROVIDERS } from '../providers/registry.ts';
+import { byId, PROVIDERS } from '../providers/registry.ts';
 
 // 🔴 **不再列舉供應商 id**：合法性由 registry 認定（家數要從 2 變 26）。
 const WriteBody = z.object({
@@ -34,33 +34,6 @@ export const secrets = new Hono()
   })
 
   /**
-   * 測試連線 —— 🔴 真的打一次供應商，不是檢查字串格式。
-   * 這是首次啟動「測試閘門」的實作：沒通過就不解鎖下一步。
-   */
-  .post('/test', async (c) => {
-    const parsed = WriteBody.safeParse(await c.req.json());
-    if (!parsed.success) return c.json({ error: '參數不合法' }, 400);
-    const { provider, value } = parsed.data;
-    // 🔴 **第二道防線，不是唯一一道。** 前端已經讓 `planned` 的不可選，但前端不可信 ——
-    // 直接打這支 API 一樣要擋下來。
-    // ⚠️ 訊息是**給使用者看的**：原本寫「M2 目前只做 Gemini」，
-    //    「M2」是我們的里程碑代號，使用者讀不懂，只會覺得是自己做錯了什麼。
-    const cfg = byId(provider);
-    if (!cfg) return c.json({ ok: false, message: '不認得這一家供應商。' }, 400);
-    if (!isSelectable(cfg))
-      return c.json({ ok: false, message: `Vellum 還沒接上 ${cfg.displayName}。` }, 400);
-
-    // 🔴 依格式分派 —— **不再寫死 Gemini**（驗收 A4 的一半）。
-    const r = await adapterFor(cfg.format).listModels(cfg, value);
-    if (!r.ok) {
-      // 供應商的錯誤原文可能夾帶金鑰片段（SPEC §2）
-      return c.json({ ok: false, status: r.status, message: redact(r.message, [value]) });
-    }
-    await setKey(provider, value);
-    return c.json({ ok: true, models: r.models });
-  })
-
-  /**
    * 供應商清單（給前端畫選單）。**只回設定，永不回金鑰**。
    * 🔴 這是「零例外」的形狀：26 家全部列出來，用 `status` 誠實表達哪幾家還沒通。
    */
@@ -83,40 +56,6 @@ export const secrets = new Hono()
         model: chosen[p.id] ?? null,
       })),
     );
-  })
-
-  /**
-   * 測**已經存著的那把**金鑰（不必重貼）。
-   *
-   * 🔴 **這比「重貼一次再測」更安全**：現在的流程要測就得把金鑰再送一次網路，
-   * 而這支完全不讓金鑰離開伺服器 —— 前端只送 provider id，伺服器自己去讀、自己去打。
-   * ⇒ **少一次傳輸，不是多一個洞。**
-   */
-  .post('/test-stored/:provider', async (c) => {
-    const cfg = byId(c.req.param('provider'));
-    if (!cfg) return c.json({ ok: false, message: '不認得這一家供應商。' }, 400);
-    if (!isSelectable(cfg))
-      return c.json({ ok: false, message: `Vellum 還沒接上 ${cfg.displayName}。` }, 400);
-    const key = await getKey(cfg.id);
-    if (!key) return c.json({ ok: false, message: `還沒設定 ${cfg.displayName} 的金鑰。` }, 400);
-    const r = await adapterFor(cfg.format).listModels(cfg, key);
-    // 🔴 供應商的錯誤原文可能夾帶金鑰片段 ⇒ 送出前一律 redact（與 /test 同一條）
-    return r.ok
-      ? c.json({ ok: true, models: r.models })
-      : c.json({ ok: false, status: r.status, message: redact(r.message, [key]) });
-  })
-
-  /**
-   * 存下這一家選好的模型。
-   * 🔴 **只動這一家那一格** —— 別家的選擇不可以被順手洗掉（見 `lib/settings.ts`）。
-   */
-  .put('/model/:provider', async (c) => {
-    const cfg = byId(c.req.param('provider'));
-    if (!cfg) return c.json({ ok: false, message: '不認得這一家供應商。' }, 400);
-    const body = z.object({ model: z.string().min(1) }).safeParse(await c.req.json());
-    if (!body.success) return c.json({ ok: false, message: '參數不合法' }, 400);
-    await setProviderModel(cfg.id, body.data.model);
-    return c.json({ ok: true, provider: cfg.id, model: body.data.model });
   })
 
   /**

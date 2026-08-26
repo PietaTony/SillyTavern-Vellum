@@ -40,14 +40,24 @@ export async function fetchModels(provider: string): Promise<ModelsResult> {
   return (await r.json()) as ModelsResult;
 }
 
-/** 存下選好的模型。🔴 只動這一家那一格，後端保證不洗掉別家。 */
-export async function saveModel(provider: string, model: string): Promise<void> {
-  const r = await fetch(`/api/secrets/model/${provider}`, {
-    method: 'PUT',
+/**
+ * 測試這個模型 —— **成功才存**（與金鑰同一套邏輯）。
+ *
+ * 🔴 **後端會真的打一次**，不是檢查它在不在清單裡：
+ * models 端點**會列出打不通的模型**（實測 `gemini-2.5-flash` 回 404
+ * 「no longer available to new users」）。只檢查清單的話，
+ * 正好存到一個用不了的，而使用者要到下一次對話才發現。
+ */
+export async function testModel(
+  provider: string,
+  model: string,
+): Promise<{ ok: true; model: string } | { ok: false; message: string }> {
+  const r = await fetch(`/api/secrets/test-model/${provider}`, {
+    method: 'POST',
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify({ model }),
   });
-  if (!r.ok) throw new Error('存不起來');
+  return (await r.json()) as { ok: true; model: string } | { ok: false; message: string };
 }
 
 /** 寫入金鑰並測試連線。成功時後端會順便把金鑰存下來。 */

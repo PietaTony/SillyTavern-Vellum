@@ -11,6 +11,7 @@ import { Screen } from '@/shared/ui/Screen';
 import { testKey } from '../api';
 import { keyGateMachine, type TestOutcome } from '../keyGate.machine';
 import { applyMaskedEdit, DEFAULT_MODEL_BY_PROVIDER, maskKey, type ProviderInfo } from '../model';
+import { KeySteps } from './KeySteps';
 import { ModelPicker } from './ModelPicker';
 
 /**
@@ -64,18 +65,13 @@ export function KeyGate({
       }
     >
       <Stack spacing={2}>
-        <Stack component="ol" spacing={1} sx={{ pl: 2.5, m: 0 }}>
-          {info.steps.map((s, i) => (
-            <Typography component="li" variant="body2" key={s}>
-              {s}
-              {i === 0 ? (
-                <Button size="small" href={info.consoleUrl} target="_blank" rel="noreferrer">
-                  開啟
-                </Button>
-              ) : null}
-            </Typography>
-          ))}
-        </Stack>
+        {/* 🔴 與設定頁共用同一個元件 —— 同一件事在兩個入口不可以長得不一樣。 */}
+        <KeySteps
+          providerId={info.id}
+          displayName={info.name}
+          consoleUrl={info.consoleUrl}
+          keyHint={info.keyHint}
+        />
 
         <DraftField
           /**

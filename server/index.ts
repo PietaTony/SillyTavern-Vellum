@@ -10,6 +10,7 @@ import { hostGuard } from './lib/hostGuard.ts';
 import { distExists, mountStatic } from './static.ts';
 import { personas } from './routes/personas.ts';
 import { secrets } from './routes/secrets.ts';
+import { providerTests } from './routes/providerTests.ts';
 import { characters } from './routes/characters.ts';
 import { characterMedia } from './routes/characterMedia.ts';
 import { charWorld } from './routes/world.ts';
@@ -39,6 +40,8 @@ const app = new Hono()
   .use('/api/chats/import', bodyLimit({ maxSize: 64 * 1024 * 1024 }))
   .get('/api/version', (c) => c.json({ ok: true, name: 'vellum', version: currentVersion() }))
   .route('/api/secrets', secrets)
+  // 🔴 三支「真的會往外發請求」的端點，與純本機讀寫的 secrets 分開（見該檔檔頭）。
+  .route('/api/secrets', providerTests)
   .route('/api/personas', personas)
   .route('/api/characters', characters)
   // 同一個前綴掛兩支：角色本體與世界書副本是兩種節奏的東西，分開比較好讀。
