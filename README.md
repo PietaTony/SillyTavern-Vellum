@@ -8,75 +8,79 @@ SillyTavern 的 fork —— 功能一樣，UI／UX 大改。授權 AGPL-3.0。
 
 ## 安裝
 
-Windows／macOS／Linux 步驟完全一樣。
+Windows／macOS 步驟一樣。**不需要 Docker**，也不需要裝 pnpm 或 git。
 
-### 1. 裝 Docker Desktop
+### 1. 裝 Node.js
 
-到 <https://www.docker.com/products/docker-desktop/> 下載安裝，然後**把它打開**。
-（Linux 用 Docker Engine 也可以。）
+到 <https://nodejs.org> 下載 **LTS 版**（左邊那顆綠色按鈕）。需要 **20.19 以上**。
 
-### 2. 建一個放資料的資料夾
+> 已經裝過的話，在終端機／命令提示字元打 `node -v` 看一眼就知道版本。
 
-```bash
-mkdir vellum && cd vellum
-```
+### 2. 下載 Vellum
 
-> 這個資料夾之後會裝著你的角色卡、對話、金鑰。放在你找得到的地方。
+到 [Releases 頁](https://github.com/PietaTony/SillyTavern-Vellum/releases) 下載
+`vellum-vX.Y.Z.zip`，**解壓到一個你找得到的資料夾**。
 
-### 3. 下載設定檔
+> 這個資料夾之後會裝著你的角色卡、對話、金鑰。
 
-```bash
-curl -L -o docker-compose.yml https://raw.githubusercontent.com/PietaTony/SillyTavern-Vellum/main/docker-compose.yml
-```
+### 3. 啟動
 
-### 4. 啟動
+| 系統 | 雙擊 |
+|---|---|
+| macOS | `啟動.command` |
+| Windows | `啟動.bat` |
 
-```bash
-docker compose up -d
-```
+第一次在 macOS 上可能會說「無法打開，因為來自未識別的開發者」——
+在那個檔案上**按右鍵 → 打開 → 再按一次「打開」**，之後就不會再問。
 
-第一次會下載 image，需要幾分鐘。之後啟動是幾秒。
+### 4. 瀏覽器會自動打開 <http://127.0.0.1:8520>
 
-### 5. 打開 <http://localhost:8520>
+沒自動打開就自己輸入這個網址。**網址永遠是這個，不會變**，加書籤就好。
+要換 port 的話設 `PORT` 環境變數。
 
-> **網址永遠是 `localhost:8520`**，不會變。加到書籤就好，不用每次去查 port。
-> 要換 port 的話改 `docker-compose.yml` 的 `"127.0.0.1:8520:8520"` 左邊那個數字。
-
-### 6. 設定 API 金鑰
+### 5. 設定 API 金鑰
 
 app 會帶你走一次：選供應商 → 貼金鑰 → 測試連線 → 加第一個好友。
 **測試不過就不會讓你往下走**，不會讓你設定完才發現金鑰是錯的。
 
+### 怎麼停止
+
+**關掉那個終端機視窗**就是停止。
+
 ---
 
-> 🔴 **`./data` 這個資料夾就是你的全部身家**（角色卡、對話、金鑰）。
-> 它跟 `docker-compose.yml` 放在一起，備份就是複製這個資料夾。
+> 🔴 **`./data` 這個資料夾就是你的全部身家**（角色卡、對話、世界書、金鑰）。
+> 它跟啟動檔放在一起，**備份就是複製這個資料夾**。
+> 想放到別的地方就設 `VELLUM_DATA` 環境變數。
 
 <details>
-<summary>不想用 Docker？（需要 Node 24 與 pnpm）</summary>
+<summary>想自己從原始碼 build？（需要 Node 24 與 corepack）</summary>
 
 ```bash
 git clone https://github.com/PietaTony/SillyTavern-Vellum.git
 cd SillyTavern-Vellum
+corepack enable          # pnpm 是 Node 內建的，不用另外裝
 pnpm install
-pnpm start
+pnpm start:fresh         # build 完直接跑
 ```
+
+`.npmrc` 釘死 Node 24.15.0（jsdom 30 的 engines 要求）。
+只是要**跑**預先 build 好的 zip 的話，Node 20.19 就夠了。
 </details>
 
 ---
 
 ## 更新
 
-app 裡有新版時會直接告訴你。要更新就跑：
+app 裡有新版時會直接告訴你。更新是三步：
 
-```bash
-docker compose pull && docker compose up -d
-```
+1. 到 [Releases 頁](https://github.com/PietaTony/SillyTavern-Vellum/releases) 下載新版 zip，解壓到一個**新的**資料夾
+2. 🔴 **把舊資料夾裡的 `data/` 整個複製過去** —— 你的角色、對話與設定都在裡面
+3. 開新資料夾的啟動檔；確定沒問題之後才刪掉舊資料夾
 
-**資料不會動到** —— 它在 `./data`，不在容器裡。
-
-實測（2026-08-25）：寫入一個角色 → `docker compose down` 整個砍掉容器 → `up` → **資料還在**。
-反向也測了：**故意不掛 volume 的話，重建容器後資料歸零** —— 所以 `volumes:` 那一行不能拿掉。
+> **為什麼不是按一下就更新完**：這個 app 就是你電腦上的一個資料夾，
+> 它沒辦法在執行中把自己換掉，也不該有權限刪你的檔案。
+> 而且更新前你應該先看過這一版改了什麼 —— 尤其是標著破壞性變更的那幾版。
 
 > 🔴 我們**不做自動更新**。理由是同類專案（Open WebUI）的實際教訓：
 > 版本一旦帶破壞性變更或資料遷移，自動更新會在你不知情的時候弄壞你的東西。
@@ -93,9 +97,9 @@ docker compose pull && docker compose up -d
 
 | 情境 | 安全嗎 |
 |---|---|
-| 預設（compose 綁 `127.0.0.1`） | ✅ 只有這台電腦連得到 |
+| 預設（綁 `127.0.0.1`） | ✅ 只有這台電腦連得到 |
 | 透過 **Tailscale** 給自己的手機用 | ✅ tailnet 是私有網路，只有你的裝置在裡面 |
-| 改成 `"8520:8520"` 接到家裡 wifi | ⚠️ **同一個網路上的人都連得到**，室友、訪客、被入侵的裝置 |
+| 設 `HOST=0.0.0.0` 接到家裡 wifi | ⚠️ **同一個網路上的人都連得到**，室友、訪客、被入侵的裝置 |
 | 直接開到公網 / port forwarding | 🔴 **不要這樣做** |
 
 > 之後會加密碼保護，讓「架給別人用」變成安全的選項。**在那之前，請只用前兩種。**
@@ -106,24 +110,21 @@ docker compose pull && docker compose up -d
 - **DNS rebinding**：只接受 loopback／IP 字面值／`.ts.net` 的 `Host`，
   自訂網域要明確設 `VELLUM_ALLOWED_HOSTS`
 - **上傳大小**：8 MB 上限，塞不爆磁碟
-- **容器不是 root 跑**（uid 1000）
-- **image 裡不含 `data/`**，你的金鑰與對話不會被打包進去
+- **零 CORS**：有一支測試釘住它，加一行 `Access-Control-Allow-Origin` 就會紅
+- **卡片腳本關在 sandbox iframe 裡**（不給 `allow-same-origin`），讀不到你的其他對話
 
 ## 從手機或平板連進來
 
-預設**只有這台電腦連得到**（`docker-compose.yml` 綁 `127.0.0.1`）。這是刻意的：
+預設**只有這台電腦連得到**（server 綁 `127.0.0.1`）。這是刻意的：
 你的對話與金鑰不應該因為連到咖啡廳 wifi 就暴露給同一個網路上的人。
 
 要讓自己的手機連進來，建議用 [Tailscale](https://tailscale.com/)（把你的裝置組成一個私有網路）：
 
 1. 電腦與手機都裝 Tailscale 並登入同一個帳號
-2. 把 `docker-compose.yml` 的 `"127.0.0.1:8520:8520"` 改成 `"8520:8520"`
-3. `docker compose up -d`
-4. 手機開 `http://<電腦的 Tailscale IP>:8520`
+2. 啟動時設 `HOST=0.0.0.0`
+3. 手機開 `http://<電腦的 Tailscale IP>:8520`
 
-> dev 模式下前端也是 8520（`pnpm dev`），所以**手機上的網址不用換**。
-
-> ⚠️ 改成 `"8520:8520"` 之後，**同一個區域網路上的人也連得到**。
+> ⚠️ 設了 `HOST=0.0.0.0` 之後，**同一個區域網路上的人也連得到**。
 > 在公共 wifi 上請不要這樣開。
 
 ---
@@ -131,13 +132,21 @@ docker compose pull && docker compose up -d
 ## 開發
 
 ```bash
+corepack enable
 pnpm install
 pnpm dev          # 前端 8520 ← 開這個
 pnpm dev:server   # 後端 8521（前端會 proxy 過去）
-pnpm verify       # 九道閘門：typecheck／test／lint／selftest／boundaries／no-hex／file-size／screens／back
+pnpm verify       # 十三道閘門：build／test／lint／selftest／boundaries／no-hex／
+                  # file-size／screens／back／no-eval／draft／guides／toast
+pnpm package      # 打包成 dist-zip/vellum-vX.Y.Z.zip
 ```
 
 `pnpm verify` 是宣稱「改好了」的唯一收據。CI 每次 push 都會跑同一組。
+
+> ⚠️ **`pnpm verify` 只在 macOS／Linux 跑得起來。**
+> `gate:selftest` 是 POSIX shell 迴圈、`dev:server` 用行內環境變數 —— 兩者在 Windows 的 cmd 上都會炸。
+> Windows CI **只跑冒煙測試**（解壓 zip → 啟動 → 首頁 → 建角色 → 重啟 → 資料還在）。
+> 這是刻意的邊界，不是漏掉。
 
 ## 發版
 
@@ -147,5 +156,8 @@ pnpm verify       # 九道閘門：typecheck／test／lint／selftest／boundari
 git tag v0.1.0 && git push origin v0.1.0
 ```
 
-GitHub Actions 會建 amd64／arm64 兩種 image 推到 ghcr.io，並開一個 Release。
+GitHub Actions 會 build、打包成一個 zip，並開一個 Release 把 zip 掛上去。
 app 裡的更新檢查看的就是這個 Release 的 tag。
+
+> 🔴 **只有一個 zip，不分平台。** 裡面是純 JS（相依全 bundle 進 `dist-server/index.mjs`，
+> 零 native module），Mac 與 Windows 的啟動檔都在同一包裡。

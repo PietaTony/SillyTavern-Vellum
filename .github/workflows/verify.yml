@@ -19,10 +19,77 @@ jobs:
         with:
           node-version: "24"
           cache: pnpm
-      # 同 Dockerfile 的理由：這一步不做解析，裝的是本機審過的同一份 lockfile
+      # 🔴 `--frozen-lockfile`：這一步不做解析，裝的是本機審過的同一份 lockfile。
+      #    CI 自己解析相依 ＝ 跑的東西跟本機驗過的不是同一份。
       - run: pnpm install --frozen-lockfile --config.minimumReleaseAge=0
       # `pnpm verify` 的第一步是 `pnpm build`（不是 tsc）—— 兩個理由：
       #   ① routeTree.gen.ts 被 gitignore，要 vite build 才生得出來，
       #      tsc 排前面在乾淨 runner 上 100% 失敗（實測 11 個錯）
       #   ② 🔴 verify 從此真的會 build。之前 build 壞掉，九道閘門照樣全綠。
       - run: pnpm verify
+
+  # 🔴 **Windows 只跑冒煙，不跑 `pnpm verify`**（散布規格 §5 的刻意邊界）。
+  # `gate:selftest` 是 POSIX `for f in …; do … done`、`dev:server`／`server` 用行內 env，
+  # 那些在 Windows 上必炸 —— **而那與「能不能在 Windows 上跑 Vellum」無關**。
+  # 要讓 `pnpm verify` 在 Windows 也能跑是另一件事，已記進 backlog。
+  windows-smoke:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile --config.minimumReleaseAge=0
+      - run: pnpm build
+      - run: pnpm package
+
+      # 解壓到一個乾淨目錄 —— 🔴 **不得沿用 repo 裡的 node_modules**，
+      # 那正是這次要證明「不需要」的東西。
+      - name: 解壓 zip
+        shell: pwsh
+        run: |
+          $zip = Get-ChildItem dist-zip/*.zip | Select-Object -First 1
+          Expand-Archive -Path $zip.FullName -DestinationPath "$env:RUNNER_TEMP/vellum" -Force
+          Get-ChildItem "$env:RUNNER_TEMP/vellum" -Recurse -Depth 1 | Select-Object FullName
+
+      # 🔴 用**啟動檔本身**啟動，不是自己另外下 node 指令 ——
+      #    要驗的就是那支 .bat（cd /d、Node 版本檢查、NODE_ENV、VELLUM_OPEN）。
+      #    ⚠️ VELLUM_OPEN 在 CI 要關掉，不然會去開一個開不起來的瀏覽器。
+      - name: 啟動並冒煙
+        shell: pwsh
+        run: |
+          $dir = (Get-ChildItem "$env:RUNNER_TEMP/vellum" -Directory | Select-Object -First 1).FullName
+          $env:VELLUM_OPEN = '0'
+          $p = Start-Process -FilePath "$dir\啟動.bat" -WorkingDirectory $env:USERPROFILE -PassThru
+          Start-Sleep -Seconds 12
+
+          # 🔴 比對 **body 內容**，不是狀態碼（AGENTS.md §5：HTTP 200 不等於功能正常）
+          $v = (Invoke-WebRequest -UseBasicParsing http://127.0.0.1:8520/api/version).Content
+          if ($v -notmatch '"name":"vellum"') { throw "版本端點的 body 不對：$v" }
+          if ($v -match '"version":"0\.0\.0"') { throw "版本讀成 0.0.0 —— zip 裡的 package.json 沒生效" }
+
+          # 🔴 前端真的掛得起來 —— 只打 /api/version 的話，mountStatic 沒掛也照樣 200
+          $home_ = (Invoke-WebRequest -UseBasicParsing http://127.0.0.1:8520/).Content
+          if ($home_ -notmatch '<div id="root"') { throw "首頁沒有 <div id=root> —— 前端沒掛上" }
+
+          # 🔴 條件 8：從別的目錄啟動（上面 WorkingDirectory 是家目錄），data 仍要建在解壓處
+          if (-not (Test-Path "$dir\data")) { throw "data 沒有建在解壓處 —— cd /d 沒生效" }
+          if (Test-Path "$env:USERPROFILE\data") { throw "data 被建到家目錄了" }
+
+          $body = '{"name":"冒煙用角色","description":"CI","firstMessage":"hi"}'
+          Invoke-WebRequest -UseBasicParsing -Method Post -ContentType 'application/json' `
+            -Body $body http://127.0.0.1:8520/api/characters | Out-Null
+
+          Stop-Process -Id $p.Id -Force
+          Get-Process node -ErrorAction SilentlyContinue | Stop-Process -Force
+          Start-Sleep -Seconds 3
+
+          # 重啟之後角色還在 —— 這才是「資料真的留在磁碟上」
+          $p2 = Start-Process -FilePath "$dir\啟動.bat" -WorkingDirectory $env:USERPROFILE -PassThru
+          Start-Sleep -Seconds 12
+          $chars = (Invoke-WebRequest -UseBasicParsing http://127.0.0.1:8520/api/characters).Content
+          if ($chars -notmatch '冒煙用角色') { throw "重啟後角色不見了：$chars" }
+          Stop-Process -Id $p2.Id -Force
+          Write-Host "windows-smoke PASS —— 首頁掛得起來、版本正確、data 在解壓處、重啟後資料還在"

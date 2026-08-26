@@ -3,6 +3,7 @@ import { distExists, mountStatic } from './static.ts';
 import { currentVersion } from './lib/version.ts';
 import { describeData } from './lib/storage.ts';
 import { seedBackgrounds } from './lib/backgroundSeed.ts';
+import { openBrowser } from './lib/openBrowser.ts';
 import { app } from './app.ts';
 
 
@@ -34,4 +35,7 @@ serve({ fetch: app.fetch, port, hostname }, (info) => {
     .catch((e: unknown) => console.error('[vellum] 內建背景複製失敗：', e));
   if (hostname === '127.0.0.1')
     console.log('[vellum] 只有這台電腦連得到。要讓手機／平板連進來：HOST=0.0.0.0 pnpm start');
+  // 🔴 **在 listen 成功之後才開**，而且預設關閉（`VELLUM_OPEN=1`）。理由見 `openBrowser.ts`。
+  if (openBrowser(`http://${hostname}:${info.port}`))
+    console.log('[vellum] 已幫你打開瀏覽器。要停止請關掉這個視窗。');
 });

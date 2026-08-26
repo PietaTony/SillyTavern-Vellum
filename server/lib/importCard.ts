@@ -96,7 +96,7 @@ export async function intoCharacter(png: Buffer) {
      * ⚠️ 這裡只存盤點結果（幾支／多大／會不會去外面抓 code／指紋），**不存內容**。
      */
     ...(scripts ? { cardScripts: scripts } : {}),
-    // 相對路徑：dev 由 Vite 代理到後端、Docker 是同一個 process，兩邊都通。
+    // 相對路徑：dev 由 Vite 代理到後端、正式版是同一個 process，兩邊都通。
     avatar: `/api/characters/${id}/avatar.png`,
     createdAt: new Date().toISOString(),
     card: `${id}.png`,

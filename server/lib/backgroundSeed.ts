@@ -15,8 +15,8 @@ import { pathFor } from './storage.ts';
  *
  * 🔴 **不可以只算一種佈局。** 上一版寫死 `new URL('../..', import.meta.url)` ——
  * 原始碼在 `server/lib/`（深兩層）算出來是 repo 根，**對**；
- * 但 `build:server` 用 esbuild 把整包灌進 `dist-server/index.js`（**深一層**），
- * 同一行就 overshoot 一層：Docker 裡解析成 `/default/backgrounds`（檔案系統根）。
+ * 但 `build:server` 用 esbuild 把整包灌進 `dist-server/index.mjs`（**深一層**），
+ * 同一行就 overshoot 一層：正式版裡解析成 `/default/backgrounds`（檔案系統根）。
  * ⇒ **dev 看到 23 張、production 一張都沒有，而且完全不報錯。**
  * ⚠️ 更惡劣的是那個 `try/catch` 給了假的安全感：`fileURLToPath` 對合法的
  * `file:` URL **不會丟例外**，所以 `process.cwd()` 那條 fallback 永遠跑不到。
@@ -33,9 +33,9 @@ function seedDir(): string | null {
     }
   };
   const candidates = [
-    resolve(process.cwd(), 'default', 'backgrounds'), // Docker：WORKDIR=/app；dev：repo 根
+    resolve(process.cwd(), 'default', 'backgrounds'), // 正式版：zip 解壓處；dev：repo 根
     here('../..'), // 原始碼佈局 server/lib/backgrounds.ts
-    here('..'), // 打包佈局 dist-server/index.js
+    here('..'), // 打包佈局 dist-server/index.mjs
   ];
   return candidates.find((c) => c !== null && existsSync(c)) ?? null;
 }
