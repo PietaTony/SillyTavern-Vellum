@@ -1,0 +1,37 @@
+# 第三期 · 出 .exe／.app（散布規格 §4）
+#
+# 🔴 **不簽章，$0 出貨**。分界線很乾脆：
+#   · Windows 未簽章 ⇒ SmartScreen 警告，**擋得住但過得去**
+#   · macOS 未簽章 ⇒ `com.apple.quarantine` 只有「從瀏覽器下載」才會加。
+#     自己 build 的 `.app` 雙擊就開；**但掛上 GitHub Release 給別人下載的一定帶 quarantine
+#     ⇒ 那一刻 Apple Developer US$99/年是必要而非可選。**
+# ⇒ 現在產出的 `.app` **只適合自己用**。要給別人下載之前必須先簽章＋公證。
+appId: dev.vellum.app
+productName: Vellum
+directories:
+  output: dist-app
+# 🔴 只放 runtime 真的要的東西。`node_modules` 不進去 —— 相依已經全 bundle 進
+#    `dist-server/index.mjs`（同 zip 那條路，理由見 scripts/package-zip.ts）。
+files:
+  - electron/**
+  - dist/**
+  - dist-server/**
+  - default/**
+  - package.json
+mac:
+  category: public.app-category.productivity
+  # 🔴 **強制不簽章。** 不寫這一行的話 electron-builder 會**自動撈本機鑰匙圈裡的憑證** ——
+  #    2026-08-27 實測，它撈到了一張**公司的** `Apple Distribution` 憑證並拿去簽。
+  #    這是個人 side project，不可以用公司的身分簽章（見 AGENTS.md 的絕不可做）。
+  #    要簽章是另一次刻意的決定（給別人下載才需要，US$99/年）。
+  identity: null
+  target:
+    - dmg
+    - zip
+win:
+  target:
+    - nsis
+    - portable
+linux:
+  target:
+    - AppImage

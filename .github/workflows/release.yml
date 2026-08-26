@@ -38,3 +38,36 @@ jobs:
         with:
           generate_release_notes: true
           files: dist-zip/*.zip
+
+  # 🔴 **第三期 · 桌面 app（額外的那一層）。**
+  # zip 那條路不依賴這個 job —— 上面 `zip` 先跑完、Release 先有東西可下載。
+  #
+  # 🔴 **一律不簽章**（`electron-builder.yml` 的 `identity: null`）：
+  #   · Windows 未簽章 ⇒ SmartScreen 警告，擋得住但過得去
+  #   · macOS 未簽章 ⇒ 從瀏覽器下載的 `.app` 會帶 quarantine，**別人打不開**
+  # ⇒ **`.dmg`／`.zip` 這兩個 mac 產物目前只適合自己用。**
+  #    要給別人下載必須先簽章＋公證（Apple Developer US$99/年），那是另一次決定。
+  desktop:
+    strategy:
+      fail-fast: false # 一個平台掛掉不該讓另一個平台的產物也發不出去
+      matrix:
+        os: [macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile --config.minimumReleaseAge=0
+      - run: pnpm app:build
+        env:
+          # 🔴 不要讓 electron-builder 去撈 runner 上任何憑證。
+          CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            dist-app/*.dmg
+            dist-app/*.exe
+            dist-app/*.zip

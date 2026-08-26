@@ -42,7 +42,9 @@
     "verify:swipe": "tsx scripts/verify-swipe.ts",
     "start:fresh": "pnpm build && pnpm start",
     "package": "tsx scripts/package-zip.ts",
-    "gate:no-docker": "tsx scripts/gate-no-docker.ts"
+    "gate:no-docker": "tsx scripts/gate-no-docker.ts",
+    "app:dev": "pnpm build && electron .",
+    "app:build": "pnpm build && electron-builder --config electron-builder.yml"
   },
   "dependencies": {
     "@emotion/react": "^11.14.0",
@@ -79,6 +81,8 @@
     "@vitejs/plugin-react": "^6.1.0",
     "@vitest/coverage-v8": "^4.1.11",
     "cross-env": "^10.1.0",
+    "electron": "^44.0.0",
+    "electron-builder": "^26.15.3",
     "esbuild": "0.28.2",
     "jsdom": "^30.0.1",
     "tsx": "^4.23.12",
@@ -88,7 +92,10 @@
   },
   "pnpm": {
     "onlyBuiltDependencies": [
-      "esbuild"
+      "esbuild",
+      "electron",
+      "electron-winstaller"
     ]
-  }
+  },
+  "main": "electron/main.cjs"
 }

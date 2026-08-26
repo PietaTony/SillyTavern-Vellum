@@ -49,6 +49,21 @@ app 會帶你走一次：選供應商 → 貼金鑰 → 測試連線 → 加第�
 
 ---
 
+## 或者用桌面版（不用開終端機）
+
+Releases 頁上也有桌面版 —— macOS 的 `.dmg`、Windows 的安裝檔／免安裝 `.exe`。
+雙擊就開，**不需要另外裝 Node.js**。
+
+> ⚠️ **桌面版的資料放在別的地方**：不是在 app 旁邊，而是系統的使用者資料夾
+> （macOS 是 `~/Library/Application Support/sillytavern-vellum/data`）。
+> `.app` 會被拖進 `/Applications`，那裡是唯讀的，寫在旁邊會失敗。
+>
+> 🔴 **目前的桌面版沒有簽章。** Windows 會跳 SmartScreen 警告（可以按「仍要執行」）；
+> **macOS 從瀏覽器下載的 `.app` 會被 Gatekeeper 擋住打不開** —— 要真正給別人用，
+> 得先買 Apple Developer（US$99/年）做簽章與公證。在那之前，**Mac 請用上面的 zip 版**。
+
+---
+
 > 🔴 **`./data` 這個資料夾就是你的全部身家**（角色卡、對話、世界書、金鑰）。
 > 它跟啟動檔放在一起，**備份就是複製這個資料夾**。
 > 想放到別的地方就設 `VELLUM_DATA` 環境變數。
@@ -139,6 +154,8 @@ pnpm dev:server   # 後端 8521（前端會 proxy 過去）
 pnpm verify       # 十三道閘門：build／test／lint／selftest／boundaries／no-hex／
                   # file-size／screens／back／no-eval／draft／guides／toast
 pnpm package      # 打包成 dist-zip/vellum-vX.Y.Z.zip
+pnpm app:dev      # 用 Electron 殼跑起來（桌面版）
+pnpm app:build    # 出 .dmg／.exe，產物在 dist-app/
 ```
 
 `pnpm verify` 是宣稱「改好了」的唯一收據。CI 每次 push 都會跑同一組。

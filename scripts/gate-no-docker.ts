@@ -18,6 +18,10 @@
  * ⚠️ **畫面上那條指令由別人守**：`src/features/update/__tests__/updateSteps.test.tsx`
  * 用**渲染**驗（畫面文字裡不得有指令片段）。這裡剝掉字串，守不到那一層 —— 兩層各守各的。
  *
+ * ⚠️ **本檔自己豁免**（同 `gate:draft` 豁免 `DraftField`、`gate:toast` 豁免 `ToastStack`）：
+ * 上面那幾條 regex 字面量不是字串，`stripNoise` 剝不掉 ⇒ 不豁免的話這支永遠紅。
+ * 🔴 **豁免只有這一個檔，不是整個 `scripts/`** —— 放寬成目錄就等於把閘門關掉。
+ *
  * 自證：pnpm exec tsx scripts/gate-no-docker.ts --selftest
  */
 import { execFileSync } from 'node:child_process';
@@ -26,6 +30,9 @@ import { join } from 'node:path';
 import { stripNoise } from './strip-noise.ts';
 
 const ROOT = new URL('..', import.meta.url).pathname;
+
+/** 🔴 唯一的豁免。放寬這個常數之前先讀檔頭。 */
+export const SELF = 'scripts/gate-no-docker.ts';
 
 /** ① 這些檔案存在就是還沒移除。 */
 export const DEAD_FILES = [
@@ -67,6 +74,8 @@ if (process.argv.includes('--selftest')) {
     ['CI 真的跑 docker compose 要抓到', checkCi('      - run: docker compose up -d')],
     ['文件裡的說明句不算', !checkDoc('不需要 Docker，也不需要 pnpm。')],
     ['文件裡的指令要抓到', checkDoc('```\ndocker compose pull\n```')],
+    // 🔴 守住「豁免只有一個檔」——有人改成整個 scripts/ 就等於把閘門關掉。
+    ['豁免只有本檔一個', SELF === 'scripts/gate-no-docker.ts'],
   ];
   const bad = cases.filter(([, ok]) => !ok);
   for (const [name] of bad) console.error(`  selftest FAIL：${name}`);
@@ -86,6 +95,7 @@ for (const f of DEAD_FILES) {
 }
 let scanned = 0;
 for (const f of files) {
+  if (f === SELF) continue;
   const src = readFileSync(join(ROOT, f), 'utf8');
   scanned += 1;
   if (/\.(ts|tsx)$/.test(f) && checkCode(src)) problems.push(`${f}：程式碼還在用 docker`);
