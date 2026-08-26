@@ -54,8 +54,8 @@ export function KeyField({ p, stored }: { p: ProviderRow; stored: string }) {
          * 而且這個框顯示的是遮罩字串，存進去也只會存到一串圓點。
          */
         noDraft="API 金鑰不落地：存明碼到 localStorage 的風險大於重貼一次的成本"
+        /* 🔴 尺寸刻意不設 `size="small"` —— first-run 的金鑰欄是預設大小，兩邊要一樣。 */
         fullWidth
-        size="small"
         label="API 金鑰"
         placeholder={`貼上金鑰（${p.keyHint}）`}
         autoComplete="off"
@@ -78,12 +78,12 @@ export function KeyField({ p, stored }: { p: ProviderRow; stored: string }) {
           setReal(applyMaskedEdit(real, maskKey(real), next));
         }}
       />
+      {/* 🔴 整條寬的 outlined 鈕 —— 照抄 first-run，不是靠左的短鈕。 */}
       <Button
         variant="outlined"
         loading={test.isPending}
         disabled={!canTest}
         onClick={() => test.mutate()}
-        sx={{ alignSelf: 'flex-start' }}
       >
         {dirty ? '測試並存下這把新的' : '測試連線'}
       </Button>

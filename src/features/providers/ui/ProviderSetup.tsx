@@ -1,7 +1,5 @@
 import Alert from '@mui/material/Alert';
-import Divider from '@mui/material/Divider';
 import Stack from '@mui/material/Stack';
-import Typography from '@mui/material/Typography';
 import { useQuery } from '@tanstack/react-query';
 import { useState } from 'react';
 import { fetchKeyPreviews, type ProviderRow, STATUS_COPY } from '../registryApi';
@@ -13,8 +11,13 @@ import { PlannedNote } from './PlannedNote';
 /**
  * 單一供應商的設定（Peter 2026-08-26：「每一家廠商都可以點擊進去 setup api key 或是選模型」）。
  *
- * 🔴 **形狀刻意與 first-run 的 `KeyGate` 一致**：申請步驟 → 貼金鑰 → 測試連線 → **選模型**。
- * 同一件事在兩個入口長得不一樣的話，使用者要學兩次。
+ * 🔴 **版面照抄 first-run 的 `KeyGate`，不是「形狀相似」而已**
+ * （Peter 2026-08-26 第二輪：「這個頁面應該都要照抄 first run 的 UI 形式，只是我們多了選模型」）。
+ * ⇒ 一條 `Stack spacing={2}`：**申請步驟 → 金鑰欄 → 測試鈕 →（多的那個）選模型**。
+ *
+ * 🔴 **刪掉的是「① ② ③ 標題 ＋ `Divider`」那層粗胚。** 那是這一頁自己長出來的，
+ * first-run 沒有 —— 而同一件事在兩個入口長得不一樣，使用者要學兩次。
+ * 欄位與按鈕的尺寸同理：first-run 用預設大小與整條寬的按鈕，這裡不再用 `size="small"`。
  *
  * 🔴 **`planned` 的那幾家照樣點得進來，但不給「測試連線」** ——
  * 給一顆測了必失敗的按鈕，就是回到我們剛修掉的那條死路
@@ -24,45 +27,39 @@ export function ProviderSetup({ p }: { p: ProviderRow }) {
   // 🔴 遮罩預覽（前四後四）。只有在這裡讀 —— 它是全專案唯一回金鑰衍生資料的端點。
   const preview = useQuery({ queryKey: ['keyPreview'], queryFn: fetchKeyPreviews });
   const [model, setModel] = useState(p.model ?? p.defaultModel);
-  const ready = p.status !== 'planned';
+
+  // 🔴 `planned` 走完全不同的分支：那幾家沒有金鑰可貼，版面沒有東西可以照抄。
+  if (p.status === 'planned') {
+    return (
+      <Stack spacing={2}>
+        <PlannedNote id={p.id} />
+      </Stack>
+    );
+  }
 
   return (
-    <Stack spacing={2} sx={{ p: 2 }}>
+    <Stack spacing={2}>
       {STATUS_COPY[p.status].note ? (
-        <Alert severity={ready ? 'info' : 'warning'}>{STATUS_COPY[p.status].note}</Alert>
+        <Alert severity="info">{STATUS_COPY[p.status].note}</Alert>
       ) : null}
 
-      {ready ? (
-        <>
-          <Typography variant="subtitle2">① 去拿一把金鑰</Typography>
-          {/* 🔴 與 first-run 共用同一個元件，不是複製一份 —— 複製會讓兩邊各自漂移。 */}
-          <KeySteps
-            providerId={p.id}
-            displayName={p.displayName}
-            consoleUrl={p.consoleUrl}
-            keyHint={p.keyHint}
-          />
+      {/* 🔴 與 first-run 共用同一個元件，不是複製一份 —— 複製會讓兩邊各自漂移。 */}
+      <KeySteps
+        providerId={p.id}
+        displayName={p.displayName}
+        consoleUrl={p.consoleUrl}
+        keyHint={p.keyHint}
+      />
 
-          <Divider />
+      <KeyField p={p} stored={preview.data?.[p.id] ?? ''} />
 
-          <Typography variant="subtitle2">② 貼上並測試</Typography>
-          <KeyField p={p} stored={preview.data?.[p.id] ?? ''} />
-
-          <Divider />
-
-          <Typography variant="subtitle2">③ 選模型</Typography>
-          {/* 金鑰存著就能選 —— 不必為了選模型再測一次。 */}
-          {p.keySet ? (
-            <ModelPicker provider={p.id} value={model} onChange={setModel} />
-          ) : (
-            <Typography variant="body2" color="text.secondary">
-              先測試金鑰，才知道這把金鑰拿得到哪些模型。
-            </Typography>
-          )}
-        </>
-      ) : (
-        <PlannedNote id={p.id} />
-      )}
+      {/*
+       * **這一頁比 first-run 多出來的就是這一塊**（Peter 原話：「只是我們多了選模型」）。
+       * 🔴 金鑰存著就能選 —— 不必為了選模型再測一次。
+       * 還沒有金鑰時**不渲染**，與 first-run 一致（那邊也是測過才出現）——
+       * 擺一個選不了的下拉在那裡，比不擺更像壞掉。
+       */}
+      {p.keySet ? <ModelPicker provider={p.id} value={model} onChange={setModel} /> : null}
     </Stack>
   );
 }

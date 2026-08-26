@@ -12,6 +12,7 @@ export {
   fetchModels,
   fetchProviderRows,
   type ProviderRow,
+  type ProviderStatus,
   STATUS_COPY,
   testAndSaveKey,
   testModel,

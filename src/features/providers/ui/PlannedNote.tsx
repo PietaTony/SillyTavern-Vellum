@@ -16,13 +16,20 @@ const MISSING: Record<string, string> = {
 };
 
 export function PlannedNote({ id }: { id: string }) {
+  /*
+   * 🔴 **兩段合成一則。** 之前這一頁疊了兩個 Alert（「Vellum 還沒接上這一家」＋「這一家還缺什麼」），
+   * 兩則講的是同一件事，只是第二則比較具體 —— 疊起來讓人以為有兩個不同的問題。
+   */
   return (
     <Alert severity="info">
       <Typography variant="subtitle2" sx={{ mb: 0.5 }}>
-        這一家還缺什麼
+        Vellum 還沒接上這一家
       </Typography>
-      <Typography variant="caption" component="div">
+      <Typography variant="body2" component="div">
         {MISSING[id] ?? '介面還沒接上。'}
+      </Typography>
+      <Typography variant="caption" color="text.secondary" component="div" sx={{ mt: 1 }}>
+        這是我們的工作量，不是你哪裡設定錯了 —— 不必反覆回來試。
       </Typography>
     </Alert>
   );

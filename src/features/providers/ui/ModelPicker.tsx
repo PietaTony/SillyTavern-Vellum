@@ -50,7 +50,7 @@ export function ModelPicker({
 
   const manual = q.data && !q.data.ok;
   return (
-    <Stack spacing={1}>
+    <Stack spacing={2}>
       <Snackbar
         open={toast !== null}
         autoHideDuration={4000}
@@ -68,7 +68,6 @@ export function ModelPicker({
           <DraftField
             noDraft="模型名稱測過才存，沒有「還沒送出」這個狀態"
             fullWidth
-            size="small"
             label="模型名稱"
             value={value}
             onChange={onChange}
@@ -79,7 +78,6 @@ export function ModelPicker({
           noDraft="同上"
           select
           fullWidth
-          size="small"
           label="模型"
           value={value}
           onChange={onChange}
@@ -93,12 +91,12 @@ export function ModelPicker({
         </DraftField>
       )}
 
+      {/* 🔴 與金鑰的測試鈕同一形狀（整條寬 outlined）—— first-run 的形式。 */}
       <Button
         variant="outlined"
         loading={test.isPending}
         disabled={!value.trim()}
         onClick={() => test.mutate()}
-        sx={{ alignSelf: 'flex-start' }}
       >
         測試此模型
       </Button>
