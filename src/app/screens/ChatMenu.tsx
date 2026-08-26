@@ -1,4 +1,5 @@
 import AutoStoriesOutlinedIcon from '@mui/icons-material/AutoStoriesOutlined';
+import ExtensionOutlinedIcon from '@mui/icons-material/ExtensionOutlined';
 import MenuIcon from '@mui/icons-material/Menu';
 import PersonOutlineIcon from '@mui/icons-material/PersonOutlined';
 import SmartToyOutlinedIcon from '@mui/icons-material/SmartToyOutlined';
@@ -38,6 +39,7 @@ export function ChatMenu({
   persona,
   onPersonaChanged,
   onGreetings,
+  onRevokeScripts,
 }: {
   chatId: string;
   persona?: { id?: string | undefined; name?: string | undefined; layer: string } | undefined;
@@ -49,6 +51,12 @@ export function ChatMenu({
    * ⚠️ **沒給就不畫這一項**：第一則沒有多個候選時列出來，就是一顆點了沒東西的選單項。
    */
   onGreetings?: (() => void) | undefined;
+  /**
+   * 🔴 **收回「執行這張卡的程式」的同意**（M13 ⑥c：問一次、記住、**收得回來**）。
+   * 沒有這一項的話同意就是一道單向門 —— 使用者答應之後再也關不掉。
+   * ⚠️ **沒同意過就不給這一項**（`undefined`）：關掉一個沒開的東西是一顆假的鈕。
+   */
+  onRevokeScripts?: (() => void) | undefined;
 }) {
   const [anchor, setAnchor] = useState<HTMLElement | null>(null);
   const [layer, setLayer] = useState<Layer | null>(null);
@@ -92,6 +100,19 @@ export function ChatMenu({
               <AutoStoriesOutlinedIcon fontSize="small" />
             </ListItemIcon>
             <ListItemText primary="換開場" secondary="這張卡的開場等於不同的故事線" />
+          </MenuItem>
+        ) : null}
+        {onRevokeScripts ? (
+          <MenuItem
+            onClick={() => {
+              setAnchor(null);
+              onRevokeScripts();
+            }}
+          >
+            <ListItemIcon>
+              <ExtensionOutlinedIcon fontSize="small" />
+            </ListItemIcon>
+            <ListItemText primary="停止執行這張卡的程式" secondary="收回同意，介面會變回引導卡" />
           </MenuItem>
         ) : null}
         <MenuItem onClick={() => open('backgrounds')}>

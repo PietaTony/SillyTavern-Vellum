@@ -1,5 +1,13 @@
 import { describe, expect, it } from 'vitest';
-import { allExternals, externalsOf, scriptsOf } from '../lib/cardScripts.ts';
+import { isFrontend } from '../../src/features/chat/render/frontend.ts';
+import { externalsOf } from '../lib/cardExternals.ts';
+import {
+  allExternals,
+  interfacesOf,
+  inventoryOf,
+  isCardInterface,
+  scriptsOf,
+} from '../lib/cardScripts.ts';
 
 /**
  * 🔴 **`externalsOf` 是 M13「乙」那道防線的量尺**（Peter 2026-08-26 裁定）。
@@ -57,6 +65,7 @@ describe('scriptsOf —— 盤點卡片自帶的腳本', () => {
       enabled: true,
       bytes: 38,
       externals: ['cdn.example'],
+      kind: 'script',
     });
     // 🔴 內容不可以被帶出來（2 MB 塞進角色 JSON 會拖垮每一次列表）
     expect(JSON.stringify(s)).not.toContain('const a = 1');
@@ -88,5 +97,105 @@ describe('scriptsOf —— 盤點卡片自帶的腳本', () => {
     expect(scriptsOf({})).toBeNull();
     expect(scriptsOf({ scripts: 'not-an-array' })).toBeNull();
     expect(scriptsOf({ scripts: [] })).toBeNull();
+  });
+});
+
+
+/**
+ * 🔴 **2026-08-26 補的一整塊：卡片的程式帶在兩個地方，在此之前只盤了一個。**
+ * 實測「何思年」那張卡使用者真正會點的「CHOOSE YOUR TIMELINE」介面來自
+ * `regex_scripts[1].replaceString`（17,862 字元），**不是** `tavern_helper`。
+ * 少盤它 ⇒ 同意視窗少報了真正會執行的那一份。
+ */
+describe('interfacesOf —— 顯示用 regex 換出來的那份 HTML', () => {
+  const face = { scriptName: '開場頁', replaceString: '<head><style>x</style></head><body>y</body>' };
+
+  it('🔴 抓得到會變成畫面的 HTML', () => {
+    expect(interfacesOf([face])).toEqual([
+      { name: '開場頁', enabled: true, bytes: 43, externals: [], kind: 'interface' },
+    ]);
+  });
+
+  it('🔴 `promptOnly` 的規則永遠不會變成畫面 —— 列進來只會多嚇人一次', () => {
+    expect(interfacesOf([{ ...face, promptOnly: true }])).toEqual([]);
+  });
+
+  it('不是完整網頁的替換字串不算介面（單純換字的規則有一大堆）', () => {
+    expect(interfacesOf([{ scriptName: '取代髒話', replaceString: '嗶' }])).toEqual([]);
+  });
+
+  it('卡片作者關掉的要照實回報，不是濾掉 —— 那是他的標記，不是我們的同意', () => {
+    expect(interfacesOf([{ ...face, disabled: true }])[0]?.enabled).toBe(false);
+  });
+
+  it('認不得的形狀一律空陣列', () => {
+    expect(interfacesOf(undefined)).toEqual([]);
+    expect(interfacesOf('nope')).toEqual([]);
+  });
+});
+
+/**
+ * 🔴 **判準的雙胞胎**：後端用 `isCardInterface` 決定「要不要問」，
+ * 前端用 `isFrontend` 決定「要不要跑」。兩邊一旦分岔就會出現
+ * **「盤點說沒有、畫面卻把它跑起來」** 的破口。
+ * ⚠️ 這裡比的是**行為**不是字串 —— 比字串的話任一邊搬檔或改寫法就靜靜失效。
+ */
+describe('後端的「是不是介面」與前端的「是不是前端區塊」必須同一個答案', () => {
+  const cases = [
+    '<head><style>a</style></head>',
+    '<body>hi</body>',
+    '<html><body>hi</body></html>',
+    '</html>',
+    'const x = 1',
+    '',
+    '<div>只有 div 不算</div>',
+    '沒有任何標籤',
+  ];
+  for (const c of cases) {
+    it(`同一個答案：${JSON.stringify(c.slice(0, 24))}`, () => {
+      expect(isCardInterface(c)).toBe(isFrontend(c));
+    });
+  }
+});
+
+describe('inventoryOf —— 這張卡總共會執行哪些東西', () => {
+  const extensions = {
+    tavern_helper: { scripts: [{ name: '背景', enabled: true, content: 'const a = 1' }] },
+    regex_scripts: [{ scriptName: '開場頁', replaceString: '<body>ui</body>' }],
+  };
+
+  it('🔴 背景腳本與顯示介面要一起盤 —— 只盤一半，同意視窗就少報一半', () => {
+    expect(inventoryOf(extensions)?.scripts.map((s) => [s.name, s.kind])).toEqual([
+      ['背景', 'script'],
+      ['開場頁', 'interface'],
+    ]);
+  });
+
+  it('🔴 只有介面、沒有背景腳本的卡也要盤得出來（不然它永遠等不到同意視窗）', () => {
+    expect(inventoryOf({ regex_scripts: extensions.regex_scripts })?.scripts).toHaveLength(1);
+  });
+
+  it('🔴 介面的內容變了，指紋要跟著變 —— 不然換掉 UI 不會重新詢問', () => {
+    const a = inventoryOf(extensions)?.hash;
+    const b = inventoryOf({
+      ...extensions,
+      regex_scripts: [{ scriptName: '開場頁', replaceString: '<body>壞人的 ui</body>' }],
+    })?.hash;
+    expect(a).not.toBe(b);
+  });
+
+  it('🔴 長度一樣但內容不同也要換指紋（用 bytes 當指紋會漏掉這種）', () => {
+    const a = inventoryOf({ regex_scripts: [{ scriptName: 'x', replaceString: '<body>aaa</body>' }] })?.hash;
+    const b = inventoryOf({ regex_scripts: [{ scriptName: 'x', replaceString: '<body>bbb</body>' }] })?.hash;
+    expect(a).not.toBe(b);
+  });
+
+  it('同樣的輸入要得到同樣的指紋（不然每次開啟都會重問）', () => {
+    expect(inventoryOf(extensions)?.hash).toBe(inventoryOf(extensions)?.hash);
+  });
+
+  it('兩邊都沒有就回 null', () => {
+    expect(inventoryOf({})).toBeNull();
+    expect(inventoryOf(null)).toBeNull();
   });
 });

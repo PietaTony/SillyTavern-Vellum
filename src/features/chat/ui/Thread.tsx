@@ -3,7 +3,7 @@ import Box from '@mui/material/Box';
 import Stack from '@mui/material/Stack';
 import type { Message } from '../model';
 import { useSwipeKeys } from '../useSwipeKeys';
-import { MessageContent } from './MessageContent';
+import { type FrontendRenderer, MessageContent } from './MessageContent';
 import { SwipeBar } from './SwipeBar';
 
 /**
@@ -15,14 +15,14 @@ import { SwipeBar } from './SwipeBar';
  * 字型分工（乙案）：**內容襯線，介面無襯線**。這一區是「書」，所以走 SERIF。
  * 🔴 頭像用 `characterId` 現取，不把圖複製一份進對話。
  */
-function Content({ text }: { text: string }) {
+function Content({ text, frontend }: { text: string; frontend?: FrontendRenderer | undefined }) {
   /**
    * 🔴 **M13 第一期：從「純文字」改成「markdown ＋ 淨化後的 HTML」。**
    * 在此之前這裡是 `whiteSpace: pre-wrap` 的純文字，而且後端還先把 HTML 壓平
    * ⇒ 卡片的狀態欄、表格、粗體、程式碼區塊全部變成一整片沒有結構的字。
    * 淨化在 `render/html.ts`，那是唯一一處 `dangerouslySetInnerHTML`。
    */
-  return <MessageContent text={text} />;
+  return <MessageContent text={text} frontend={frontend} />;
 }
 
 export function Thread({
@@ -31,6 +31,7 @@ export function Thread({
   avatar,
   name,
   characterId,
+  frontend,
   onSwipe,
   onAvatarClick,
 }: {
@@ -40,6 +41,11 @@ export function Thread({
   name: string;
   /** 候選清單層要靠它去讀「這則開場會開啟幾條世界書」。沒給就只列候選文字。 */
   characterId?: string | undefined;
+  /**
+   * 🔴 卡片自己的前端區塊要畫成什麼 —— **由頁面決定**，這一層不認識 `cardscripts`
+   * （相依方向的理由見 `MessageContent.tsx` 檔頭）。沒給就走引導卡。
+   */
+  frontend?: FrontendRenderer | undefined;
   onSwipe?: ((messageId: string, index: number) => void) | undefined;
   /** 沒給就不綁 —— 一顆點了沒反應的頭像比不能點更糟。 */
   onAvatarClick?: (() => void) | undefined;
@@ -80,7 +86,7 @@ export function Thread({
         {name.slice(0, 1)}
       </Avatar>
       <Box sx={{ borderLeft: 2, borderColor: 'vellum.blockThemRule', pl: 1.5, flex: 1 }}>
-        <Content text={text} />
+        <Content text={text} frontend={frontend} />
         {message && onSwipe ? (
           <SwipeBar
             message={message}
@@ -109,7 +115,7 @@ export function Thread({
                   borderRadius: (t) => `${t.palette.vellum.radiusBubble}px`,
                 }}
               >
-                <Content text={m.text} />
+                <Content text={m.text} frontend={frontend} />
               </Box>
             </Box>
           ) : (

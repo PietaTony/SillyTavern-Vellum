@@ -1,7 +1,7 @@
 import { Hono } from 'hono';
 import { z } from 'zod';
 import { readCard } from '../lib/card.ts';
-import { type CardScripts, scriptsOf } from '../lib/cardScripts.ts';
+import { inventoryOf } from '../lib/cardScripts.ts';
 import type { Character } from '../lib/character.ts';
 import { safeId } from '../lib/ids.ts';
 import { readBin, readJson, writeJson } from '../lib/storage.ts';
@@ -37,13 +37,26 @@ async function scriptsFromCard(id: string): Promise<{ name: string; content: str
  * 盤點結果。**匯入時就算好的存在角色檔裡**，但這個 repo 裡已經有一批角色是
  * 在盤點功能之前匯入的 ⇒ **現算一次補上**，不然舊角色永遠等不到同意視窗。
  */
-async function inventory(ch: Character): Promise<CardScripts | null> {
-  if (ch.cardScripts) return ch.cardScripts;
+/**
+ * 🔴 回傳型別跟著**存起來的那個形狀**走，不是跟著 `inventoryOf()` 的產出走。
+ * 舊資料的 `kind` 可能不在（見 `character.ts` 的 schema）——用比較嚴的型別假裝它一定在，
+ * 只會把問題推到讀的人身上。前端已經把 `kind` 當成 optional 處理。
+ */
+type Stored = NonNullable<Character['cardScripts']>;
+
+async function inventory(ch: Character): Promise<Stored | null> {
+  /**
+   * 🔴 **沒有 `kind` 的是 2026-08-26 之前算的 —— 那一版只盤了背景腳本，
+   * 漏掉使用者真正會點的那份 HTML。讀到就重算，不可以沿用。**
+   * 判準用「欄位在不在」而不是版本號：版本號要有人記得改，欄位不會騙人。
+   */
+  const stale = ch.cardScripts?.scripts.some((s) => s.kind === undefined) ?? false;
+  if (ch.cardScripts && !stale) return ch.cardScripts;
   const png = await readBin(`characters/${ch.id}.png`);
   if (!png) return null;
   const card = readCard(png);
-  const payload = card.payloads[card.primary] as { data?: { extensions?: { tavern_helper?: unknown } } };
-  const found = scriptsOf(payload.data?.extensions?.tavern_helper);
+  const payload = card.payloads[card.primary] as { data?: { extensions?: unknown } };
+  const found = inventoryOf(payload.data?.extensions);
   if (found) await writeJson(`characters/${ch.id}.json`, { ...ch, cardScripts: found });
   return found;
 }

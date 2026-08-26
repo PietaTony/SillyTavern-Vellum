@@ -14,7 +14,7 @@ import { listJson, writeBin, writeJson } from './storage.ts';
 import { displayNameOf, uniqueDisplayName } from './displayName.ts';
 import { fromRegexScripts } from './outputRules.ts';
 import type { Character } from './character.ts';
-import { scriptsOf } from './cardScripts.ts';
+import { inventoryOf } from './cardScripts.ts';
 
 export type ImportedAsset = { path: string; mime: string; bytes: number; from: string };
 
@@ -71,7 +71,9 @@ export async function intoCharacter(png: Buffer) {
   const exts = (imported.card.payloads[imported.card.primary] as {
     data?: { extensions?: { regex_scripts?: unknown; tavern_helper?: unknown } };
   }).data?.extensions;
-  const scripts = scriptsOf(exts?.tavern_helper);
+  // 🔴 **背景腳本與顯示介面一起盤**（見 `cardScripts.ts` 檔頭 ②）——
+  // 只盤 `tavern_helper` 會漏掉使用者真正會點的那份 HTML。
+  const scripts = inventoryOf(exts);
 
   const base = view.name || '未命名角色';
   // D-h：加入時主動避開重名。第一個保持原名，第二個起 `(1)`、`(2)`…

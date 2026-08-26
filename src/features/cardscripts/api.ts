@@ -1,7 +1,18 @@
 import { get, put } from '@/shared/lib/http';
 
-/** 一支卡片自帶腳本的盤點資料（不含內容）。 */
-export type ScriptInfo = { name: string; enabled: boolean; bytes: number; externals: string[] };
+/** 一支卡片自帶程式的盤點資料（不含內容）。 */
+export type ScriptInfo = {
+  name: string;
+  enabled: boolean;
+  bytes: number;
+  externals: string[];
+  /**
+   * 🔴 `interface` ＝ 會**變成畫面、使用者直接點**的那份 HTML（顯示用 regex 換出來的）。
+   * `script` ＝ 看不見的背景腳本。同意視窗要分開講，因為兩者的「會發生什麼」完全不同。
+   * ⚠️ 舊資料沒有這一欄；後端讀到就重算（`routes/characterScripts.ts`）。
+   */
+  kind?: 'script' | 'interface';
+};
 export type Inventory = { scripts: ScriptInfo[]; hash: string };
 export type Consent = { hash: string; externals: string[]; at: string };
 

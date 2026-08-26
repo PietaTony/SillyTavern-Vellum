@@ -24,20 +24,13 @@ export type BridgeDeps = {
   refresh: () => Promise<unknown>;
 };
 
-type Listener = (...args: unknown[]) => void;
-
-const listeners = new Map<string, Listener[]>();
-
-/** 主頁自己也要能發事件給卡片（例如「訊息換了」）。 */
-export function emitToCards(event: string, ...args: unknown[]): void {
-  for (const fn of listeners.get(event) ?? []) {
-    try {
-      fn(...args);
-    } catch (e) {
-      console.error('[卡片腳本] 事件處理出錯', event, e);
-    }
-  }
-}
+/**
+ * 🔴 **事件訂閱不在這裡** —— 搬去 `host.ts` 了（2026-08-26）。
+ * 原因：這一層拿不到「是哪一個 frame 在訂」，而 iframe 傳過來的參數裡
+ * **不可能**有 callback（函式過不了 `postMessage` 的結構化複製）。
+ * 舊版把 `eventOn(event, fn)` 放在這裡 ⇒ `fn` 永遠是 `undefined`，
+ * `emitToCards` 一發就會去呼叫 `undefined`。
+ */
 
 const shaped = (m: Message, i: number) => ({
   message_id: i,
@@ -50,15 +43,6 @@ const shaped = (m: Message, i: number) => ({
 
 export function buildBridge(deps: BridgeDeps): Record<string, unknown> {
   const api: Record<string, unknown> = {
-    eventOn(event: string, fn: Listener) {
-      listeners.set(event, [...(listeners.get(event) ?? []), fn]);
-    },
-    eventRemoveListener(event: string, fn: Listener) {
-      listeners.set(
-        event,
-        (listeners.get(event) ?? []).filter((f) => f !== fn),
-      );
-    },
     getChatMessages(range?: unknown) {
       const all = deps.messages().map(shaped);
       // 卡片常傳 `0`（只要第一則）或 `'0-{{lastMessageId}}'`。數字就當索引。

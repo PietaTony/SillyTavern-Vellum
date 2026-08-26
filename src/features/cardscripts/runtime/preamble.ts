@@ -28,6 +28,9 @@ export const VENDOR = [
   'https://testingcf.jsdelivr.net/npm/js-yaml/dist/js-yaml.min.js',
 ];
 
+/** 🔴 `VENDOR` 會去哪些網域 —— **同意視窗要照實講**，那也是我們自己的外連。 */
+export const VENDOR_HOSTS = [...new Set(VENDOR.map((u) => new URL(u).host))];
+
 /**
  * 前導程式本體。字串而不是模組檔，因為它要被塞進 `srcdoc`。
  *
@@ -52,15 +55,52 @@ export const PREAMBLE = /* js */ `
       parent.postMessage({ __vellumCall: fn, args: args, id: id, frame: window.name }, '*');
     });
   }
+
+  /*
+   * 🔴 事件要**先**定義，晚於下面那個 NAMES 迴圈就來不及了。
+   * 舊版的順序反過來，於是 TavernHelper.eventOn 綁到的是「把參數 postMessage 出去」的版本 ——
+   * 而參數裡有 callback，**函式過不了結構化複製，一叫就 throw**。
+   * （window.eventOn 當時被後面覆寫成正確版，所以只有 TavernHelper. 那條是壞的，很難發現。）
+   */
+  var subs = {};
+  window.eventOn = function (ev, fn) {
+    (subs[ev] = subs[ev] || []).push(fn);
+    call('eventOn', [ev]);   /* 只把「訂了哪個事件」告訴主頁，callback 留在這邊 */
+  };
+  window.eventRemoveListener = function (ev, fn) {
+    subs[ev] = (subs[ev] || []).filter(function (f) { return f !== fn; });
+    if (subs[ev].length === 0) call('eventRemoveListener', [ev]);
+  };
+  addEventListener('message', function (e) {
+    var d = e.data;
+    if (!d || !d.__vellumEvent) return;
+    (subs[d.__vellumEvent] || []).forEach(function (fn) {
+      try { fn.apply(null, d.args || []); } catch (err) { console.error('[卡片腳本] 事件處理出錯', err); }
+    });
+  });
+
+  /*
+   * 🔴 事件名稱**照抄 ST**（實查 public/scripts/events.js:7,19,49）。
+   * 卡片是這樣用的：eo(te.MESSAGE_SWIPED, …) —— te 拿不到就整支腳本在
+   * 「輪詢等待 10 秒」裡空轉然後走 fallback（實測「何思年_開場連動」就是這個寫法）。
+   */
+  window.tavern_events = {
+    MESSAGE_SWIPED: 'message_swiped',
+    CHAT_CHANGED: 'chat_id_changed',
+    CHARACTER_MESSAGE_RENDERED: 'character_message_rendered',
+  };
+
   var NAMES = ['eventOn','eventRemoveListener','getChatMessages','getLastMessageId','getCurrentMessageId',
                'getAllVariables','getVariables','setChatMessages','setChatMessage',
                'getLorebookEntries','setLorebookEntries','updateWorldbookWith','generate'];
   var H = {};
   NAMES.forEach(function (n) {
-    H[n] = function () { return call(n, Array.prototype.slice.call(arguments)); };
+    /* 已經在上面定義好的（事件那兩支）直接沿用，不要再包一層 postMessage。 */
+    H[n] = typeof window[n] === 'function' ? window[n]
+         : function () { return call(n, Array.prototype.slice.call(arguments)); };
     if (window[n] === undefined) window[n] = H[n];
   });
-  // 🔴 叫到沒實作的要說得出是哪一個，不可以是一句 undefined is not a function。
+  /* 🔴 叫到沒實作的要說得出是哪一個，不可以是一句 undefined is not a function。 */
   window.TavernHelper = new Proxy(H, {
     get: function (t, k) {
       if (k in t) return t[k];
@@ -70,20 +110,8 @@ export const PREAMBLE = /* js */ `
       };
     },
   });
-  // 事件：主頁把事件推進來，這裡分派給卡片註冊的 callback。
-  var subs = {};
-  window.eventOn = function (ev, fn) { (subs[ev] = subs[ev] || []).push(fn); call('eventOn', [ev]); };
-  window.eventRemoveListener = function (ev, fn) {
-    subs[ev] = (subs[ev] || []).filter(function (f) { return f !== fn; });
-  };
-  addEventListener('message', function (e) {
-    var d = e.data;
-    if (!d || !d.__vellumEvent) return;
-    (subs[d.__vellumEvent] || []).forEach(function (fn) {
-      try { fn.apply(null, d.args || []); } catch (err) { console.error('[卡片腳本] 事件處理出錯', err); }
-    });
-  });
-  // 腳本之間互相等待用的登記處。沙箱下各 iframe 獨立，登記在自己身上就好。
+
+  /* 腳本之間互相等待用的登記處。沙箱下各 iframe 獨立，登記在自己身上就好。 */
   var globals = {};
   window.initializeGlobal = function (name, value) { globals[name] = value; window[name] = value; };
   window.waitGlobalInitialized = function (name) {
@@ -96,7 +124,7 @@ export const PREAMBLE = /* js */ `
       tick();
     });
   };
-  // 卡片常把整段包在 errorCatched 裡；沒有它就整支不跑。
+  /* 卡片常把整段包在 errorCatched 裡；沒有它就整支不跑。 */
   window.errorCatched = function (fn) {
     return function () {
       try { return fn.apply(this, arguments); } catch (e) { console.error('[卡片腳本]', e); }

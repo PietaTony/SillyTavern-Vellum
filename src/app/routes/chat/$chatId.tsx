@@ -1,11 +1,13 @@
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { createFileRoute } from '@tanstack/react-router';
 import { useState } from 'react';
+import { CardFrontend } from '@/app/screens/CardFrontend';
 import { ChatFailure } from '@/app/screens/ChatFailure';
 import { ChatMenu } from '@/app/screens/ChatMenu';
 import { ChatLoading, ChatUnavailable } from '@/app/screens/ChatUnavailable';
 import { useBack } from '@/app/screens/useBack';
 import { useChatBackgroundOverride } from '@/app/screens/useChatBackgroundOverride';
+import { ConsentDialog, useCardScripts } from '@/features/cardscripts';
 import { CharacterLayer, fetchCharacter } from '@/features/characters';
 import {
   Composer,
@@ -57,6 +59,16 @@ function ChatPage() {
     },
   });
 
+  // 🔴 卡片自己的程式（M13 第二期）。**必須在所有早退之前呼叫**（hooks 規則）
+  // ⇒ `characterId` 這時可能還是空字串，`useCardScripts` 自己會擋掉那一輪查詢。
+  const cards = useCardScripts({
+    chatId,
+    characterId: q.data?.characterId ?? '',
+    messages: () => messages,
+    swipe: (messageId, index) => swipe.mutateAsync({ messageId, index }),
+    refresh: () => q.refetch(),
+  });
+
   if (q.isPending) return <ChatLoading />;
   if (q.isError)
     return (
@@ -80,6 +92,7 @@ function ChatPage() {
           persona={q.data.persona}
           onPersonaChanged={() => void q.refetch()}
           {...(greeting ? { onGreetings: () => setShowGreetings(true) } : {})}
+          {...(cards.enabled ? { onRevokeScripts: cards.revoke } : {})}
         />
       }
       scroll={false}
@@ -93,6 +106,10 @@ function ChatPage() {
         characterId={q.data.characterId}
         onSwipe={(messageId, index) => void swipe.mutate({ messageId, index })}
         onAvatarClick={() => setShowChar(true)}
+        // 卡片自己的前端區塊怎麼呈現：見 `CardFrontend`（那一層才認識 cardscripts）。
+        frontend={(part) => (
+          <CardFrontend cards={cards} characterId={q.data.characterId} {...part} />
+        )}
       />
       {greeting && showGreetings ? (
         <SwipePicker
@@ -113,6 +130,16 @@ function ChatPage() {
         characterId={q.data.characterId}
         readOnly
       />
+      {cards.inventory ? (
+        <ConsentDialog
+          open={cards.asking}
+          inventory={cards.inventory}
+          characterName={q.data.characterName}
+          busy={cards.busy}
+          onClose={cards.close}
+          onConfirm={cards.confirm}
+        />
+      ) : null}
       {failure ? <ChatFailure message={failure} onDismiss={() => setFailure(null)} /> : null}
     </Screen>
   );

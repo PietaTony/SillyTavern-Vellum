@@ -48,6 +48,8 @@ export const CharacterSchema = z.object({
           enabled: z.boolean(),
           bytes: z.number(),
           externals: z.array(z.string()),
+          /** 🔴 2026-08-26 新增。**舊資料沒有這欄 ⇒ 讀到就重算**（見 `routes/characterScripts.ts`）。 */
+          kind: z.enum(['script', 'interface']).optional(),
         }),
       ),
       hash: z.string(),

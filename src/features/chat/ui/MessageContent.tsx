@@ -1,5 +1,5 @@
 import Box from '@mui/material/Box';
-import { useMemo } from 'react';
+import { type ReactNode, useMemo } from 'react';
 import { SERIF } from '@/app/theme';
 import { segments } from '../render/frontend';
 import { toHtml } from '../render/html';
@@ -16,8 +16,23 @@ import { FrontendNotice } from './FrontendNotice';
  * 🔴 **`dangerouslySetInnerHTML` 是刻意的，而且只在這一處。**
  * 內容來自網路上的角色卡 ⇒ 唯一的防線是 `toHtml()` 裡的 DOMPurify。
  * **不要在別的地方複製這個模式**：多一個入口就多一條沒被淨化的路。
+ *
+ * 🔴 **前端區塊怎麼呈現由呼叫端決定（`frontend`），這裡不直接用 `cardscripts`。**
+ * 理由是相依方向：`cardscripts/runtime/bridge.ts` 要 import `@/features/chat` 的型別，
+ * 反過來再 import 回去就是**循環相依**（閘門 A2 會擋，而且擋得對）。
+ * ⇒ 頁面負責決定「跑它（`ScriptFrame`）還是先問（`FrontendNotice`）」，這一層只管切段。
  */
-export function MessageContent({ text }: { text: string }) {
+
+/** 一段前端區塊要畫成什麼。沒給就走引導卡（不執行、不印原始碼）。 */
+export type FrontendRenderer = (part: { code: string; index: number }) => ReactNode;
+
+export function MessageContent({
+  text,
+  frontend,
+}: {
+  text: string;
+  frontend?: FrontendRenderer | undefined;
+}) {
   // 訊息很長（實測那張卡的開場白上萬字），每次 render 都重跑 markdown 會卡。
   const parts = useMemo(
     () => segments(text).map((s) => (s.kind === 'text' ? { ...s, html: toHtml(s.text) } : s)),
@@ -53,7 +68,9 @@ export function MessageContent({ text }: { text: string }) {
         p.kind === 'frontend' ? (
           // 候選的順序就是它的身分，這裡同理：段落在訊息裡的位置就是它的 key。
           // biome-ignore lint/suspicious/noArrayIndexKey: 段落沒有別的主鍵，而且順序就是身分
-          <FrontendNotice key={`f${i}`} bytes={p.code.length} />
+          <Box key={`f${i}`}>
+            {frontend?.({ code: p.code, index: i }) ?? <FrontendNotice bytes={p.code.length} />}
+          </Box>
         ) : (
           // biome-ignore lint/suspicious/noArrayIndexKey: 同上
           // biome-ignore lint/security/noDangerouslySetInnerHtml: 唯一入口，已過 DOMPurify（見檔頭）
