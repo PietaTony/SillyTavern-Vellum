@@ -104,9 +104,16 @@ export function buildBridge(deps: BridgeDeps): Record<string, unknown> {
       if (texting) reportBlocked('setChatMessage', id, { kind: 'text-with-swipe' });
       return applyUpdates({ message_id: id, swipe_id: opts?.swipe_id });
     },
-    getLorebookEntries: () => [],
-    setLorebookEntries: () => undefined,
-    updateWorldbookWith: () => undefined,
+    /**
+     * 🔴 **`getLorebookEntries`／`setLorebookEntries`／`updateWorldbookWith` 刻意不在這裡。**
+     * 它們原本是 `() => []` 與 `() => undefined` —— 有實作的樣子、什麼都不做、而且**安靜**。
+     * 那比沒實作更糟：卡片會以為世界書是空的、以為自己寫進去了
+     *（UI 線 2026-08-27 盤點）。
+     * ⇒ 拿掉之後自動落到 `host.ts` 的既有路徑：**console.warn 說得出是哪一支**，
+     *   而且回 `{ error }` ⇒ iframe 那端 `p.reject(new Error(...))`，卡片會知道失敗。
+     * ⚠️ **不要好心把空實作加回來。** 要嘛真的接世界書（`worlds/<id>.json` 那條路），
+     *   要嘛就讓它出聲。實掃 4 張卡：目前 0 次呼叫，所以現在讓它出聲的代價是零。
+     */
     generate() {
       // 見檔頭：不靜默失敗，也不偷偷花錢。
       throw new Error('Vellum 尚未開放卡片腳本自行呼叫生成（會計費）');

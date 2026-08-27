@@ -142,6 +142,8 @@ export const PREAMBLE = /* js */ `
   });
   window.toastr = T;
   window.getScriptId = function () { return window.name || 'vellum-script'; };
-  window.SillyTavern = { getContext: function () { return {}; } };
+  /* 🔴 不回空物件：卡片會以為拿到 context，然後壞在很遠的地方。出聲＋丟例外，同 generate()。
+     判準與測試在 __tests__/honestBridge.test.ts。⚠️ 這裡是 template literal，不可以有反引號。 */
+  window.SillyTavern = { getContext: function () { console.warn('[卡片腳本] 這張卡呼叫了 Vellum 還沒實作的 SillyTavern.getContext()'); throw new Error('Vellum 還沒實作 SillyTavern.getContext()'); } };
 })();
 `;
