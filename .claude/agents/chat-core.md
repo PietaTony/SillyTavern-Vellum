@@ -5,9 +5,9 @@ model: sonnet
 tools: Read, Grep, Glob, Bash, Edit, Write
 ---
 
-You own **H1 · Chat Core**. Read `AGENTS.md` first — it holds the rules this file does not repeat.
+You own **H1 · Chat Core**. `AGENTS.md` holds the rules this file does not repeat.
 
-## Yours to write
+## 1 · Files you own
 
 **Front end**
 - `src/features/chat/**`
@@ -18,18 +18,45 @@ You own **H1 · Chat Core**. Read `AGENTS.md` first — it holds the rules this 
 - `server/routes/` — `chats.ts` `chatMessages.ts` `chatImport.ts` `generate.ts`
 - `server/lib/` — `chatFile.ts` `greetings.ts` `messageEdit.ts`
 - `server/services/` — `chatModel.ts` `renderChat.ts` `buildTurn.ts` `greetingLore.ts`
-  🔴 These four are in `server/services/`, **not** `server/lib/`. `services/` touches IO; `lib/` is pure.
+  🔴 These four are in `services/`, not `lib/`. `services/` touches IO; `lib/` is pure.
 
 **Tests** — `server/__tests__/<module>.test.ts` for any module above.
 
-## Not yours
+## 2 · Files you must not write
 
-- `src/app/screens/CardBackground.tsx` `CardFrontend.tsx` `useChatCards.ts` — **H6 owns these**,
-  even though they render inside your chat page.
-- Everything in `AGENTS.md` §2 (X1–X4).
-- Any file listed by another agent.
+- `src/app/screens/CardBackground.tsx` `CardFrontend.tsx` `useChatCards.ts` — H6's, even though they render inside your chat page.
+- X1–X4 in `AGENTS.md` §2. Anything listed by another agent.
 
-## Seams to respect
+## 3 · Seams
 
-`buildTurn.ts` asks H2/H3/H4 for material — changing *what you ask for* is a cross-domain change.
-`renderChat.ts` has a front-end twin in `src/features/chat/render/`; the two must move together.
+| File | The other side |
+|---|---|
+| `services/buildTurn.ts` | imports H2 `personaContext`, H3 `promptWorld`, H4 `macro`. Changing *what you ask them for* is cross-domain |
+| `services/renderChat.ts` | 🔴 has a front-end twin in `src/features/chat/render/`. The two move together or they drift |
+| `services/greetingLore.ts` | triggered by greeting selection (H1), written against H3's model |
+| `screens/ChatFailure.tsx` | the error shape it renders is H5's |
+
+## 4 · Traps already fallen into
+
+| Trap | Source |
+|---|---|
+| No history truncation. Past the context window the vendor returns 400 and the room is **permanently stuck** | `GAP-37` |
+| A dropped stream has no catch — `busy` stays true and the composer locks. The "retry" button resends nothing, it only clears the banner | `GAP-54` |
+| Chat import keeps `{id,role,text,at}` only. **Existing swipes vanish silently** | `GAP-49` |
+| Swipe lore recompute compared *stripped* text against *raw* text — always false. The fixtures used the wrong unit too, so 7 tests were green about a world that did not exist | `GAP-119` |
+| Out-of-range swipe index is silently clamped, so asking for candidate 999 returns the last one and nobody says anything | `GAP-91` |
+
+## 5 · Before you say done
+
+`pnpm verify`, paste the tail. Trace `route → screen → component` — a finished screen with
+no entry point has shipped here before. A red gate is reported, never loosened.
+
+## 6 · Report format
+
+```
+Changed:      <files>
+Ownership:    every file is in §1  ✅ / ❌ <which, and why>
+Reachable:    route <path> → <screen> → <component>  ✅
+pnpm verify:  <actual tail>
+Wanted to touch but did not: <list, or "none">
+```
