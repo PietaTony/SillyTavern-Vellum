@@ -61,4 +61,13 @@ export const LOG_SHIM = /* js */ `
   addEventListener('unhandledrejection', function (e) {
     sendLog('error', ['沒有人接的 Promise：', e.reason]);
   });
+  /*
+   * 🔴 **CSP 擋掉的東西不會經過 console API** —— 那是瀏覽器自己印的，
+   * 我們包 console.warn／error 完全攔不到。而「被 CSP 擋掉」在畫面上長得跟
+   * 「這個功能沒做」一模一樣（2026-08-27 追狀態欄展不開時踩到）。
+   */
+  addEventListener('securitypolicyviolation', function (e) {
+    sendLog('error', ['CSP 擋掉：', e.violatedDirective, e.blockedURI || '(inline)',
+      '@', String(e.sourceFile || '') + ':' + String(e.lineNumber || '')]);
+  });
 `;
