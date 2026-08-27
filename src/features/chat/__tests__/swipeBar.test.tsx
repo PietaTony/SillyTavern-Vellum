@@ -94,6 +94,36 @@ describe('SwipeBar', () => {
     expect(screen.getAllByText('切換候選')).toHaveLength(1);
   });
 
+  /**
+   * 🔴 **上下兩條必須是同一個樣子**（Peter 2026-08-27：「上下方的 swipe 應該 reuse，
+   * 目前看起來配色都不同」）。
+   *
+   * 上一版兩條各寫各的 `:hover`，而 `sx` 只差 `mt`／`mb` ⇒ emotion 生出兩個 class，
+   * 滑鼠靠近哪一條哪一條才亮 —— 同一個控制項在同一個畫面上是兩種深淺。
+   * 比對 className 是這件事**唯一測得到**的形狀：看得見的差異在 emotion 生的 class 裡，
+   * 不在 DOM 結構上。
+   */
+  const barOf = (label: string) => screen.getByLabelText(label).closest('.MuiStack-root');
+
+  it('🔴 上下兩條套的是同一個 class —— 樣式不可能各自漂移', () => {
+    render(<Thread messages={[three]} streaming={null} name="某" onSwipe={() => {}} />);
+    const up = barOf('上一個候選（訊息上方）');
+    const down = barOf('上一個候選（訊息下方）');
+    expect(up?.className).toBeTruthy(); // 尺沒壞：真的抓到東西才比對
+    expect(down?.className).toBe(up?.className);
+  });
+
+  it('🔴 碰到其中一條，兩條一起亮（不是只有滑鼠底下那一條）', () => {
+    render(<Thread messages={[three]} streaming={null} name="某" onSwipe={() => {}} />);
+    const quiet = barOf('上一個候選（訊息上方）')?.className;
+    fireEvent.mouseEnter(barOf('上一個候選（訊息下方）') as Element);
+    const upLit = barOf('上一個候選（訊息上方）')?.className;
+    const downLit = barOf('上一個候選（訊息下方）')?.className;
+    // 亮起來 ⇒ class 換了；而且上面那一條跟著換，不是只有被碰的那一條
+    expect(upLit).not.toBe(quiet);
+    expect(downLit).toBe(upLit);
+  });
+
   it('箭頭到頭會繞回去（開場白在 ST 也是 loop，不是停住）', () => {
     const onSwipe = vi.fn();
     render(
