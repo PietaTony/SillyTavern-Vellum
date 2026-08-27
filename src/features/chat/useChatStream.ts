@@ -43,11 +43,24 @@ export function useChatStream(chatId: string, fromServer: Message[] | undefined)
     setLocal([...messages, mine]);
     setStreaming('');
 
+    /**
+     * 🔴 **到這裡「送出」就完成了，不要等生成跑完才 resolve**
+     * （Peter 2026-08-27：「輸入文字以後沒有正確的清空 input box」）。
+     *
+     * `Composer` 的判準是「`onSend` resolve ＝ 送出成功 ⇒ 清空輸入框」。
+     * 而在此之前這支 `await` 了整段串流 ⇒ 輸入框要等模型**寫完整段回覆**才清空。
+     * 使用者按下 Enter、字還留在框裡好幾秒 —— 看起來就是「沒送出去」，
+     * 而他的下一個動作是再按一次。
+     *
+     * 🔴 **「送出成功」＝ 使用者那則訊息存下來了**（`appendMessage` 過了），
+     * 不是「對方回完了」。生成失敗是另一件事，由失敗橫幅負責講。
+     * ⇒ 串流改成不 await，在背景跑；錯誤照樣進 `setFailure`。
+     */
     const ac = new AbortController();
     abortRef.current = ac;
     let acc = '';
     setThinking(false);
-    await streamGenerate(
+    void streamGenerate(
       chatId,
       (e) => {
         if (e.type === 'delta') {
@@ -68,7 +81,18 @@ export function useChatStream(chatId: string, fromServer: Message[] | undefined)
         }
       },
       ac.signal,
-    );
+    ).catch((e: unknown) => {
+      /*
+       * 🔴 **不 await 就必須自己接住例外。** 在此之前是 `await`，例外會冒到
+       * `Composer` 去 —— 而它會解讀成「沒送出去，字留著」，那是錯的：
+       * 訊息早就存下來了，壞掉的是生成。
+       * ⚠️ 使用者自己中止的不算失敗，不要跳一則訊息嚇他。
+       */
+      if (ac.signal.aborted) return;
+      setThinking(false);
+      setStreaming(null);
+      setFailure(e instanceof Error ? e.message : '生成中斷');
+    });
   }
 
   /** 丟掉樂觀暫存，改讀伺服器那份。**切候選成功之後一定要叫它**（見檔頭 B1）。 */
