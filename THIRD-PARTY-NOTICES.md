@@ -10,13 +10,14 @@ Vellum 本身授權 **AGPL-3.0-or-later**（見 `LICENSE`）。
 ⚠️ **這份清單是保守的**：列的是整棵 production 相依樹，其中有些會被 tree-shaking
 拿掉、不會真的進到產物裡。**多列不違反任何授權，少列會** —— 所以寧可多。
 
-共 **129** 個套件：
+共 **132** 個套件：
 
 | 授權 | 個數 |
 |---|---|
 | MIT | 117 |
 | BSD-3-Clause | 4 |
 | ISC | 4 |
+| （查不到授權 —— 要人工補） | 3 |
 | Python-2.0 | 1 |
 | (MPL-2.0 OR Apache-2.0) | 1 |
 | Unlicense | 1 |
@@ -2766,6 +2767,15 @@ OTHER DEALINGS IN THE SOFTWARE.
 For more information, please refer to <http://unlicense.org/>
 ```
 
+## jquery（內嵌於 vendor/jquery.min.js） （查不到版本 —— 要人工補）
+
+**（查不到授權 —— 要人工補）**
+
+```
+⚠️ 這個套件的發行內容裡沒有附授權檔，只在 package.json 宣告 （查不到授權 —— 要人工補）。
+授權全文請見上面的專案網址。**不要在這裡自己補一份，那等於捏造版權人。**
+```
+
 ## js-tokens 4.0.0
 
 **MIT**　·　https://github.com/lydell/js-tokens#readme
@@ -2794,32 +2804,22 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 ```
 
-## js-yaml 4.3.2
+## js-yaml 4.1.0
 
 **MIT**　·　https://github.com/nodeca/js-yaml#readme
 
 ```
-(The MIT License)
+⚠️ 這個套件的發行內容裡沒有附授權檔，只在 package.json 宣告 MIT。
+授權全文請見上面的專案網址。**不要在這裡自己補一份，那等於捏造版權人。**
+```
 
-Copyright (C) 2011-2015 by Vitaly Puzrin
+## js-yaml（內嵌於 vendor/js-yaml.min.js） （查不到版本 —— 要人工補）
 
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
+**（查不到授權 —— 要人工補）**
 
-The above copyright notice and this permission notice shall be included in
-all copies or substantial portions of the Software.
-
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
-THE SOFTWARE.
+```
+⚠️ 這個套件的發行內容裡沒有附授權檔，只在 package.json 宣告 （查不到授權 —— 要人工補）。
+授權全文請見上面的專案網址。**不要在這裡自己補一份，那等於捏造版權人。**
 ```
 
 ## jsesc 3.1.0
@@ -3074,6 +3074,15 @@ Files located in the node_modules and vendor directories are externally
 maintained libraries used by this software which have their own
 licenses; we recommend you read them, as their terms may differ from the
 terms above.
+```
+
+## lodash（內嵌於 vendor/lodash.min.js） （查不到版本 —— 要人工補）
+
+**（查不到授權 —— 要人工補）**
+
+```
+⚠️ 這個套件的發行內容裡沒有附授權檔，只在 package.json 宣告 （查不到授權 —— 要人工補）。
+授權全文請見上面的專案網址。**不要在這裡自己補一份，那等於捏造版權人。**
 ```
 
 ## loose-envify 1.4.0
