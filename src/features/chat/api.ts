@@ -1,4 +1,4 @@
-import { get, patch, post } from '@/shared/lib/http';
+import { del, get, patch, post } from '@/shared/lib/http';
 import { type Chat, type Message, parseSse, type StreamEvent } from './model';
 
 export const fetchChats = (): Promise<Chat[]> => get<Chat[]>('/api/chats');
@@ -46,6 +46,38 @@ export const appendMessage = (
   role: 'user' | 'model',
   text: string,
 ): Promise<Message> => post<Message>(`/api/chats/${chatId}/messages`, { role, text });
+
+/**
+ * 改一則訊息的內容。**兩種 role 都能改**（ST 也是）。
+ *
+ * 🔴 有候選的訊息，後端會**同時寫回 `swipes[swipeIndex]`**，不是只改 `text` ——
+ * 不然改完切走再切回來，改動會被 `swipes[i]` 蓋掉
+ *（判準與測試在 `server/lib/messageEdit.ts`）。沒有候選時 `swipeIndex` 是 `null`。
+ */
+export type EditedMessage = { id: string; text: string; swipeIndex: number | null };
+export const editMessage = (
+  chatId: string,
+  messageId: string,
+  text: string,
+): Promise<EditedMessage> =>
+  patch<EditedMessage>(`/api/chats/${chatId}/messages/${messageId}`, { text });
+
+/**
+ * 刪一則訊息；`cascade` 時連同**它之後的全部**一起刪
+ *（「從這則重新生成」要用它，不然新回覆會接在舊回覆後面，變成同一段講兩次）。
+ *
+ * ⚠️ 回傳的 `deleted` 是**真的被刪掉的 id、依原順序**，不是「請求刪哪些」。
+ * 🔴 後端會擋下「把整段對話刪光」並回 400 ＋ 一句人看得懂的話（`ApiError.message`
+ * 會原文顯示）—— 擋的是「刪完還剩幾則」，不是「這則是不是開場白」。
+ */
+export const deleteMessage = (
+  chatId: string,
+  messageId: string,
+  opts: { cascade?: boolean } = {},
+): Promise<{ deleted: string[] }> =>
+  del<{ deleted: string[] }>(
+    `/api/chats/${chatId}/messages/${messageId}${opts.cascade ? '?cascade=1' : ''}`,
+  );
 
 /**
  * 生成。🔴 **不是 `EventSource`** —— 它只支援 GET、也沒辦法帶 body。

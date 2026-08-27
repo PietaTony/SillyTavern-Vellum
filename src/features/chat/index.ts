@@ -1,6 +1,9 @@
 export {
   appendMessage,
   createChat,
+  deleteMessage,
+  type EditedMessage,
+  editMessage,
   fetchChat,
   fetchChats,
   patchChatVariables,

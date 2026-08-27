@@ -6,13 +6,13 @@ import { messageActions } from '../messageActions';
 /**
  * 長按選單四項的接線。
  *
- * 🔴 **這一支存在的理由就是「端點還沒有」**：`server/routes/chats.ts` 目前沒有
- * 改訊息與刪訊息，而 `server/` 是 UI 線的禁區（規格已交給主執行線）。
- * ⇒ 現在按下去一定是 404，而**這個 repo 最貴的缺陷是「按了、靜靜地什麼都沒發生」**
- * ⇒ 這裡守兩件事：**404 要翻成說得出原因的一句話**，而且**例外要往上丟**
- *（`useRowActions` 靠 reject 決定「編輯框不要關、字留著」）。
+ * 🔴 守兩件事，兩件都是**「按了、靜靜地什麼都沒發生」**的反面：
+ *   ① **後端說的話要原文顯示** —— 例如「這樣會把整段對話刪光」。那句是給使用者看的，
+ *      翻成「沒做成」等於把唯一說得出原因的資訊丟掉。
+ *   ② **例外要往上丟** —— `useRowActions` 靠 reject 決定「編輯框不要關、字留著」。
  *
- * 端點到位之後這幾條照樣成立 —— 那時 404 那條會走不到，換成後端自己的錯誤訊息。
+ * ⚠️ 端點落地前這裡有一條「404 要翻成『後端還沒有這支端點』」的特判，已經拿掉了
+ *（`server/routes/chatMessages.ts` 2026-08-27）—— 那句話現在只會誤導人。
  */
 const call = (): { calls: string[]; fetchMock: ReturnType<typeof vi.fn> } => {
   const calls: string[] = [];
@@ -69,14 +69,18 @@ describe('messageActions', () => {
     expect(order).toEqual(['refetch', 'reset', 'regenerate:1']);
   });
 
-  it('🔴 404 要翻成說得出原因的一句話，不可以靜靜地什麼都沒發生', async () => {
+  /**
+   * 🔴 後端擋「把整段對話刪光」時回的那句，要原封不動送到使用者眼前。
+   * 這是實際會發生的路徑：對開場白按「從這則重新生成」就會走到。
+   */
+  it('🔴 後端說得出原因時，原文顯示，不可以翻成「沒做成」', async () => {
+    const said = '這樣會把整段對話刪光，留不下任何內容可以接著生成';
     vi.stubGlobal(
       'fetch',
-      vi.fn(() => Promise.resolve(new Response('Not Found', { status: 404 }))),
+      vi.fn(() => Promise.resolve(new Response(JSON.stringify({ error: said }), { status: 400 }))),
     );
-    await expect(build().onDelete('m9')).rejects.toThrow();
-    const said = useToasts.getState().items.map((t) => t.text);
-    expect(said.some((t) => t.includes('後端還沒有這支端點'))).toBe(true);
+    await expect(build().onRegenerate('m1')).rejects.toThrow(said);
+    expect(useToasts.getState().items.map((t) => t.text)).toContain(said);
   });
 
   it('🔴 失敗一定要往上丟 —— 編輯框靠 reject 決定「不要關、字留著」', async () => {
