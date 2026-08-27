@@ -96,7 +96,7 @@ Node 遇到 unhandled rejection 預設**直接終止行程**。要不要補是�
       前景分頁應該正常，但要你手點一次確認。
       ⚠️ 順帶一提 `src/shared/lib/copyText.ts`（UI 線不能改）沒有 timeout，
       那條路一旦卡住就是「按了、什麼都沒發生」——要不要補 timeout 由你決定。
-- [ ] 卡片內「選開場線」的介面選完之後**沒有自動設定世界書** ── Peter 2026-08-27 回報，還沒查
+- [x] 卡片內「選開場線」選完之後沒有自動設定世界書 ── **查到了，病灶在後端**（見下）
 - [ ] `/settings` 的「外觀」── 標著「還沒做」
 - [ ] persona 圖生文的 prompt 不對味 ── 等主執行線加 persona 版 prompt（prompt 已交付）
 - [ ] 桌寵點擊的動畫範圍 ── Peter 回報，我點了多次沒能重現，**等截圖**
@@ -106,6 +106,19 @@ Node 遇到 unhandled rejection 預設**直接終止行程**。要不要補是�
       生成、而且知道正確數值才驗得了
 
 ## 交給主執行線的（已寫成 prompt 交付）
+- 🔴 **切開場永遠不會重算世界書**（Peter 2026-08-27 回報，已實測證明）。
+  `server/routes/chats.ts` swipe 路由同一行上有**兩個獨立的 bug**：
+  ① `ch.greetings[idx] === target` 是「生的」比「剝過的」—— 建立對話時存的是
+     `greetings.map(stripLoreTags)` ⇒ 只要開場白帶註解就永遠 false（實測 9 則裡 8 則）
+  ② 就算 ① 修好，傳給 `applyGreetingLore()` 的還是剝過的文字 ⇒ 讀不到 `<!-- lore -->`
+  **兩個要一起修**。⚠️ `server/__tests__/chatSwipe.test.ts` 是假綠燈（fixture 的 swipes
+  用生開場白，跟產品寫進檔案的形狀不一樣）。完整規格在
+  `scratchpad/prompt-cardscripts-gaps.md`。
+- 🔴 **bridge 有四支「假的」API**：`getLorebookEntries`／`setLorebookEntries`／
+  `updateWorldbookWith`／`SillyTavern.getContext()` —— 回空值、靜默、看起來像有實作。
+  目前這張卡沒叫到，但換一張會動世界書的卡就會中。要嘛做，要嘛像 `generate()` 一樣丟例外。
+  另有 `getCurrentMessageId()` 語意（＝最後一則，ST 是「呼叫它的那一則」）與
+  `eventEmit` 不存在（可能是 MVU 事件收不到的原因，**未驗證**）。同一份 prompt 裡。
 - 🔴 **對話訊息的「改內容」與「刪除」兩支端點**（長按選單缺的就是這個）：
   · `PATCH  /api/chats/:id/messages/:messageId`  body `{ text }`
     —— **有候選的訊息要一併寫回 `swipes[swipeIndex]`**，只改 `text` 的話
