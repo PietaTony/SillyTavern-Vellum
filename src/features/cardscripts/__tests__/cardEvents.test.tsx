@@ -2,7 +2,8 @@ import { render } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const emit = vi.hoisted(() => vi.fn());
-vi.mock('../runtime/host', () => ({ emitToCards: emit }));
+// ⚠️ `emitToCards` 2026-08-27 從 `runtime/host` 搬到 `runtime/frames`（host 撞到 150 行）。
+vi.mock('../runtime/frames', () => ({ emitToCards: emit }));
 
 const { useCardEvents } = await import('../useCardEvents');
 

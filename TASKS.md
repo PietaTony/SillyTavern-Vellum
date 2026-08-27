@@ -114,6 +114,12 @@ Node 遇到 unhandled rejection 預設**直接終止行程**。要不要補是�
       補＝多兩條外連、同意視窗的網域清單會變長。
 
 ## 交給主執行線的（已寫成 prompt 交付）
+- 🔴 **把我們自己的變數引擎接上**（親密度就是靠這個）。`server/lib/varUpdate.ts` ＋
+  `varApply.ts` 是一台寫好、測過、但**零個產品端呼叫端**的引擎；`generate.ts` 串流結束時
+  沒有人叫它 ⇒ `chat.variables` 只有桌寵存的東西，角色變數從第一天就沒動過。
+  拿 Peter 的真卡跑 `verify:vars` 是過的（安全感 15→18、想要 35 被夾回、拒絕 2 項）。
+  UI 線那半已經做好（`mvuShim` ＋ `pushVarsToCards` ＋ 生成後 refetch），
+  **只差第 4 步「寫回 chat.variables」**。規格在 `scratchpad/prompt-varupdate-wiring.md`。
 - 🔴 **一則訊息要有兩個版本**（原文給卡片與 prompt、顯示版給畫面）。
   現在 `GET /api/chats/:id` 只回顯示版，而 `<UpdateVariable>` 正是被顯示規則拿掉的那塊
   ⇒ **重整之後卡片再也讀不到變數更新**。⚠️ `generate.ts` 的 `done` 送原文是目前唯一的窗口，

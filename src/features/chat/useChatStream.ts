@@ -13,7 +13,18 @@ import type { Message } from './model';
  *    伺服器那份怎麼 refetch 都被 `??` 短路 ⇒ **swipe 三個入口同時變成「按了沒反應」**。
  *    ⇒ `reset()` 就是那把鑰匙，切候選成功之後要呼叫它。
  */
-export function useChatStream(chatId: string, fromServer: Message[] | undefined) {
+export function useChatStream(
+  chatId: string,
+  fromServer: Message[] | undefined,
+  /**
+   * 🔴 **生成結束時重讀對話。** 後端要到這一刻才把這一輪的 `<UpdateVariable>` 套進
+   * `chat.variables`（引擎在 `server/lib/varUpdate.ts`／`varApply.ts`）——不重讀的話
+   * 卡片的狀態欄永遠停在進來時那一份。
+   * ⚠️ 順便解掉「剛生成完那一則顯示原文」：`done` 送的是沒套過顯示規則的 `full`，
+   * 於是 `<UpdateVariable><JSONPatch>…` 會原封印在畫面上直到下次重讀。
+   */
+  onDone?: () => Promise<unknown>,
+) {
   const [local, setLocal] = useState<Message[] | null>(null);
   const [streaming, setStreaming] = useState<string | null>(null);
   /**
@@ -57,6 +68,15 @@ export function useChatStream(chatId: string, fromServer: Message[] | undefined)
           setThinking(false);
           setLocal((prev) => [...(prev ?? base), e.message]);
           setStreaming(null);
+          /*
+           * 🔴 **重讀成功才丟掉樂觀暫存。** 失敗就留著 —— 那一則訊息已經存下來了，
+           * 把它換成（還沒重讀到的）伺服器那份等於當場讓剛剛的回覆消失。
+           */
+          if (onDone)
+            void onDone().then(
+              () => setLocal(null),
+              () => {},
+            );
         } else {
           setThinking(false);
           setStreaming(null);

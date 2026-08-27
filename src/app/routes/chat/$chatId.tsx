@@ -41,8 +41,9 @@ function ChatPage() {
   const [showChar, setShowChar] = useState(false);
   // ☰ →「換開場」開的候選目錄（M12 第三批）。同一個元件，第三個入口。
   const [showGreetings, setShowGreetings] = useState(false);
+  // 🔴 生成完要重讀：卡片的狀態欄靠這一輪的變數更新（理由見 `useChatStream` 的 `onDone`）。
   const { messages, streaming, thinking, failure, setFailure, send, regenerate, reset } =
-    useChatStream(chatId, q.data?.messages);
+    useChatStream(chatId, q.data?.messages, () => q.refetch());
 
   const swipe = useSwipeMessage(chatId, () => q.refetch(), reset);
 

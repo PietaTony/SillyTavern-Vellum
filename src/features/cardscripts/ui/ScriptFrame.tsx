@@ -1,7 +1,7 @@
 import Box from '@mui/material/Box';
 import { useCallback, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
-import { registerFrame } from '../runtime/host';
+import { registerFrame } from '../runtime/frames';
 import type { CardVarScopes } from '../runtime/scopes';
 import { buildSrcDoc, type FrameMode, wrap } from '../runtime/srcdoc';
 

@@ -9,7 +9,7 @@ export {
   type ScriptsState,
   setScriptsConsent,
 } from './api';
-export { emitToCards } from './runtime/host';
+export { emitToCards } from './runtime/frames';
 export { CARD_VAR_SCOPES, type CardVarScope, type CardVarScopes, scopeOf } from './runtime/scopes';
 export { ConsentDialog } from './ui/ConsentDialog';
 export { ScriptFrame } from './ui/ScriptFrame';

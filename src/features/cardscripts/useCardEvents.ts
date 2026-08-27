@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react';
-import { emitToCards } from './runtime/host';
+import { emitToCards } from './runtime/frames';
 
 /**
  * 把「畫面上發生了什麼」發給卡片腳本（Peter 2026-08-27：「卡片要查一下 ST 應該

@@ -12,6 +12,7 @@ import { installBridgeHost } from './runtime/host';
 import { VENDOR_HOSTS } from './runtime/preamble';
 import type { CardVarScopes } from './runtime/scopes';
 import { wrap } from './runtime/srcdoc';
+import { useVarPush } from './useVarPush';
 
 /**
  * 對話頁要用的一整包：盤點、同意、以及**把橋掛上去**（M13 第二期）。
@@ -98,6 +99,9 @@ export function useCardScripts(deps: BridgeDeps): CardScriptsView {
 
   const inventory = q.data?.inventory ?? null;
   const enabled = consented(q.data);
+
+  // 🔴 變數變了要推進 iframe 並發事件 —— 那張卡的狀態欄只有這一條路會動（見 `useVarPush`）。
+  useVarPush(deps.initialVars, enabled);
 
   // 見型別上的註解：種子只認第一份，之後不再跟著變。
   const seed = useRef<CardVarScopes | undefined>(undefined);

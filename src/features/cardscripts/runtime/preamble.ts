@@ -38,6 +38,7 @@ export const VENDOR_HOSTS = [...new Set(VENDOR.map((u) => new URL(u).host))];
  */
 import { GLOBALS_SHIM } from './globalsShim';
 import { LOG_SHIM } from './logShim';
+import { MVU_SHIM } from './mvuShim';
 import { VARS_SHIM } from './vars';
 
 export const PREAMBLE = /* js */ `
@@ -94,6 +95,8 @@ export const PREAMBLE = /* js */ `
   /* 🔴 變數要**同步**，理由與作法都在 vars.ts 的檔頭（那是一個實機 bug 的根因）。
      必須排在下面的 NAMES 迴圈之前，否則 H 會綁到非同步的那一版。 */
   ${VARS_SHIM}
+  /* 🔴 一定要排在 VARS_SHIM 之後 —— 它要就地改 SCOPES（理由見 mvuShim.ts）。 */
+  ${MVU_SHIM}
 
   var NAMES = ['eventOn','eventRemoveListener','getChatMessages','getLastMessageId','getCurrentMessageId',
                'getAllVariables','getVariables','insertOrAssignVariables','replaceVariables',
