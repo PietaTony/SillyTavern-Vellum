@@ -12,7 +12,7 @@
 import type { CharWorld } from '../lib/charWorld.ts';
 import { applyDecisions, decide } from '../lib/loreRules.ts';
 import { extractLoreTags, hasLoreTags } from '../lib/loreTags.ts';
-import { exclusiveOff, lineOfTags, linesFromGreetings } from '../lib/wiLines.ts';
+import { exclusiveOff, exclusiveOn, lineOfTags, linesFromGreetings } from '../lib/wiLines.ts';
 import { readJson, writeJson } from '../adapters/storage.ts';
 
 export type LoreApplied = {
@@ -45,9 +45,11 @@ export async function applyGreetingLore(characterId: string, greeting: string): 
   if (!hasLoreTags(tags)) return null;
   const ch = await readJson<{ greetings?: string[] } | null>(`characters/${characterId}.json`, null);
   const all = linesFromGreetings(ch?.greetings ?? []);
-  const off = exclusiveOff(lineOfTags(tags), all);
+  const line = lineOfTags(tags);
+  const off = exclusiveOff(line, all);
+  // 🔴 `exclusiveOn` 是對稱的另一半 —— 少了它 A → B → A 回不到原狀（見 `wiLines.ts`）。
   const applied = await applyLoreTags(characterId, {
-    include: tags.include,
+    include: [...new Set([...tags.include, ...exclusiveOn(line, all)])],
     exclude: [...new Set([...tags.exclude, ...off])],
   });
   return { ...applied, turnedOff: off };

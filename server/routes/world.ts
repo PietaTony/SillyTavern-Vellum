@@ -10,7 +10,7 @@ import { z } from 'zod';
 import { driftFromOrigin, type CharWorld } from '../lib/charWorld.ts';
 import { applyLoreTags } from '../services/greetingLore.ts';
 import { applyEntryEdit } from '../lib/wiEdit.ts';
-import { exclusiveOff, isLineActive, linesFromGreetings } from '../lib/wiLines.ts';
+import { exclusiveOff, exclusiveOn, isLineActive, linesFromGreetings } from '../lib/wiLines.ts';
 import { safeId } from '../lib/ids.ts';
 import { readJson, writeJson } from '../adapters/storage.ts';
 
@@ -82,8 +82,9 @@ export const charWorld = new Hono()
     const target = all.find((l) => l.key === body.data.key);
     if (!target) return c.json({ error: '找不到這條線' }, 404);
     // 🔴 **切換不是疊加**：開這條的、關「只屬於別條」的。理由見 `wiLines.ts`。
+    // 🔴 兩個入口（挑開場／切線）**判準必須一模一樣**，包含 `exclusiveOn` 這一半。
     const applied = await applyLoreTags(id, {
-      include: target.include,
+      include: [...new Set([...target.include, ...exclusiveOn(target, all)])],
       exclude: [...new Set([...target.exclude, ...exclusiveOff(target, all)])],
     });
     return c.json({ ...applied, turnedOff: exclusiveOff(target, all) });

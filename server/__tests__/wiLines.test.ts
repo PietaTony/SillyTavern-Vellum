@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { exclusiveOff, isLineActive, linesFromGreetings } from '../lib/wiLines.ts';
+import { exclusiveOff, exclusiveOn, isLineActive, linesFromGreetings } from '../lib/wiLines.ts';
 
 const g = (title: string, lore?: string, exclude?: string) =>
   `<!-- title: ${title} -->${lore ? `<!-- lore: ${lore} -->` : ''}${exclude ? `<!-- exclude: ${exclude} -->` : ''}內文`;
@@ -92,5 +92,52 @@ describe('切線不是疊加', () => {
 
   it('只有一條線時沒有東西要關', () => {
     expect(exclusiveOff(adult, [adult])).toEqual([]);
+  });
+});
+
+/**
+ * 🔴 `exclusiveOn` 是 `exclusiveOff` 的對稱另一半 —— 少了它，切換不可逆。
+ *
+ * ⚠️ **這幾條要直接量這支函式，不可以只量世界書的最終狀態**：
+ * `decide()` 先套 `include` 再套 `exclude`，所以「錯誤地把自己壓著的條目放進 include」
+ * 在最終狀態上**看不出來**（exclude 後套，會蓋回去）。
+ * 實際踩到：把護欄拿掉，七條端到端測試**全綠**。
+ * ⇒ 判準：**護欄要在它自己那一層量**，不要靠下游碰巧把錯誤蓋掉。
+ */
+describe('exclusiveOn', () => {
+  const line = (key: string, include: string[], exclude: string[] = []) => ({
+    key,
+    titles: [],
+    include,
+    exclude,
+  });
+
+  it('別條線壓著、這條線沒壓 ⇒ 要開回來', () => {
+    const a = line('a', ['1']);
+    const c = line('c', ['5'], ['7']);
+    expect(exclusiveOn(a, [a, c])).toEqual(['7']);
+  });
+
+  it('🔴 這條線自己壓著的不可以開回來 —— 那正是它現在要壓的東西', () => {
+    const a = line('a', ['1'], ['7']);
+    const c = line('c', ['5'], ['7']);
+    expect(exclusiveOn(a, [a, c])).toEqual([]);
+  });
+
+  it('這條線 include 的不用出現在這裡（本來就會開）', () => {
+    const a = line('a', ['7']);
+    const c = line('c', ['5'], ['7']);
+    expect(exclusiveOn(a, [a, c])).toEqual([]);
+  });
+
+  it('沒有任何線 exclude 過的東西不會被無端開起來', () => {
+    const a = line('a', ['1']);
+    const b = line('b', ['2']);
+    expect(exclusiveOn(a, [a, b])).toEqual([]);
+  });
+
+  it('只有自己一條線時什麼都不用開', () => {
+    const a = line('a', ['1'], ['7']);
+    expect(exclusiveOn(a, [a])).toEqual([]);
   });
 });

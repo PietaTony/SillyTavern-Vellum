@@ -86,6 +86,33 @@ export function exclusiveOff(target: WiLine, all: WiLine[]): string[] {
 }
 
 /**
+ * 切到某一條線時，**要一起開回來的、只被別條線壓著的條目**。
+ *
+ * 🔴 **這是 `exclusiveOff` 的對稱另一半，少了它「切換」就不可逆。**
+ * 實測（標的卡，2026-08-27）：第三條線寫 `exclude: 1`，而條目 1 出廠是開著的。
+ * 切到第三條線 ⇒ 1 被關掉；切回第一條線 ⇒ **1 還是關著**，因為第一條線沒點名它。
+ * ⇒ 走一圈 A → B → A 回不到 A 原本的狀態，而畫面上看不出少了什麼。
+ *
+ * 判準與 `exclusiveOff` 同一句話反過來講：
+ * **`exclude` 的意思是「在這條線上要壓住它」，不是「永久關掉它」** ——
+ * 離開那條線，壓制就該解除。
+ *
+ * 🔴 **這條線自己 exclude 的不開**（它現在正壓著）、
+ * **這條線 include 的不用管**（本來就會開）、
+ * **沒有被任何線點名的一律不動**（那是使用者自己調的）——三道護欄與 `exclusiveOff` 一致。
+ */
+export function exclusiveOn(target: WiLine, all: WiLine[]): string[] {
+  const suppressed = new Set(target.exclude);
+  const on = new Set<string>();
+  for (const l of all) {
+    if (l.key === target.key) continue;
+    for (const uid of l.exclude) if (!suppressed.has(uid)) on.add(uid);
+  }
+  for (const uid of target.include) on.delete(uid);
+  return [...on].sort();
+}
+
+/**
  * 這條線現在是不是「已經套用中」。
  *
  * 🔴 判準是**「該開的都開了、該關的都關了」**，不是「完全相等」——
