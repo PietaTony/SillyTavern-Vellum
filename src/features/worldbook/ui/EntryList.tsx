@@ -1,13 +1,10 @@
-import Chip from '@mui/material/Chip';
 import List from '@mui/material/List';
-import ListItemButton from '@mui/material/ListItemButton';
-import ListItemText from '@mui/material/ListItemText';
 import ListSubheader from '@mui/material/ListSubheader';
 import Stack from '@mui/material/Stack';
-import Switch from '@mui/material/Switch';
 import Typography from '@mui/material/Typography';
-import { entryHint, POSITION_GROUP, positionTitle } from '../model';
+import { POSITION_GROUP, positionTitle } from '../model';
 import type { WbEntry } from '../types';
+import { EntryRow } from './EntryRow';
 
 /**
  * 單本書的條目列表（C2）。
@@ -16,6 +13,11 @@ import type { WbEntry } from '../types';
  * 38 條不是一份清單，是**有注入位置語意**的東西 —— 23 條接在角色描述後、
  * 15 條依 depth 插進對話中。**畫成一般清單，使用者看不懂為什麼順序是那樣。**
  * ⇒ 依 position 分組、組間照真正被組進 prompt 的先後排、每組標題說得出它插在哪裡。
+ *
+ * 🔴 **組標題要黏住**（Peter 2026-08-27「超醜」那一輪）。38 條捲過去之後，
+ * 舊版的標題早就捲出畫面 —— 使用者看著一堆條目，不知道自己在哪一組，
+ * 而「在哪一組」正是這一頁唯一重要的資訊。
+ * ⚠️ 黏住的東西**一定要有不透明底色**，不然捲過去的字會疊在標題上。
  *
  * 🔴 **`order` 顯示出來**：同一組裡的先後是它決定的，藏起來就沒人知道為什麼 A 在 B 前面。
  */
@@ -33,73 +35,65 @@ export function EntryList({
   busyUid: string | null;
 }) {
   return (
-    <>
-      {groups.map((g) => (
-        <List
-          key={g.position}
-          disablePadding
-          subheader={
-            <ListSubheader sx={{ bgcolor: 'background.paper', lineHeight: 1.6, py: 1 }}>
-              <Typography variant="subtitle2" component="div">
-                {positionTitle(g.position)}
-                <Typography
-                  component="span"
-                  variant="caption"
-                  color="text.secondary"
-                  sx={{ ml: 1 }}
-                >
-                  {g.entries.length} 條
-                </Typography>
-              </Typography>
-              {POSITION_GROUP[g.position]?.hint ? (
-                <Typography variant="caption" color="text.secondary" component="div">
-                  {POSITION_GROUP[g.position]?.hint}
-                </Typography>
-              ) : null}
-            </ListSubheader>
-          }
-        >
-          {g.entries.map((e) => (
-            <Stack
-              key={e.uid}
-              direction="row"
-              sx={{ alignItems: 'center', px: 2, py: 0.5, gap: 1 }}
-            >
-              {/*
-               * 🔴 **點文字進編輯器、點開關就地切**。兩個動作在同一列，
-               * 所以開關要自己吃掉點擊（`stopPropagation`），
-               * 不然切一下開關會順便跳頁 —— 那是最惱人的一種誤觸。
-               */}
-              <ListItemButton
-                onClick={() => onOpen(e.uid)}
-                sx={{ flex: 1, minWidth: 0, borderRadius: 1, px: 1 }}
+    <List disablePadding subheader={<li />}>
+      {groups.map((g) => {
+        const on = g.entries.filter((e) => e.enabled).length;
+        return (
+          <li key={g.position}>
+            <ul style={{ padding: 0, margin: 0 }}>
+              <ListSubheader
+                disableGutters
+                sx={{
+                  /*
+                   * 🔴 **黏在捲動區的邊，不是黏在內距的邊。**
+                   * 兩個入口的捲動容器都有 `p: 2` ⇒ `top: 0` 會停在**內距內側**，
+                   * 上面留 16px 讓下一列從縫裡露出來（實機看到的是半截列 ＋ 一顆開關
+                   * 浮在標題上方）。往上拉一個內距的高度就貼齊了。
+                   * ⚠️ 這個 -16 綁的是容器的 `p: 2` —— 換容器要一起改。
+                   */
+                  top: -16,
+                  /* 黏住的東西一定要壓在捲過去的內容上面（列的 `secondaryAction` 是絕對定位的）。 */
+                  zIndex: 2,
+                  bgcolor: 'background.paper',
+                  borderTop: 1,
+                  borderBottom: 1,
+                  borderColor: 'divider',
+                  px: 1.5,
+                  py: 1,
+                  lineHeight: 1.5,
+                }}
               >
-                <ListItemText
-                  primary={
-                    <Stack direction="row" sx={{ alignItems: 'center', gap: 0.75 }}>
-                      <Typography variant="body2" sx={{ fontWeight: 500 }}>
-                        {/* 沒寫 comment 的條目要有可辨識的名字，不能是空白一行 */}
-                        {e.comment || `（未命名 · ${e.uid}）`}
-                      </Typography>
-                      {e.constant ? <Chip size="small" label="常駐" /> : null}
-                    </Stack>
-                  }
-                  secondary={`${entryHint(e)} · 順序 ${e.order}`}
-                  slotProps={{ secondary: { variant: 'caption' } }}
+                <Stack
+                  direction="row"
+                  sx={{ alignItems: 'baseline', gap: 1, justifyContent: 'space-between' }}
+                >
+                  <Typography variant="subtitle2" component="div" color="text.primary" noWrap>
+                    {positionTitle(g.position)}
+                  </Typography>
+                  {/* 🔴 「這一組開了幾條」比「這一組有幾條」有用 —— 使用者在找的是進得去的那些。 */}
+                  <Typography variant="caption" color="text.secondary" sx={{ flex: 'none' }}>
+                    {on} / {g.entries.length} 開
+                  </Typography>
+                </Stack>
+                {POSITION_GROUP[g.position]?.hint ? (
+                  <Typography variant="caption" color="text.secondary" component="div">
+                    {POSITION_GROUP[g.position]?.hint}
+                  </Typography>
+                ) : null}
+              </ListSubheader>
+              {g.entries.map((e) => (
+                <EntryRow
+                  key={e.uid}
+                  e={e}
+                  busy={busyUid === e.uid}
+                  onToggle={(next) => onToggle(e.uid, next)}
+                  onOpen={() => onOpen(e.uid)}
                 />
-              </ListItemButton>
-              <Switch
-                size="small"
-                checked={e.enabled}
-                disabled={busyUid === e.uid}
-                onClick={(ev) => ev.stopPropagation()}
-                onChange={(ev) => onToggle(e.uid, ev.target.checked)}
-                slotProps={{ input: { 'aria-label': `啟用「${e.comment || e.uid}」` } }}
-              />
-            </Stack>
-          ))}
-        </List>
-      ))}
-    </>
+              ))}
+            </ul>
+          </li>
+        );
+      })}
+    </List>
   );
 }

@@ -1,5 +1,4 @@
 import Alert from '@mui/material/Alert';
-import Typography from '@mui/material/Typography';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import {
@@ -8,9 +7,9 @@ import {
   fetchLines,
   fetchWorld,
   groupByPosition,
-  LineSwitcher,
   setEntryEnabled,
   type WiLine,
+  WorldBookHead,
 } from '@/features/worldbook';
 import { FullScreenLayer } from '@/shared/ui/FullScreenLayer';
 import { WorldEntry } from './WorldEntry';
@@ -88,17 +87,15 @@ export function WorldSection({ characterId }: { characterId: string }) {
             切不過去：{apply.error instanceof Error ? apply.error.message : ''}
           </Alert>
         ) : null}
-        <LineSwitcher
+        <WorldBookHead
+          total={entries.length}
+          enabled={on}
+          /* 🔴 說清楚改的是誰的 —— 不說的話會被當成共用設定（那是 ST 的陷阱）。 */
+          note="改動只影響這一位好友，不會動到卡片本身，也不會影響用同一張卡的其他好友。"
           lines={lines.data?.lines ?? []}
           busyKey={busyKey}
           onApply={(l) => apply.mutate(l)}
         />
-        <Typography variant="body2" color="text.secondary" sx={{ px: 2, py: 1 }}>
-          {entries.length} 條，目前啟用 {on} 條。
-          <br />
-          {/* 🔴 說清楚改的是誰的 —— 不說的話會被當成共用設定（那是 ST 的陷阱）。 */}
-          改動只影響這一位好友，不會動到卡片本身，也不會影響用同一張卡的其他好友。
-        </Typography>
         <EntryList
           groups={groupByPosition(entries)}
           busyUid={busyUid}
