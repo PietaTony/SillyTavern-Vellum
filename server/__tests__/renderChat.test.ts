@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import type { Message } from '../lib/chatModel.ts';
+import type { Message } from '../services/chatModel.ts';
 import type { OutputRule } from '../lib/outputRules.ts';
-import { renderMessages, rulesOf } from '../lib/renderChat.ts';
+import { renderMessages, rulesOf } from '../services/renderChat.ts';
 
 const msg = (o: Partial<Message>): Message => ({ id: 'm', role: 'model', text: '', at: 'now', ...o });
 const names = { char: '何某', user: '你' };

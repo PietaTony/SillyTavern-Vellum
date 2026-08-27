@@ -8,7 +8,7 @@
 import { Hono } from 'hono';
 import { z } from 'zod';
 import { driftFromOrigin, type CharWorld } from '../lib/charWorld.ts';
-import { applyLoreTags } from '../lib/greetingLore.ts';
+import { applyLoreTags } from '../services/greetingLore.ts';
 import { applyEntryEdit } from '../lib/wiEdit.ts';
 import { exclusiveOff, isLineActive, linesFromGreetings } from '../lib/wiLines.ts';
 import { safeId } from '../lib/ids.ts';

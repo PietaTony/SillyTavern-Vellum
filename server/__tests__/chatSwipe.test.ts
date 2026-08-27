@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Character } from '../lib/character.ts';
-import type { Chat } from '../lib/chatModel.ts';
+import type { Chat } from '../services/chatModel.ts';
 
 /**
  * 🔴 **`PATCH /:id/messages/:messageId/swipe` 在此之前一個測試都沒有**

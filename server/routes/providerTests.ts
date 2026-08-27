@@ -11,10 +11,10 @@
  */
 import { Hono } from 'hono';
 import { z } from 'zod';
-import { getKey, redact, setKey } from '../lib/secrets.ts';
-import { modelLooksReal } from '../lib/modelCheck.ts';
+import { getKey, redact, setKey } from '../services/secrets.ts';
+import { modelLooksReal } from '../services/modelCheck.ts';
 import { classifyProviderError } from '../lib/providerError.ts';
-import { setProviderModel } from '../lib/settings.ts';
+import { setProviderModel } from '../services/settings.ts';
 import { adapterFor } from '../providers/dispatch.ts';
 import { byId, isSelectable } from '../providers/registry.ts';
 

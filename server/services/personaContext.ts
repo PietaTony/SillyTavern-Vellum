@@ -4,10 +4,10 @@
  * 🔴 **後端不可有狀態**（規格 B2）：不可以做「目前活躍對話」這種伺服器端狀態。
  * 開兩個分頁跟不同好友聊天會互相污染。⇒ 呼叫端傳 chat 進來，這裡把三層讀出來現算。
  */
-import type { Character } from './character.ts';
+import type { Character } from '../lib/character.ts';
 import type { Chat } from './chatModel.ts';
-import type { Persona } from './persona.ts';
-import { resolvePersona, type Resolved } from './resolvePersona.ts';
+import type { Persona } from '../lib/persona.ts';
+import { resolvePersona, type Resolved } from '../lib/resolvePersona.ts';
 import { loadSettings } from './settings.ts';
 import { listJson, readJson } from '../adapters/storage.ts';
 

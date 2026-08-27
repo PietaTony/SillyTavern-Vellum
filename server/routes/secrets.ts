@@ -1,6 +1,6 @@
 import { Hono } from 'hono';
-import { whichAreSet, redact, getKey, previews } from '../lib/secrets.ts';
-import { getActiveProvider, loadSettings, setActiveProvider } from '../lib/settings.ts';
+import { whichAreSet, redact, getKey, previews } from '../services/secrets.ts';
+import { getActiveProvider, loadSettings, setActiveProvider } from '../services/settings.ts';
 import { adapterFor } from '../providers/dispatch.ts';
 import { byId, isSelectable, PROVIDERS } from '../providers/registry.ts';
 

@@ -7,15 +7,15 @@
  * 🔴 **同一個 depth 撞在一起時的絕對順序：世界書 ＞ persona ＞ 角色卡**（規格 §4.4）。
  * 不定死的話每次組裝順序可能不同 ⇒ 破壞 prompt cache 前綴。
  */
-import type { CharWorld } from './charWorld.ts';
+import type { CharWorld } from '../lib/charWorld.ts';
 import type { Chat } from './chatModel.ts';
-import type { Persona } from './persona.ts';
+import type { Persona } from '../lib/persona.ts';
 import { loadSettings } from './settings.ts';
 import { readJson } from '../adapters/storage.ts';
-import { planInjection, type InjectionPlan } from './wiInject.ts';
-import { orderLayers } from './wiLayers.ts';
-import { buildScanText, selectEntries, type ScanMessage } from './wiSelect.ts';
-import type { WbEntry } from './worldbook.ts';
+import { planInjection, type InjectionPlan } from '../lib/wiInject.ts';
+import { orderLayers } from '../lib/wiLayers.ts';
+import { buildScanText, selectEntries, type ScanMessage } from '../lib/wiSelect.ts';
+import type { WbEntry } from '../lib/worldbook.ts';
 
 /** 同 depth 的插入優先序。數字小的**最後插入**，因此排在最前面。 */
 export const DEPTH_PRIORITY = { world: 0, persona: 1, card: 2 } as const;

@@ -1,16 +1,16 @@
 import { Hono } from 'hono';
 import { z } from 'zod';
-import type { Chat, Message } from '../lib/chatModel.ts';
+import type { Chat, Message } from '../services/chatModel.ts';
 import { safeId } from '../lib/ids.ts';
 import { listJson, readJson, writeJson } from '../adapters/storage.ts';
-import { applyGreetingLore } from '../lib/greetingLore.ts';
+import { applyGreetingLore } from '../services/greetingLore.ts';
 import { stripLoreTags } from '../lib/loreTags.ts';
 import { readJson as read } from '../adapters/storage.ts';
 import type { Character } from '../lib/character.ts';
 import { displayNameOf } from '../lib/displayName.ts';
-import { renderMessages, rulesOf } from '../lib/renderChat.ts';
+import { renderMessages, rulesOf } from '../services/renderChat.ts';
 import { displayOf } from '../lib/persona.ts';
-import { personaForChat } from '../lib/personaContext.ts';
+import { personaForChat } from '../services/personaContext.ts';
 
 export const chats = new Hono()
   .get('/', async (c) => c.json(await listJson<Chat>('chats')))

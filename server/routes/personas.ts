@@ -9,11 +9,11 @@
 import { Hono } from 'hono';
 import { z } from 'zod';
 import type { Character } from '../lib/character.ts';
-import type { Chat } from '../lib/chatModel.ts';
+import type { Chat } from '../services/chatModel.ts';
 import { safeId } from '../lib/ids.ts';
 import { PERSONA_POSITION, type Persona } from '../lib/persona.ts';
 import { listJson, readJson, writeJson } from '../adapters/storage.ts';
-import { loadSettings, saveSettings } from '../lib/settings.ts';
+import { loadSettings, saveSettings } from '../services/settings.ts';
 
 const Body = z.object({
   name: z.string().min(1),

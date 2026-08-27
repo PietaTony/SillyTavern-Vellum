@@ -2,7 +2,7 @@ import { Hono } from 'hono';
 import { z } from 'zod';
 import type { Character } from '../lib/character.ts';
 import { safeId } from '../lib/ids.ts';
-import { loadSettings, saveSettings } from '../lib/settings.ts';
+import { loadSettings, saveSettings } from '../services/settings.ts';
 import { readJson, writeJson } from '../adapters/storage.ts';
 
 /**

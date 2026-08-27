@@ -9,14 +9,14 @@
  */
 import { Hono } from 'hono';
 import { z } from 'zod';
-import { getKey, redact } from '../lib/secrets.ts';
+import { getKey, redact } from '../services/secrets.ts';
 import { safeId } from '../lib/ids.ts';
 import { readJson, writeJson } from '../adapters/storage.ts';
 import { adapterFor } from '../providers/dispatch.ts';
 import { byId, isSelectable } from '../providers/registry.ts';
-import type { Chat, Message } from '../lib/chatModel.ts';
-import { buildTurn } from '../lib/buildTurn.ts';
-import { getActiveProvider, getProviderModel } from '../lib/settings.ts';
+import type { Chat, Message } from '../services/chatModel.ts';
+import { buildTurn } from '../services/buildTurn.ts';
+import { getActiveProvider, getProviderModel } from '../services/settings.ts';
 
 const Body = z.object({
   chatId: z.string(),

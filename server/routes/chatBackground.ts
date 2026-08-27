@@ -1,8 +1,8 @@
 import { Hono } from 'hono';
 import { listBackgrounds, safeBackgroundName } from '../adapters/backgrounds.ts';
-import type { Chat } from '../lib/chatModel.ts';
+import type { Chat } from '../services/chatModel.ts';
 import { safeId } from '../lib/ids.ts';
-import { FITTINGS, type Fitting } from '../lib/settings.ts';
+import { FITTINGS, type Fitting } from '../services/settings.ts';
 import { readJson, writeJson } from '../adapters/storage.ts';
 
 /**

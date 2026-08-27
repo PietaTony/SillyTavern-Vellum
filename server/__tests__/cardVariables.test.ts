@@ -123,7 +123,7 @@ describe('PATCH — 淺層合併，不是整包覆寫', () => {
 describe('🔴 全域那支只准動 variables 一個鍵', () => {
   it('body 裡塞別的鍵不會寫進 settings', async () => {
     const a = await app();
-    const { loadSettings, saveSettings } = await import('../lib/settings.ts');
+    const { loadSettings, saveSettings } = await import('../services/settings.ts');
     await saveSettings({ ...(await loadSettings()), providerModels: { anthropic: '原本的' } });
     await patch(a, '/api/card-variables/global', {
       patch: { 甲: 1 },

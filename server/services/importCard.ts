@@ -7,14 +7,14 @@
  * 🔴 **卡片只解析一次。** 這張真卡 6.8 MB、兩份各 3 MB base64；
  * 每多一次 `readCard` 就多解一次 base64 ＋ 多 parse 一次 3 MB JSON。
  */
-import { readCard, viewOf, type Card } from './card.ts';
-import { worldFromCard, type CharWorld } from './charWorld.ts';
-import { spriteBytes, spriteExt, spritesInCard } from './sprite.ts';
+import { readCard, viewOf, type Card } from '../lib/card.ts';
+import { worldFromCard, type CharWorld } from '../lib/charWorld.ts';
+import { spriteBytes, spriteExt, spritesInCard } from '../lib/sprite.ts';
 import { listJson, writeBin, writeJson } from '../adapters/storage.ts';
-import { displayNameOf, uniqueDisplayName } from './displayName.ts';
-import { fromRegexScripts } from './outputRules.ts';
-import type { Character } from './character.ts';
-import { inventoryOf } from './cardScripts.ts';
+import { displayNameOf, uniqueDisplayName } from '../lib/displayName.ts';
+import { fromRegexScripts } from '../lib/outputRules.ts';
+import type { Character } from '../lib/character.ts';
+import { inventoryOf } from '../lib/cardScripts.ts';
 
 export type ImportedAsset = { path: string; mime: string; bytes: number; from: string };
 

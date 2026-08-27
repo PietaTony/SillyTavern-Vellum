@@ -9,9 +9,9 @@
  *
  * 🔴 **改的是這個好友的世界書副本**，卡片與出廠快照都不碰。
  */
-import type { CharWorld } from './charWorld.ts';
-import { applyDecisions, decide } from './loreRules.ts';
-import { extractLoreTags, hasLoreTags } from './loreTags.ts';
+import type { CharWorld } from '../lib/charWorld.ts';
+import { applyDecisions, decide } from '../lib/loreRules.ts';
+import { extractLoreTags, hasLoreTags } from '../lib/loreTags.ts';
 import { readJson, writeJson } from '../adapters/storage.ts';
 
 export type LoreApplied = {

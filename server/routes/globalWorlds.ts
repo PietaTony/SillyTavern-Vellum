@@ -4,7 +4,7 @@ import type { CharWorld } from '../lib/charWorld.ts';
 import { templateWorld } from '../lib/globalWorld.ts';
 import { findPreset, WORLD_PRESETS } from '../lib/worldPresets.ts';
 import { safeId } from '../lib/ids.ts';
-import { loadSettings, saveSettings } from '../lib/settings.ts';
+import { loadSettings, saveSettings } from '../services/settings.ts';
 import { deleteJson, readJson, writeJson } from '../adapters/storage.ts';
 
 /**

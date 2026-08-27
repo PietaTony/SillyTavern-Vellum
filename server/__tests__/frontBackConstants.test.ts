@@ -3,7 +3,7 @@ import { FITTINGS as FE_FITTINGS } from '../../src/features/backgrounds/model';
 import { WI_POSITION as FE_WI_POSITION } from '../../src/features/worldbook/model';
 import { GLOBAL_OWNER as FE_GLOBAL_OWNER } from '../../src/features/worldbook/types';
 import { GLOBAL_OWNER as BE_GLOBAL_OWNER } from '../lib/globalWorld.ts';
-import { FITTINGS as BE_FITTINGS } from '../lib/settings.ts';
+import { FITTINGS as BE_FITTINGS } from '../services/settings.ts';
 import { WI_POSITION as BE_WI_POSITION } from '../lib/worldbook.ts';
 
 /**

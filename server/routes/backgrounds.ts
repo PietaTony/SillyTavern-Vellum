@@ -6,8 +6,8 @@ import {
   removeBackground,
   safeBackgroundName,
 } from '../adapters/backgrounds.ts';
-import { FITTINGS, type Fitting, loadSettings, saveSettings } from '../lib/settings.ts';
-import type { Chat } from '../lib/chatModel.ts';
+import { FITTINGS, type Fitting, loadSettings, saveSettings } from '../services/settings.ts';
+import type { Chat } from '../services/chatModel.ts';
 import { listJson, readBin, writeBin, writeJson } from '../adapters/storage.ts';
 
 /**

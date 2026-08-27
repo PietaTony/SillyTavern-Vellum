@@ -1,6 +1,6 @@
 import { Hono } from 'hono';
 import { z } from 'zod';
-import type { Chat } from '../lib/chatModel.ts';
+import type { Chat } from '../services/chatModel.ts';
 import { safeId } from '../lib/ids.ts';
 import { readJson, writeJson } from '../adapters/storage.ts';
 

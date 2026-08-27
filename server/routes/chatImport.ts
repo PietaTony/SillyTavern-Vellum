@@ -8,7 +8,7 @@ import { parseChatJsonl, viewOfEntry, viewOfHeader, writeChatJsonl } from '../li
 import { displayNameOf } from '../lib/displayName.ts';
 import { safeId } from '../lib/ids.ts';
 import { readBin, readJson as read, writeBin, writeJson } from '../adapters/storage.ts';
-import type { Chat } from '../lib/chatModel.ts';
+import type { Chat } from '../services/chatModel.ts';
 
 export const chatImport = new Hono()
   /**

@@ -6,10 +6,10 @@
  * 分開放才守得住那條界線，也讓 `generate.ts` 回到 150 行以內。
  */
 import type { Chat } from './chatModel.ts';
-import { displayOf } from './persona.ts';
+import { displayOf } from '../lib/persona.ts';
 import { personaForChat } from './personaContext.ts';
-import { insertAtDepth, personaPieces } from './personaPrompt.ts';
-import { substitute } from './macro.ts';
+import { insertAtDepth, personaPieces } from '../lib/personaPrompt.ts';
+import { substitute } from '../lib/macro.ts';
 import { worldDepthPieces, worldForChat, worldSystemText, DEPTH_PRIORITY } from './promptWorld.ts';
 
 export type Turn = {

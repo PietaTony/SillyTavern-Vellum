@@ -1,7 +1,7 @@
 import { readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { maskedPreview } from '../lib/secrets.ts';
+import { maskedPreview } from '../services/secrets.ts';
 
 const SERVER = join(process.cwd(), 'server');
 
@@ -56,12 +56,15 @@ describe('亮線：只有一支函式、只有一個端點', () => {
     expect(files.length).toBeGreaterThan(30);
   });
 
-  it('🔴 只有 lib/secrets.ts 與 routes/secrets.ts 碰得到 maskedPreview／previews', () => {
+  // ⚠️ 2026-08-27 T1 搬移：`lib/secrets.ts` → `services/secrets.ts`。
+  //    這條紅過一次，**那是對的** —— 它釘的就是「哪幾個檔碰得到」，路徑變了就該紅。
+  //    🔴 而且它順便抓到一件別的：上一趟搬移留下的殘留檔，讓同一支 secrets 出現兩份。
+  it('🔴 只有 services/secrets.ts 與 routes/secrets.ts 碰得到 maskedPreview／previews', () => {
     const users = files
       .filter(({ f, src }) => !f.endsWith('secretsPreview.test.ts') && /maskedPreview|previews\(/.test(src))
       .map(({ f }) => f.replace(`${SERVER}/`, ''))
       .sort();
-    expect(users).toEqual(['lib/secrets.ts', 'routes/secrets.ts']);
+    expect(users).toEqual(['routes/secrets.ts', 'services/secrets.ts']);
   });
 
   /** 🔴 只有 `/preview` 那一支端點回它。多一個 `.get('/xxx'` 回 previews 就會被抓到。 */

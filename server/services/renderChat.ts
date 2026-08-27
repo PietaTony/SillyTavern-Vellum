@@ -12,8 +12,8 @@
  * 顯示層（markdown／淨化／要不要渲染）全部歸前端 —— 見 `src/features/chat/render/`。
  */
 import type { Message } from './chatModel.ts';
-import { substitute } from './macro.ts';
-import { applyRules, type OutputRule } from './outputRules.ts';
+import { substitute } from '../lib/macro.ts';
+import { applyRules, type OutputRule } from '../lib/outputRules.ts';
 
 /** 深度＝從最新一則往回數（`maxDepth=2` 的開場頁靠它生效）。 */
 export function renderMessages(
