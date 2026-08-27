@@ -1,5 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { installBridgeHost, registerFrame } from '../runtime/host';
+// ⚠️ `registerFrame` 2026-08-27 從 `runtime/host` 搬到 `runtime/frames`（host 撞到 150 行）。
+import { registerFrame } from '../runtime/frames';
+import { installBridgeHost } from '../runtime/host';
 
 /**
  * 🔴 **這支守的是那條鏈的中間段。**

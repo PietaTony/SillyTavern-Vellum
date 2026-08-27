@@ -11,8 +11,14 @@
  *   eventOn(Mvu.events.VARIABLE_UPDATE_ENDED, ...);
  * }
  * ```
- * `Mvu` 在 ST 上是**另外裝的擴充**掛上去的。Vellum 沒有它：`VENDOR` 只有
- * lodash／jQuery／js-yaml，卡片自己也沒 import ⇒ **全 repo 429 個檔零命中**。
+ * ⚠️ **這裡原本寫「卡片自己也沒 import ⇒ 全 repo 零命中」，那是錯的**（2026-08-27 更正）。
+ * 那個 0 是**壞尺量出來的**：卡片的腳本存在 PNG 的 `tEXt` chunk 裡而且是 base64，
+ * 拿 `grep` 掃二進位檔找明文必然 0 命中。解碼之後再數是 **17／17 張卡都 import 它**。
+ * 真正的情況是：`Mvu` 由**卡片自己的腳本**從 CDN import 進來，而它假設沙箱裡有全域
+ * `Vue` 與 `z`(zod) —— 我們沒有 ⇒ **它載進來了，但一執行就炸、從來沒初始化過**
+ *（實機 stack：`ReferenceError: Vue is not defined at …/MagVarUpdate/artifact/bundle.js`）。
+ * ⇒ 問題不在「沒載」，在「載了但初始化不了」。我們的解法是**自己扮演它**（`mvuShim.ts`），
+ * 不把 Vue／zod 加進 `VENDOR`（那等於把產品的核心狀態押在別人的 CDN 上）。
  * ⇒ 那支 Promise 永遠不 resolve ⇒ **`init()` 一行都沒執行過**。
  *
  * ⚠️ 這解釋了兩個原本被誤讀的觀察：

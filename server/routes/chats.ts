@@ -4,7 +4,7 @@ import type { Chat, Message } from '../services/chatModel.ts';
 import { greetingForSwipe } from '../lib/greetings.ts';
 import { safeId } from '../lib/ids.ts';
 import { listJson, readJson, writeJson } from '../adapters/storage.ts';
-import { applyGreetingLore } from '../services/greetingLore.ts';
+import { landOpening } from '../services/landOpening.ts';
 import { stripLoreTags } from '../lib/loreTags.ts';
 import { readJson as read } from '../adapters/storage.ts';
 import type { Character } from '../lib/character.ts';
@@ -74,9 +74,9 @@ export const chats = new Hono()
         : [],
       createdAt: now,
     };
+    // ④ 選定的那一則決定世界書開哪幾條，**以及這條時間線的起始數值**（見 `landOpening`）。
+    const lore = opening ? await landOpening(ch.id, chat, opening) : null;
     await writeJson(`chats/${chat.id}.json`, chat);
-    // ④ 選定的那一則決定世界書開哪幾條（B3 的完整路徑）。
-    const lore = opening ? await applyGreetingLore(ch.id, opening) : null;
     return c.json({ ...chat, lore }, 201);
   })
 
@@ -115,12 +115,10 @@ export const chats = new Hono()
     const idx = Math.min(Math.max(body.data.index, 0), msg.swipes.length - 1);
     msg.swipeIndex = idx;
     msg.text = msg.swipes[idx] ?? msg.text;
-    await writeJson(`chats/${id}.json`, chat);
 
     const ch = await read<Character | null>(`characters/${chat.characterId}.json`, null);
-    // 🔴 判準（內容不是位置、尺的兩端同單位）與踩過的坑在 `lib/greetings.ts`。
-    // 這裡只要記得：**套錯會寫 `worlds/<id>.json`**，之後每次生成的 prompt 都被污染，
-    // 而畫面上完全看不出來。
+    // 🔴 判準（內容不是位置、尺的兩端同單位）與踩過的坑在 `lib/greetings.ts`。這裡只要記得：
+    // **套錯會寫 `worlds/<id>.json`**，之後每次生成的 prompt 都被污染，而畫面上完全看不出來。
     const raw = greetingForSwipe(
       {
         firstMessageId: chat.messages[0]?.id,
@@ -131,7 +129,9 @@ export const chats = new Hono()
       },
       stripLoreTags,
     );
-    const lore = raw ? await applyGreetingLore(chat.characterId, raw) : null;
+    // 🔴 換開場＝換一條時間線：世界書與**起始數值**一起重算，然後才寫檔（`landOpening` 會改 `chat.variables`）。
+    const lore = raw ? await landOpening(chat.characterId, chat, raw) : null;
+    await writeJson(`chats/${id}.json`, chat);
     return c.json({ id: msg.id, swipeIndex: idx, text: msg.text, lore });
   })
 

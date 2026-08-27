@@ -11,6 +11,7 @@ import ListItemIcon from '@mui/material/ListItemIcon';
 import ListItemText from '@mui/material/ListItemText';
 import { createFileRoute, useNavigate } from '@tanstack/react-router';
 import { useState } from 'react';
+import { ReportListItem } from '@/app/screens/ReportButton';
 import { TabBar } from '@/app/screens/TabBar';
 import { BackgroundsLayer } from '@/features/backgrounds';
 import { Screen } from '@/shared/ui/Screen';
@@ -80,6 +81,12 @@ function SettingsPage() {
           <ListItemText primary="AI 供應商與金鑰" secondary="26 家供應商、選模型" />
           <ChevronRightIcon color="disabled" />
         </ListItemButton>
+
+        <Divider component="li" />
+
+        {/* 🔴 這一項不是只給「壞掉了」用的（Peter 2026-08-27：「任何東西」）——
+            平常想講什麼都從這裡走，而且此刻程式是好的，版本那些欄位讀得到。 */}
+        <ReportListItem />
       </List>
       <BackgroundsLayer open={bg} onClose={() => setBg(false)} />
     </Screen>

@@ -15,7 +15,6 @@ import { type PressAt, useLongPress } from '../useLongPress';
 function Probe({ onTrigger }: { onTrigger: (at: PressAt) => void }) {
   const press = useLongPress(onTrigger);
   return (
-    // biome-ignore lint/a11y/useKeyWithClickEvents: 這是手勢探針，不是真的按鈕
     <div data-testid="target" {...press}>
       訊息
     </div>

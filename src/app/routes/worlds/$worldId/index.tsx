@@ -117,6 +117,7 @@ function WorldPage() {
             onApply={(l) => apply.mutate(l)}
           />
           <EntryList
+            worldId={worldId}
             groups={groupByPosition(entries)}
             busyUid={busyUid}
             onToggle={(uid, next) => toggle.mutate({ uid, enabled: next })}

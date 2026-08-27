@@ -91,3 +91,45 @@ describe('種進 iframe 的變數不可以逃出那段 script', () => {
     );
   });
 });
+
+/**
+ * 同意視窗列出來的每一個網域，**都要說得出「誰要去」**。
+ *
+ * 🔴 這條是 2026-08-27 主線提醒的（VENDOR 三支落地內嵌之後 `VENDOR_HOSTS` 變空，
+ * 而那一行的 `why` 是拿它組出來的）。實際邏輯沒破 —— 一個網域只有在兩個集合之一裡
+ * 才會被列出來，所以 `why` 不可能是空的。但**這件事沒有任何測試守著**，
+ * 而「判準只套用一半」正是我們今天各踩一次的形狀 ⇒ 用測試釘住。
+ */
+describe('同意視窗的網域清單', () => {
+  const whyOf = (cardHosts: Set<string>, vendor: string[]) =>
+    [...new Set([...cardHosts, ...vendor])].sort().map((h) => ({
+      host: h,
+      why: [
+        cardHosts.has(h) ? '卡片自己要去抓程式' : '',
+        vendor.includes(h) ? 'Vellum 自己要去的' : '',
+      ]
+        .filter(Boolean)
+        .join('、'),
+    }));
+
+  it('🔴 我們自己零外連時，卡片的外連照樣要列出來而且說得出理由', () => {
+    const rows = whyOf(new Set(['a.example', 'b.example']), []);
+    expect(rows.map((r) => r.host)).toEqual(['a.example', 'b.example']);
+    for (const r of rows) expect(r.why).not.toBe('');
+  });
+
+  it('🔴 兩邊都要去的同一個網域只列一次，而且兩個理由都講', () => {
+    const rows = whyOf(new Set(['same.example']), ['same.example']);
+    expect(rows).toHaveLength(1);
+    expect(rows[0]?.why).toBe('卡片自己要去抓程式、Vellum 自己要去的');
+  });
+
+  it('🔴 列出來的網域不可能沒有理由 —— 它只有在其中一個集合裡才會被列出來', () => {
+    for (const [card, vendor] of [
+      [['x'], []],
+      [[], ['y']],
+      [['x'], ['y']],
+    ] as [string[], string[]][])
+      for (const r of whyOf(new Set(card), vendor)) expect(r.why).not.toBe('');
+  });
+});

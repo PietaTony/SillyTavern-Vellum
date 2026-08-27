@@ -97,6 +97,7 @@ export function WorldSection({ characterId }: { characterId: string }) {
           onApply={(l) => apply.mutate(l)}
         />
         <EntryList
+          worldId={characterId}
           groups={groupByPosition(entries)}
           busyUid={busyUid}
           onToggle={(uid, next) => toggle.mutate({ uid, enabled: next })}

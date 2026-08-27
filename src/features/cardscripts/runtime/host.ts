@@ -1,4 +1,6 @@
+import { showCardLog } from './cardLog';
 import { markInteracted, showCardToast } from './cardToast';
+import { subscriptionsOf } from './frames';
 
 /**
  * 主頁這一端的接線員（M13 第二期）。
@@ -16,33 +18,6 @@ import { markInteracted, showCardToast } from './cardToast';
  * 只有這一層知道「是**哪一個** frame 在訂」——bridge 收到的參數裡沒有 frame，
  * 而 callback 是函式、**根本過不了 `postMessage` 的結構化複製**。
  */
-
-/** frame → 它訂了哪些事件。同時當「這個 frame 是我們開的」的白名單。 */
-const frames = new Map<Window, Set<string>>();
-
-/** `ScriptFrame` 掛載時登記，卸載時解除。回傳解除函式。 */
-export function registerFrame(win: Window | null | undefined): () => void {
-  if (!win) return () => undefined;
-  frames.set(win, new Set());
-  return () => {
-    frames.delete(win);
-  };
-}
-
-/**
- * 主頁發事件給卡片（例如「訊息換了」）。
- * 只發給**訂閱過這個事件**的 frame —— 廣播給全部等於把別張卡的動靜漏給這張卡。
- */
-export function emitToCards(event: string, ...args: unknown[]): void {
-  for (const [win, events] of frames) {
-    if (!events.has(event)) continue;
-    try {
-      win.postMessage({ __vellumEvent: event, args }, '*');
-    } catch (e) {
-      console.error('[卡片腳本] 事件送不進 frame', event, e);
-    }
-  }
-}
 
 /**
  * 回傳值要過得了結構化複製，否則 `postMessage` 會丟 `DataCloneError`，
@@ -68,6 +43,7 @@ type Call = {
   args?: unknown;
   id?: unknown;
   __vellumToast?: unknown;
+  __vellumLog?: unknown;
   /** 這個 frame 屬於哪一則訊息（GAP-121）。preamble 每次呼叫都帶。 */
   owner?: unknown;
 };
@@ -126,9 +102,13 @@ export function installBridgeHost(api: Record<string, unknown>): () => void {
     const d = e.data as Call | null;
     if (!d) return;
     const src = e.source as Window | null;
-    const events = src ? frames.get(src) : undefined;
+    const events = src ? subscriptionsOf(src) : undefined;
     // 不是我們開的 frame ⇒ 不執行、也不回應（回應本身就是一種存在證明）。
     if (!src || !events) return;
+    if (d.__vellumLog !== null && typeof d.__vellumLog === 'object') {
+      showCardLog(d.__vellumLog as Record<string, unknown>);
+      return;
+    }
     if (d.__vellumToast !== null && typeof d.__vellumToast === 'object') {
       showCardToast(d.__vellumToast as Record<string, unknown>);
       return;

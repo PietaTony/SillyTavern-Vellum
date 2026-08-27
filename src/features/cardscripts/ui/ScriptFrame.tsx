@@ -1,7 +1,8 @@
 import Box from '@mui/material/Box';
-import { useEffect, useRef } from 'react';
+import { useCallback, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
-import { registerFrame } from '../runtime/host';
+import { clipFrom } from '../runtime/clip';
+import { registerFrame } from '../runtime/frames';
 import type { CardVarScopes } from '../runtime/scopes';
 import { buildSrcDoc, type FrameMode, wrap } from '../runtime/srcdoc';
 
@@ -56,8 +57,16 @@ export function ScriptFrame({
   /**
    * 🔴 **向 host 登記自己。** 沙箱是 opaque origin ⇒ 主頁那端無法用 `e.origin` 分辨來源，
    * 只能比對 `contentWindow` 的物件 identity。沒登記 ＝ 這個 frame 講的話全部被忽略。
+   *
+   * 🔴 **用 callback ref 不用 `useEffect`**：effect 跑得比 iframe 開始載入還晚 ⇒ 前導程式
+   * 最前面那幾行講的話會被丟掉，而**最早的那幾句正是最有價值的**（一載入就炸的例外）。
+   * ⚠️ 回傳值是 React 19 的卸載清理函式，別改成箭頭簡寫。
    */
-  useEffect(() => registerFrame(ref.current?.contentWindow), []);
+  const attach = useCallback((el: HTMLIFrameElement | null) => {
+    ref.current = el;
+    if (!el) return;
+    return registerFrame(el.contentWindow);
+  }, []);
 
   useEffect(() => {
     if (mode === 'hidden') return;
@@ -74,18 +83,8 @@ export function ScriptFrame({
        *    「小卡的所有按鈕都超難按」—— 那是非同步來回，切換永遠慢一步。
        * 空字串 ＝ 這個 frame 目前什麼都沒畫 ⇒ `inset(100%)` 全部裁掉。
        */
-      if (mode === 'overlay' && d.__vellumBox !== undefined) {
-        const p = d.__vellumBox.split(',').map(Number);
-        const [l, t, r, b2] = p;
-        ref.current.style.clipPath =
-          p.length === 4 &&
-          r !== undefined &&
-          b2 !== undefined &&
-          l !== undefined &&
-          t !== undefined
-            ? `inset(${t}px ${window.innerWidth - r}px ${window.innerHeight - b2}px ${l}px)`
-            : 'inset(100%)';
-      }
+      if (mode === 'overlay' && d.__vellumBox !== undefined)
+        ref.current.style.clipPath = clipFrom(d.__vellumBox);
     };
     window.addEventListener('message', onMsg);
     return () => window.removeEventListener('message', onMsg);
@@ -137,7 +136,7 @@ export function ScriptFrame({
   const frame = (
     <Box
       component="iframe"
-      ref={ref}
+      ref={attach}
       name={name}
       title={name}
       sandbox="allow-scripts"
