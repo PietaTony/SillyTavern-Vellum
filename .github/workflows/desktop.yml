@@ -20,20 +20,12 @@ on:
         options: [windows, mac, both]
 
 jobs:
-  build:
-    strategy:
-      fail-fast: false # 一邊掛掉不該讓另一邊也拿不到
-      matrix:
-        include:
-          - os: windows-latest
-            id: windows
-          - os: macos-latest
-            id: mac
-    runs-on: ${{ matrix.os }}
-    # 只跑被選到的平台
-    if: >-
-      github.event.inputs.platforms == 'both' ||
-      github.event.inputs.platforms == matrix.id
+  # ⚠️ **兩個 job 寫開，不用 matrix** —— job 層的 `if` **讀不到 `matrix`**
+  #    （GitHub 的限制，實測 HTTP 422 `Unrecognized named-value: 'matrix'`）。
+  #    用 matrix 就沒辦法「只跑被選到的平台」。重複幾行換一個真的能選的開關。
+  windows:
+    if: inputs.platforms == 'windows' || inputs.platforms == 'both'
+    runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
@@ -42,23 +34,43 @@ jobs:
           node-version: '24'
           cache: pnpm
       - run: pnpm install --frozen-lockfile --config.minimumReleaseAge=0
-
       - run: pnpm app:build
         env:
           # 🔴 不要讓 electron-builder 去撈 runner 上任何憑證（本機實測它會自己撈）。
           CSC_IDENTITY_AUTO_DISCOVERY: 'false'
-
       # 🔴 順手也附一份 Node zip —— exe 萬一在朋友機器上打不開，
       #    那條路只要裝 Node 就能跑，不用等下一次 CI。
       - run: pnpm package
-
       - uses: actions/upload-artifact@v4
         with:
-          name: vellum-${{ matrix.id }}
+          name: vellum-windows
           retention-days: 14
-          if-no-files-found: error # 🔴 沒產出要紅，不要給一個空的 artifact
+          if-no-files-found: error # 沒產出要紅，不要給一個空的 artifact
           path: |
             dist-app/*.exe
+            dist-zip/*.zip
+
+  mac:
+    if: inputs.platforms == 'mac' || inputs.platforms == 'both'
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile --config.minimumReleaseAge=0
+      - run: pnpm app:build
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+      - run: pnpm package
+      - uses: actions/upload-artifact@v4
+        with:
+          name: vellum-mac
+          retention-days: 14
+          if-no-files-found: error
+          path: |
             dist-app/*.dmg
             dist-app/*.zip
             dist-zip/*.zip
