@@ -1,4 +1,6 @@
-# 手動觸發：在真的 Windows／macOS 機器上 build 桌面版，產物掛成 CI artifact。
+# 在真的 Windows／macOS 機器上 build 桌面版，產物掛成 CI artifact。
+#
+# 觸發：**推 `staging` 就自動跑雙平台**（Peter 2026-08-27 指名），也可以手動指定平台。
 #
 # 🔴 **這不是發版。** 不建 GitHub Release、不打 tag、不動 main ——
 #    產物只留在這次 run 的 Artifacts 裡（預設保留 90 天）。
@@ -11,20 +13,32 @@
 name: desktop
 
 on:
+  push:
+    branches: [staging]
+    # 🔴 只改文件不值得燒兩台 runner 六分鐘。
+    paths-ignore: ['**.md', 'plans/**', 'NOTES/**', 'docs/**']
   workflow_dispatch:
     inputs:
       platforms:
         description: '要 build 哪些平台'
         type: choice
-        default: windows
+        default: both
         options: [windows, mac, both]
+
+# 🔴 **同一條分支只留最新一次。** 連推三個 commit 不該排隊 build 三次雙平台 ——
+#    前兩次的產物在推完第三次的那一刻就沒有人要了。
+concurrency:
+  group: desktop-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   # ⚠️ **兩個 job 寫開，不用 matrix** —— job 層的 `if` **讀不到 `matrix`**
   #    （GitHub 的限制，實測 HTTP 422 `Unrecognized named-value: 'matrix'`）。
   #    用 matrix 就沒辦法「只跑被選到的平台」。重複幾行換一個真的能選的開關。
   windows:
-    if: inputs.platforms == 'windows' || inputs.platforms == 'both'
+    # `push` 觸發時 `inputs` 是空的 ⇒ 兩邊都要跑。**不要只寫 inputs 判斷**，
+    # 那會讓自動觸發的 run 兩個 job 都被跳過，而 run 本身還是綠的 —— 假綠燈。
+    if: github.event_name == 'push' || inputs.platforms == 'windows' || inputs.platforms == 'both'
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
@@ -51,7 +65,7 @@ jobs:
             dist-zip/*.zip
 
   mac:
-    if: inputs.platforms == 'mac' || inputs.platforms == 'both'
+    if: github.event_name == 'push' || inputs.platforms == 'mac' || inputs.platforms == 'both'
     runs-on: macos-latest
     steps:
       - uses: actions/checkout@v4

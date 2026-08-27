@@ -1,5 +1,7 @@
+import Stack from '@mui/material/Stack';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
+import { fetchAbout, SourceCard } from '@/features/about';
 import { fetchUpdate } from '@/features/update';
 import { Screen } from '@/shared/ui/Screen';
 import { UpdateCheckCard } from './UpdateCheckCard';
@@ -26,6 +28,12 @@ export function SettingsAboutScreen({ onBack }: { onBack: () => void }) {
     retry: false,
   });
   const [checking, setChecking] = useState(false);
+  /**
+   * 🔴 **獨立一支 query，而且壞掉不擋更新檢查** —— 這一塊是 AGPL §13 的履行入口
+   * （見 `SourceCard`），但它讀不到值時仍然要顯示（元件自己有預設值），
+   * 不可以整塊消失。**沒有出現的義務入口 ＝ 沒有履行。**
+   */
+  const about = useQuery({ queryKey: ['about'], queryFn: fetchAbout, retry: false });
 
   const check = () => {
     setChecking(true);
@@ -40,7 +48,10 @@ export function SettingsAboutScreen({ onBack }: { onBack: () => void }) {
 
   return (
     <Screen title="關於與更新" onBack={onBack}>
-      <UpdateCheckCard info={q.data} checking={checking} onCheck={check} />
+      <Stack spacing={2} sx={{ p: 2 }}>
+        <UpdateCheckCard info={q.data} checking={checking} onCheck={check} />
+        <SourceCard info={about.data} />
+      </Stack>
     </Screen>
   );
 }

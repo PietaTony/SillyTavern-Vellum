@@ -2,7 +2,19 @@
 
 本機單人的 LLM 角色扮演與長對話 app。**你的角色卡、對話、金鑰都留在你自己的電腦上。**
 
-SillyTavern 的 fork —— 功能一樣，UI／UX 大改。授權 AGPL-3.0。
+**[SillyTavern](https://github.com/SillyTavern/SillyTavern) 的分支（fork）** —— 後端沿用，前端整個重寫。
+功能一樣，UI／UX 大改。
+
+授權 **AGPL-3.0-or-later**（見 [`LICENSE`](LICENSE)）—— 上游是 AGPL，分支也必須是。
+git 歷史保留了完整的來源鏈（第一個 commit 是 SillyTavern 作者 Cohee，2023-07-20）。
+
+> 🔴 **要把它架起來給別人用的話先看這一段。**
+> AGPL §13：**把修改過的版本架起來讓別人透過網路使用，就必須讓那些使用者取得對應的原始碼。**
+> 義務在**營運方**身上。
+> ⇒ app 的「設定 → 關於與更新」裡有「取得原始碼」入口，
+> **改過的話請設 `VELLUM_SOURCE_URL` 指到你自己的原始碼位置** ——
+> 不改的話那顆按鈕會把你的使用者帶到我們的 repo，那不是你正在跑的那一版。
+> AGPL **允許收費**，但不允許不給源碼。
 
 ---
 
@@ -82,6 +94,30 @@ pnpm start:fresh         # build 完直接跑
 `.npmrc` 釘死 Node 24.15.0（jsdom 30 的 engines 要求）。
 只是要**跑**預先 build 好的 zip 的話，Node 20.19 就夠了。
 </details>
+
+---
+
+## 環境設定
+
+**一般使用完全不用設。** 下面這些是「想改預設行為」時才用得到的。
+
+設定方式：在啟動檔裡加一行（macOS `export X=y`、Windows `set X=y`），
+或在終端機裡 `X=y node dist-server/index.mjs`。
+
+| 變數 | 預設 | 做什麼 |
+|---|---|---|
+| `PORT` | `8520` | 換 port。網址跟著變 |
+| `HOST` | `127.0.0.1` | 🔴 **只有這台電腦連得到**。設 `0.0.0.0` 才對外 —— 先看下面的安全性那段 |
+| `VELLUM_DATA` | `./data` | 資料放哪。**你的角色、對話、金鑰全在這個資料夾** |
+| `VELLUM_ALLOWED_HOSTS` | 空 | 自訂網域要連進來時填（逗號分隔）。預設只接受 loopback／IP 字面值／`.ts.net` |
+| `VELLUM_OPEN` | 關 | 設 `1` 會在啟動後自動打開瀏覽器。**啟動檔已經幫你設好了** |
+| `VELLUM_SOURCE_URL` | 我們的 repo | 🔴 **改過並架給別人用的話一定要設**（AGPL §13）—— 見上面授權那段 |
+
+> ⚠️ **`VELLUM_ALLOWED_HOSTS` 不是「開放清單」，是防 DNS rebinding 的白名單。**
+> 沒設也連得到自己的 IP 與 Tailscale 網域；設了是為了自訂網域，不是為了開權限。
+
+**開發時另外還有這幾個**（只有 `pnpm verify:*` 那幾支腳本會讀）：
+`VELLUM_CARD`／`VELLUM_CARD_URL`／`VELLUM_CHAT`／`VELLUM_WORLD` —— 指定要驗證的素材檔。
 
 ---
 

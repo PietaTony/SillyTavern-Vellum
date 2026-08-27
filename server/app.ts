@@ -28,11 +28,26 @@ import { chatImport } from './routes/chatImport.ts';
 import { generate } from './routes/generate.ts';
 import { update } from './routes/update.ts';
 import { currentVersion } from './adapters/version.ts';
+import { LICENSE_ID, sourceUrl, UPSTREAM_URL } from './adapters/sourceUrl.ts';
 
 export const app = new Hono()
   .use('*', hostGuard())
   .use('/api/*', apiBodyLimit())
-  .get('/api/version', (c) => c.json({ ok: true, name: 'vellum', version: currentVersion() }))
+  /**
+   * 版本 ＋ **授權與原始碼位置**（AGPL §13）。
+   * 🔴 掛在既有的 `/api/version` 而不是另開一支：前端本來就會打它，
+   * 多一支端點就多一個「有人忘了呼叫」的機會，而這一份資訊**不能沒有人拿得到**。
+   */
+  .get('/api/version', (c) =>
+    c.json({
+      ok: true,
+      name: 'vellum',
+      version: currentVersion(),
+      license: LICENSE_ID,
+      source: sourceUrl(),
+      upstream: UPSTREAM_URL,
+    }),
+  )
   .route('/api/secrets', secrets)
   // 🔴 三支「真的會往外發請求」的端點，與純本機讀寫的 secrets 分開（見該檔檔頭）。
   .route('/api/secrets', providerTests)

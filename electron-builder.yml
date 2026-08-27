@@ -26,6 +26,8 @@ files:
   - dist-server/**
   - default/**
   - package.json
+  # 🔴 **AGPL：散布就要附授權全文。** 桌面版一樣算散布。
+  - LICENSE
 mac:
   category: public.app-category.productivity
   # 🔴 **強制不簽章。** 不寫這一行的話 electron-builder 會**自動撈本機鑰匙圈裡的憑證** ——

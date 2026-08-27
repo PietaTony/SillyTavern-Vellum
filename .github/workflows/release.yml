@@ -65,6 +65,9 @@ jobs:
         env:
           # 🔴 不要讓 electron-builder 去撈 runner 上任何憑證。
           CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+          # 🔴 **`--publish never` 已經寫在 `app:build` 裡**（GAP-98）：
+          #    electron-builder 偵測到 CI 就會自動發 Release，一次「只是想 build」
+          #    會變成真的發版。掛上 Release 的動作由下面那一步明確做。
       - uses: softprops/action-gh-release@v2
         with:
           files: |

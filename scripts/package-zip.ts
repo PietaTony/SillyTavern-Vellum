@@ -51,7 +51,9 @@ const fail = (msg: string): never => {
 };
 
 /** 🔴 先確認 build 過了。少了這一步就是「打包出一個空殼還說成功」。 */
-for (const need of ['dist/index.html', 'dist-server/index.mjs', 'default']) {
+// 🔴 `LICENSE` 也是「少了就不該打包」的一項 —— AGPL 要求散布時附授權全文。
+//    把它跟 build 產物放在同一條檢查裡，而不是「記得複製」。
+for (const need of ['dist/index.html', 'dist-server/index.mjs', 'default', 'LICENSE']) {
   if (!existsSync(join(ROOT, need))) fail(`少了 ${need} —— 先跑 pnpm build`);
 }
 
@@ -63,6 +65,8 @@ for (const dir of ['dist', 'dist-server', 'default']) {
 }
 // 啟動檔與快速開始說明。🔴 `.command` 的執行位元要留著，Finder 才雙擊得動。
 cpSync(join(ROOT, 'packaging'), STAGE, { recursive: true });
+// 🔴 **AGPL：散布就要附授權全文。** 不是「最好有」，是條款要求的。
+cpSync(join(ROOT, 'LICENSE'), join(STAGE, 'LICENSE'));
 
 writeFileSync(
   join(STAGE, 'package.json'),
