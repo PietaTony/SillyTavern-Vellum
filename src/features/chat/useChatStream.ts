@@ -29,33 +29,16 @@ export function useChatStream(chatId: string, fromServer: Message[] | undefined)
 
   const messages = local ?? fromServer ?? [];
 
-  async function send(text: string) {
-    setFailure(null);
-    // 🔴 **這一步失敗就把例外丟回去給 `Composer`**，它才知道「沒送出去，字要留著」。
-    // 在此之前 `Composer` 是先清空再送 —— 網路一斷，打過的字就真的沒了。
-    let mine: Message;
-    try {
-      mine = await appendMessage(chatId, 'user', text);
-    } catch (e) {
-      setFailure(e instanceof Error ? e.message : '送不出去');
-      throw e;
-    }
-    setLocal([...messages, mine]);
+  /**
+   * 接一段生成上去。`base` 是**這一輪開始時畫面上該有的訊息串**。
+   *
+   * 🔴 **`base` 一定要由呼叫端給、而且先 `setLocal(base)`。**
+   * 「重新生成」是刪完才呼叫的，這個 hook 手上的 `local`／`fromServer`
+   * 都還是刪之前那份 —— 用它當底，被刪掉的訊息會在畫面上復活。
+   */
+  function run(base: Message[]) {
+    setLocal(base);
     setStreaming('');
-
-    /**
-     * 🔴 **到這裡「送出」就完成了，不要等生成跑完才 resolve**
-     * （Peter 2026-08-27：「輸入文字以後沒有正確的清空 input box」）。
-     *
-     * `Composer` 的判準是「`onSend` resolve ＝ 送出成功 ⇒ 清空輸入框」。
-     * 而在此之前這支 `await` 了整段串流 ⇒ 輸入框要等模型**寫完整段回覆**才清空。
-     * 使用者按下 Enter、字還留在框裡好幾秒 —— 看起來就是「沒送出去」，
-     * 而他的下一個動作是再按一次。
-     *
-     * 🔴 **「送出成功」＝ 使用者那則訊息存下來了**（`appendMessage` 過了），
-     * 不是「對方回完了」。生成失敗是另一件事，由失敗橫幅負責講。
-     * ⇒ 串流改成不 await，在背景跑；錯誤照樣進 `setFailure`。
-     */
     const ac = new AbortController();
     abortRef.current = ac;
     let acc = '';
@@ -72,7 +55,7 @@ export function useChatStream(chatId: string, fromServer: Message[] | undefined)
           setThinking(true);
         } else if (e.type === 'done') {
           setThinking(false);
-          setLocal((prev) => [...(prev ?? []), e.message]);
+          setLocal((prev) => [...(prev ?? base), e.message]);
           setStreaming(null);
         } else {
           setThinking(false);
@@ -95,8 +78,45 @@ export function useChatStream(chatId: string, fromServer: Message[] | undefined)
     });
   }
 
+  async function send(text: string) {
+    setFailure(null);
+    // 🔴 **這一步失敗就把例外丟回去給 `Composer`**，它才知道「沒送出去，字要留著」。
+    // 在此之前 `Composer` 是先清空再送 —— 網路一斷，打過的字就真的沒了。
+    let mine: Message;
+    try {
+      mine = await appendMessage(chatId, 'user', text);
+    } catch (e) {
+      setFailure(e instanceof Error ? e.message : '送不出去');
+      throw e;
+    }
+
+    /**
+     * 🔴 **到這裡「送出」就完成了，不要等生成跑完才 resolve**
+     * （Peter 2026-08-27：「輸入文字以後沒有正確的清空 input box」）。
+     *
+     * `Composer` 的判準是「`onSend` resolve ＝ 送出成功 ⇒ 清空輸入框」。
+     * 而在此之前這支 `await` 了整段串流 ⇒ 輸入框要等模型**寫完整段回覆**才清空。
+     * 使用者按下 Enter、字還留在框裡好幾秒 —— 看起來就是「沒送出去」，
+     * 而他的下一個動作是再按一次。
+     *
+     * 🔴 **「送出成功」＝ 使用者那則訊息存下來了**（`appendMessage` 過了），
+     * 不是「對方回完了」。生成失敗是另一件事，由失敗橫幅負責講。
+     * ⇒ 串流不 await，在背景跑；錯誤照樣進 `setFailure`。
+     */
+    run([...messages, mine]);
+  }
+
+  /**
+   * 不加新訊息、直接再生成一次（長按選單的「從這則重新生成」）。
+   * 🔴 呼叫端要**先刪、再重讀**，把重讀回來的那份當 `base` 傳進來 —— 理由見 `run`。
+   */
+  function regenerate(base: Message[]) {
+    setFailure(null);
+    run(base);
+  }
+
   /** 丟掉樂觀暫存，改讀伺服器那份。**切候選成功之後一定要叫它**（見檔頭 B1）。 */
   const reset = () => setLocal(null);
 
-  return { messages, streaming, thinking, failure, setFailure, send, reset };
+  return { messages, streaming, thinking, failure, setFailure, send, regenerate, reset };
 }

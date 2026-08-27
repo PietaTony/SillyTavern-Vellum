@@ -6,9 +6,11 @@ import { CardFrontend } from '@/app/screens/CardFrontend';
 import { ChatFailure } from '@/app/screens/ChatFailure';
 import { ChatMenu } from '@/app/screens/ChatMenu';
 import { ChatLoading, ChatUnavailable } from '@/app/screens/ChatUnavailable';
+import { messageActions } from '@/app/screens/messageActions';
 import { useBack } from '@/app/screens/useBack';
 import { useChatBackgroundOverride } from '@/app/screens/useChatBackgroundOverride';
-import { ConsentDialog, useCardEvents, useCardScripts, useCardVars } from '@/features/cardscripts';
+import { useChatCards } from '@/app/screens/useChatCards';
+import { ConsentDialog, useCardEvents } from '@/features/cardscripts';
 import { CharacterLayer, fetchCharacter } from '@/features/characters';
 import {
   Composer,
@@ -39,31 +41,27 @@ function ChatPage() {
   const [showChar, setShowChar] = useState(false);
   // ☰ →「換開場」開的候選目錄（M12 第三批）。同一個元件，第三個入口。
   const [showGreetings, setShowGreetings] = useState(false);
-  const { messages, streaming, thinking, failure, setFailure, send, reset } = useChatStream(
-    chatId,
-    q.data?.messages,
-  );
+  const { messages, streaming, thinking, failure, setFailure, send, regenerate, reset } =
+    useChatStream(chatId, q.data?.messages);
 
   const swipe = useSwipeMessage(chatId, () => q.refetch(), reset);
 
   useCardEvents(chatId, messages); // 發事件給卡片腳本；判準與時機在 `useCardEvents`
 
-  // 卡片變數的四種範圍 —— 種什麼進去、寫到哪裡（見 `useCardVars`）。
-  const vars = useCardVars({ chatId, characterId: q.data?.characterId ?? '' });
-
-  // 🔴 卡片自己的程式（M13 第二期）。**必須在所有早退之前呼叫**（hooks 規則）
-  // ⇒ `characterId` 這時可能還是空字串，`useCardScripts` 自己會擋掉那一輪查詢。
-  const cards = useCardScripts({
+  // 🔴 卡片自己的程式與變數（M13 第二、三期）。**必須在所有早退之前呼叫**（hooks 規則）。
+  const cards = useChatCards({
     chatId,
-    characterId: q.data?.characterId ?? '',
+    chat: q.data,
     messages: () => messages,
     swipe: (messageId, index) => swipe.mutateAsync({ messageId, index }),
-    // 🔴 卡片腳本的狀態（桌寵尺寸就存在這裡）。存檔不重讀對話 ——
-    // 重讀會讓 srcdoc 變、iframe 整個重生，桌寵每存一次就閃一次。
-    // 範圍決定存到哪一支端點，理由見 `useCardVars`。
-    saveVariables: vars.saveVariables,
-    // 🔴 對話還沒讀回來要給 `undefined` 不能給空物件（種子只認第一份）—— 見 `useCardVars`。
-    initialVars: q.data ? vars.chatVarsOf(q.data.variables) : undefined,
+  });
+
+  // 長按一則訊息能做的四件事。🔴 改／刪的端點還沒有，404 會翻成 tips（見 `messageActions`）。
+  const actions = messageActions({
+    chatId,
+    refetch: async () => (await q.refetch()).data?.messages ?? [],
+    reset,
+    regenerate,
   });
 
   if (q.isPending) return <ChatLoading />;
@@ -109,6 +107,7 @@ function ChatPage() {
         characterId={q.data.characterId}
         onSwipe={(messageId, index) => void swipe.mutate({ messageId, index })}
         onAvatarClick={() => setShowChar(true)}
+        actions={actions}
         // 卡片自己的前端區塊怎麼呈現：見 `CardFrontend`（那一層才認識 cardscripts）。
         frontend={(part) => (
           <CardFrontend cards={cards} characterId={q.data.characterId} {...part} />
