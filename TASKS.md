@@ -1,5 +1,49 @@
 # Vellum UI ── 畫面清單與檢查進度
 
+## 🔴 這條線（vellum-ui / `ui/polish`）2026-08-27 收掉了 —— 接手的人先讀這段
+
+**分支還在，但沒有人在這棵樹上了。裡面有沒合出去的東西。**
+實查（2026-08-27 深夜，`git rev-list`）：
+
+- `ui/polish` **領先 `origin/staging` 17 個 commit**（全部**沒有 push**、**沒有開 PR**）
+- ⚠️ 同時**落後 staging 3 個**：`6394ddb58`（第三方授權聲明）、`715d4efb5`＋`cc89da00d`
+  （`AGENTS.md` 與 `.claude/agents/` 七支功能面 agent 定義）
+  ⇒ **合併方向是先把 staging 那 3 個拉進來，再把這 17 個推出去。**
+
+### 那 17 個裡面最不能弄丟的
+1. **VENDOR 三支落地內嵌，我們自己零外連**（`05e0a1856`／`dd6ac19e0`）——
+   lodash 4.17.21／jquery 3.7.1／js-yaml 4.1.0 走 npm 鎖版本、`vendor/` 有 README，
+   `VENDOR_HOSTS` 因此變成 `[]`（同意視窗少一項要跟使用者解釋的風險）。
+2. **`mvuShim` —— 自己扮演 MVU，不引入外部 Vue／zod**（`3ae398fdb`）。規格正本在
+   `src/features/cardscripts/runtime/mvuShim.ts` 與 `runtime/globals.ts` 的**檔頭**
+   （理由、取捨、實機 stack 都在裡面），但**那兩支檔就在這 17 個 commit 裡**
+   ⇒ 沒合過去的話，這個決定會跟著這條線一起消失。摘要見下面「決策正本」。
+3. **變數引擎接上產品端**（`a8c6b22aa`／`3f1b3b704`／`c5be7a072`）——
+   `<UpdateVariable>` 真的會改到數值、寫進 `stat_data`、開場白的起始值會落地。
+4. iframe console／CSP 轉發線（`c21921780`／`5c38b977d`）、502 錯誤頁與診斷單
+   （`b2f6fc73a`／`a596c24a1`／`811f98339`）、世界書分組預設折疊（`c5c734f77`）。
+
+### 決策正本：為什麼「自己扮演 MVU」而不是補 Vue／zod
+卡片從 CDN 載 MVU（MagVarUpdate），而它假設沙箱有全域 `Vue` 與 `z`(zod)。我們沒有
+⇒ 實機當場兩發未接住的例外（`Vue is not defined`／`z is not defined`）⇒ MVU 從來沒
+初始化 ⇒ 卡片 `await waitGlobalInitialized('Mvu')` 永遠等不到 ⇒ `init()` 一行都沒跑過。
+**不補那兩個依賴的理由**：那等於把產品的核心狀態（親密度／安全感／面具）押在別人的
+CDN 上 —— 斷網或對方改版就沒有狀態，而且測不到。而 MVU 要做的事我們本來就有
+（`lib/varUpdate.ts` 解析、`lib/varApply.ts` 夾持後套用，還多做了 MVU 不會做的約束）。
+⇒ Peter 2026-08-27 裁定「我們要相容這張卡，用我們的方式，安全地完成」「我不想要引入
+外部的 Vue」。⇒ shim 只補「卡片認得的那個介面」：實掃 4 張卡，`Mvu.` 只有一種用法
+（`Mvu.events.VARIABLE_UPDATE_ENDED`）⇒ 殼只要有 `events` 就夠。
+⚠️ 代價：事件名是我們自己定的；卡片若把字串寫死而不是讀 `Mvu.events.…` 就會漏接
+（這張卡沒有）。`window.Mvu` 只在沒有人定義過時才裝 —— 真的 MVU 有天跑得起來時它該贏。
+
+### 這條線原本的地盤 ＝ staging 上的 `H6 card-scripts`
+`AGENTS.md`（在 staging，這棵樹上看不到）把工作切成七支功能面 agent，
+「一個檔案只有一個寫入者」。這條線做的卡片腳本那一塊對應 **H6 card-scripts**。
+🔴 2026-08-27 Peter **當面**（不是同事轉述）把三支 `server/` 交給這條線：
+`services/applyVarUpdate.ts`、`lib/mvuStage.ts`、`routes/generate.ts`，
+深夜再加 `routes/chats.ts`。接手的人要確認這幾支在新的 owner 表上算誰的。
+
+
 > vellum-ui（UI 線）維護。**打勾＝Peter 實機看過而且認可**，不是「code 寫完了」。
 > 檢查完一項就把 `[ ]` 改成 `[x]`；有問題的寫在該列後面。
 
@@ -191,6 +235,15 @@ Peter 回報「桌寵有顯示，但是親密度都沒有正確」。查下去�
   ⚠️ 實檔佐證：`d453cfed` 17 則訊息裡**只有第 0 則有 `<思年>`**，後面每一則都有
   `<UpdateVariable>` 但沒有 `<思年>` 也沒有 placeholder ⇒ 第一則之後根本沒有狀態欄。
   （桌寵面板不吃這條 —— 它自己直接讀 `stat_data`，已經修好了。）
+  🔴 **2026-08-27 上網查到的定義域（這條的答案偏向 ②）**：`<StatusPlaceHolderImpl/>`
+  **是框架層自己補的，不是要模型輸出**。MVU-zod 的文件寫「MVU 在 AI 回復結束後自動附加
+  `<StatusPlaceHolderImpl/>`」，然後配**兩條正則**：一條送 AI 前移除（省 token）、
+  一條顯示時換成界面代碼 —— 我們這張卡的 `outputRules[8]`(target=prompt) ＋ `[9]`(display)
+  正是那一對。⇒ 我們既然自己扮演 MVU，**補它就在我們的定義域內**，不是「動了模型的輸出」。
+  ⚠️ 但**補在哪一步要我們自己決定**（存檔時 vs 顯示時），MVU 是在它自己的流程裡補。
+  ⚠️ 還有一個我們沒有的前提：MVU **每則訊息一份變數快照**，我們沒有 `message` 範圍的變數
+  ⇒ 就算補了，每一則的狀態欄都會顯示**當下最新**的值，不是那一樓當時的值。
+  ⚠️ 以上是兩份獨立文件互相佐證（ERA 的文件、MVU_ZOD 指南），**沒有讀 MVU 原始碼確認**。
 - **`scripts/verify-vars.ts` 有一份跟 `applyVarUpdate.schemaOf()` 一模一樣的手寫 schema**
   ── 兩份會漂。該讓它改吃那一支（`scripts/` 目前仍是禁區）。
 
