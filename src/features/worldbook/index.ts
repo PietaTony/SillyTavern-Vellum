@@ -34,5 +34,6 @@ export { GlobalWorldIntro } from './ui/GlobalWorldIntro';
 export { GlobalWorldList } from './ui/GlobalWorldList';
 export { LayerTable } from './ui/LayerTable';
 export { LineSwitcher } from './ui/LineSwitcher';
+export { UnofficialWarning } from './ui/UnofficialWarning';
 export { WorldList } from './ui/WorldList';
 export { WorldPicker } from './ui/WorldPicker';
