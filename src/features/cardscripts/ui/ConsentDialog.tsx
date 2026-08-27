@@ -52,11 +52,13 @@ export function ConsentDialog({
    * 列兩次會讓使用者以為那是兩條不同的外連 —— 清單長度本身就是他判斷風險的依據。
    */
   const cardHosts = new Set(inventory.scripts.flatMap((s) => s.externals));
+  // 🔴 `VENDOR_HOSTS` 現在是空的（我們自己零外連，見 `vendorScripts.ts`）——
+  // 留著這個併集是因為它是**判準**不是常數：哪天又有我們自己的外連，這裡要照實列出來。
   const hosts = [...new Set([...cardHosts, ...VENDOR_HOSTS])].sort().map((h) => ({
     host: h,
     why: [
       cardHosts.has(h) ? '卡片自己要去抓程式' : '',
-      VENDOR_HOSTS.includes(h) ? 'Vellum 去抓 jQuery／toastr' : '',
+      VENDOR_HOSTS.includes(h) ? 'Vellum 自己要去的' : '',
     ]
       .filter(Boolean)
       .join('、'),

@@ -35,10 +35,17 @@ describe('Mvu 相容殼', () => {
     expect(MVU_SHIM).toContain('cur[x] = next[x]');
   });
 
-  it('🔴 不可以把 Vue／zod 加進外連白名單 —— 那是這次刻意沒做的事', async () => {
-    const { VENDOR } = await import('../runtime/preamble');
-    const joined = VENDOR.join(' ');
-    expect(joined).not.toContain('vue');
-    expect(joined).not.toContain('zod');
+  it('🔴 我們自己零外連 —— Vue／zod 沒被加進去，而且連原本那三支也落地了', async () => {
+    const { VENDOR_HOSTS } = await import('../runtime/preamble');
+    expect(VENDOR_HOSTS).toEqual([]);
+  });
+
+  it('🔴 三支函式庫是內嵌的，而且 `</script` 有拆開 —— 不然標籤會提早關掉', async () => {
+    const { VENDOR_INLINE } = await import('../runtime/vendorScripts');
+    // 真的有東西（空字串會讓「卡片跑不起來」變成靜默失敗）
+    expect(VENDOR_INLINE.length).toBeGreaterThan(100_000);
+    for (const g of ['jQuery', 'lodash', 'js-yaml']) expect(VENDOR_INLINE).toContain(g);
+    // 🔴 內容裡不可以留下完整的結束標籤
+    expect(/<\/script(?![>\s]*$)/i.test(VENDOR_INLINE.slice(0, -20))).toBe(true);
   });
 });

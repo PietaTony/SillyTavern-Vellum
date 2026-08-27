@@ -17,18 +17,19 @@
  */
 
 /**
- * 卡片實際用到的第三方全域（實掃那 2 MB 得到）。與酒館助手同一個 CDN。
- * ⚠️ **`toastr` 不在這裡** —— 我們自己提供一個假的（見下面的 PREAMBLE），
- * 把卡片的提示轉給主頁的 `ToastStack` 顯示。少一支 CDN、少一條外連。
+/**
+ * 🔴 **我們自己不再有任何外連**（2026-08-27）。
+ *
+ * 卡片用得到的三支第三方全域（lodash／jQuery／js-yaml）**整份內嵌進 srcdoc** ——
+ * 來源、版本鎖與理由都在 `vendorScripts.ts`。在此之前它們是三支 CDN `<script src>`，
+ * 而且**沒鎖版本**：上游一發新版，卡片下次跑就換了引擎，而我們測不到。
+ * ⚠️ `toastr` 從一開始就是我們自己提供的假的（轉給主頁的 `ToastStack`）——
+ * 那條註解寫的判準是「少一支 CDN、少一條外連」，這次只是把它套完。
+ *
+ * ⇒ **這個清單刻意是空的。** 同意視窗上剩下的每一個網域都是**卡片自己要去的**，
+ * 不再混著我們的。要再加回來之前先問：那支能不能也內嵌？
  */
-export const VENDOR = [
-  'https://testingcf.jsdelivr.net/npm/lodash/lodash.min.js',
-  'https://testingcf.jsdelivr.net/npm/jquery/dist/jquery.min.js',
-  'https://testingcf.jsdelivr.net/npm/js-yaml/dist/js-yaml.min.js',
-];
-
-/** 🔴 `VENDOR` 會去哪些網域 —— **同意視窗要照實講**，那也是我們自己的外連。 */
-export const VENDOR_HOSTS = [...new Set(VENDOR.map((u) => new URL(u).host))];
+export const VENDOR_HOSTS: string[] = [];
 
 /**
  * 前導程式本體。字串而不是模組檔，因為它要被塞進 `srcdoc`。

@@ -1,6 +1,7 @@
-import { PREAMBLE, VENDOR } from './preamble';
+import { PREAMBLE } from './preamble';
 import { reportBox } from './reportBox';
 import type { CardVarScopes } from './scopes';
+import { VENDOR_INLINE } from './vendorScripts';
 
 /**
  * 組出要塞進 `srcdoc` 的那份 HTML（M13 第二／三期）。
@@ -104,7 +105,6 @@ export function buildSrcDoc(opts: {
    */
   owner?: string | undefined;
 }): string {
-  const vendors = VENDOR.map((u) => `<script src="${u}"></script>`).join('');
   // overlay 要看得到底下的 app ⇒ 背景必須是透明的，不能是 iframe 預設的白色。
   const bg = opts.mode === 'overlay' ? 'transparent' : '';
   return (
@@ -112,7 +112,7 @@ export function buildSrcDoc(opts: {
     // 🔴 CSP 的 <meta> 必須排在所有 <script> 之前，否則對它們不生效。
     `<meta http-equiv="Content-Security-Policy" content="${policyOf(opts.allow)}">` +
     `<style>html,body{margin:0;background:${bg}}</style>` +
-    `${vendors}${seedVars(opts.vars)}` +
+    `${VENDOR_INLINE}${seedVars(opts.vars)}` +
     // 🔴 要排在 PREAMBLE 之前 —— preamble 的 `call()` 每一次都要讀得到它。
     seedGlobal('__vellumOwner', opts.owner ?? '') +
     `<script>${PREAMBLE}</script></head>` +

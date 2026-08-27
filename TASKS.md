@@ -88,6 +88,15 @@
 ⚠️ 沒有 `process.on('uncaughtException'/'unhandledRejection')`（`server/index.ts`）——
 Node 遇到 unhandled rejection 預設**直接終止行程**。要不要補是主執行線的決定（`server/` 是禁區）。
 
+## vendor 落地（2026-08-27）
+lodash／jQuery／js-yaml 三支從 CDN `<script src>` 改成**整份內嵌進 srcdoc**。
+🔴 原本 `https://testingcf.jsdelivr.net/npm/lodash/lodash.min.js` **沒有 `@版本`**
+⇒ jsdelivr 給最新版，上游一發新版卡片就換了引擎，而我們測不到；而且是測試 CDN。
+現在檔案 commit 在 `vendor/`（來源是鎖版本的 npm 套件，`vendor/README.md` 有更新指令）。
+⇒ **`VENDOR_HOSTS` 是空的**：同意視窗上剩下的每一個網域都是卡片自己要去的。
+實測：載入那一頁，主頁對外部網域的請求 **0 次**；兩個 frame 的 srcdoc 都不含
+`<script src="https`，而 jQuery 在裡面。
+
 ## 已知未做 / 未驗
 - [ ] **長按選單的「編輯／刪除／重新生成」按下去會 404** ── 後端還沒有那兩支端點
       （規格已寫成 prompt 交付，見下）。前端會跳一則說明原因的 tips，不是靜默失敗。
