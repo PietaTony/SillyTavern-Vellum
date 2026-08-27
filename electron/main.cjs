@@ -16,6 +16,10 @@
 const { app, BrowserWindow, dialog, shell } = require('electron');
 const { createServer } = require('node:net');
 const { join } = require('node:path');
+// 🔴 **require 的是 bundle 後的檔，不是 `./updater.cjs`。**
+//    `electron-builder.yml` 的 `files:` 刻意不含 `node_modules` ⇒ 打包後 `require('electron-updater')`
+//    會找不到模組。`pnpm build:electron` 用 esbuild 把相依全部封進這一支。
+const { startUpdateChecks } = require('./updater.bundle.cjs');
 
 process.env.NODE_ENV = 'production';
 process.env.VELLUM_OPEN = '0';
@@ -109,6 +113,8 @@ async function main() {
 
   if (await waitForServer(url)) {
     await win.loadURL(url);
+    // 🔴 只有畫面真的起來才查更新 —— 連自己都還沒開起來就談更新，順序是錯的。
+    startUpdateChecks(win);
   } else {
     await win.loadURL(
       `data:text/html;charset=utf-8,${encodeURIComponent(

@@ -5,7 +5,13 @@ import IconButton from '@mui/material/IconButton';
 import Stack from '@mui/material/Stack';
 import Tooltip from '@mui/material/Tooltip';
 import Typography from '@mui/material/Typography';
-import { RELEASES_URL, UPDATE_STEPS, UPDATE_WHY } from '../updateSteps';
+import {
+  DESKTOP_UPDATE_STEPS,
+  DESKTOP_UPDATE_WHY,
+  RELEASES_URL,
+  UPDATE_STEPS,
+  UPDATE_WHY,
+} from '../updateSteps';
 
 /**
  * 「怎麼更新」—— 橫幅與設定頁共用同一份。
@@ -18,13 +24,22 @@ import { RELEASES_URL, UPDATE_STEPS, UPDATE_WHY } from '../updateSteps';
  * 🔴 **第 2 步要看得出比別步重要**：忘了搬 `data/` 就是「更新完什麼都不見了」，
  * 而畫面會顯示成正常的空狀態，看不出是災難。
  */
-export function UpdateSteps({ notesUrl }: { notesUrl?: string | undefined }) {
+export function UpdateSteps({
+  notesUrl,
+  native = false,
+}: {
+  notesUrl?: string | undefined;
+  /** 🔴 桌面安裝版由 Electron 原生更新器接手 ⇒ 手動搬 `data/` 那三步對他們是錯的指示。 */
+  native?: boolean;
+}) {
+  const steps = native ? DESKTOP_UPDATE_STEPS : UPDATE_STEPS;
   return (
     <Stack spacing={1}>
       <Stack component="ol" spacing={0.5} sx={{ pl: 2.5, my: 0 }}>
-        {UPDATE_STEPS.map((step, i) => (
+        {steps.map((step, i) => (
           <Typography key={step} component="li" variant="body2" color="text.secondary">
-            {i === 1 ? <b>{step}</b> : step}
+            {/* 非桌面版的第 2 步（搬 data/）是全部的重點；桌面版沒有那一步要強調 */}
+            {!native && i === 1 ? <b>{step}</b> : step}
           </Typography>
         ))}
       </Stack>
@@ -34,20 +49,29 @@ export function UpdateSteps({ notesUrl }: { notesUrl?: string | undefined }) {
         spacing={0.5}
         sx={{ alignItems: 'center', flexWrap: 'wrap', rowGap: 1 }}
       >
-        <Button
-          size="small"
-          variant="outlined"
-          endIcon={<OpenInNewIcon />}
-          href={RELEASES_URL}
-          target="_blank"
-          rel="noreferrer"
-          sx={{ whiteSpace: 'nowrap' }}
+        {/* 🔴 桌面版不放「開啟下載頁」—— 那顆會把人帶去手動下載一份，
+            結果是電腦裡兩份 Vellum，而更新器還在等他按「下載並更新」。 */}
+        {native ? null : (
+          <Button
+            size="small"
+            variant="outlined"
+            endIcon={<OpenInNewIcon />}
+            href={RELEASES_URL}
+            target="_blank"
+            rel="noreferrer"
+            sx={{ whiteSpace: 'nowrap' }}
+          >
+            開啟下載頁
+          </Button>
+        )}
+        {/* 🔴 為什麼不能一鍵 —— 說清楚，不要讓人覺得只是懶得做。桌面版改成講何時會查。 */}
+        <Tooltip
+          title={native ? DESKTOP_UPDATE_WHY : UPDATE_WHY}
+          enterTouchDelay={0}
+          leaveTouchDelay={8000}
+          arrow
         >
-          開啟下載頁
-        </Button>
-        {/* 🔴 為什麼不能一鍵 —— 說清楚，不要讓人覺得只是懶得做。 */}
-        <Tooltip title={UPDATE_WHY} enterTouchDelay={0} leaveTouchDelay={8000} arrow>
-          <IconButton size="small" aria-label="為什麼不能一鍵更新">
+          <IconButton size="small" aria-label={native ? '更新是怎麼運作的' : '為什麼不能一鍵更新'}>
             <InfoOutlinedIcon fontSize="small" />
           </IconButton>
         </Tooltip>

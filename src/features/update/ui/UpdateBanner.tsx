@@ -31,6 +31,9 @@ export function UpdateBanner() {
   const info = q.data;
   // 查不到就安靜 —— 離線是本機 app 的常態，不是要吵使用者的事
   if (!info?.updateAvailable || !info.latest) return null;
+  // 🔴 桌面安裝版由 Electron 的原生對話框負責（`electron/updater.cjs`）⇒ 這裡讓開。
+  //    兩個都出現的話，使用者會看到「一鍵更新」與「手動搬 data/」兩套互相矛盾的指示。
+  if (info.nativeUpdater) return null;
   if (later) return null;
 
   return (

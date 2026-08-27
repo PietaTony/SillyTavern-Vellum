@@ -10,7 +10,7 @@
   "packageManager": "pnpm@10.25.0",
   "scripts": {
     "dev": "vite",
-    "build": "vite build && tsc --noEmit && pnpm build:server",
+    "build": "vite build && tsc --noEmit && pnpm build:server && pnpm build:electron",
     "preview": "vite preview",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
@@ -45,7 +45,8 @@
     "package": "tsx scripts/package-zip.ts",
     "gate:no-docker": "tsx scripts/gate-no-docker.ts",
     "app:dev": "pnpm build && electron .",
-    "app:build": "pnpm build && electron-builder --config electron-builder.yml --publish never"
+    "app:build": "pnpm build && electron-builder --config electron-builder.yml --publish never",
+    "build:electron": "esbuild electron/updater.cjs --bundle --platform=node --format=cjs --target=node20 --external:electron --outfile=electron/updater.bundle.cjs"
   },
   "dependencies": {
     "@emotion/react": "^11.14.0",
@@ -58,6 +59,7 @@
     "@tanstack/react-router": "^1.170.32",
     "@xstate/react": "^6.1.0",
     "dompurify": "^3.4.14",
+    "electron-updater": "^6.8.9",
     "hono": "^4.13.4",
     "react": "^19.2.8",
     "react-dom": "^19.2.8",

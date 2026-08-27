@@ -186,7 +186,13 @@ jobs:
           name: desktop-windows
           retention-days: 14
           if-no-files-found: error
-          path: dist-app/*.exe
+          # 🔴 **`latest.yml` 少一個，自動更新就整條斷掉。**
+          #    `electron-updater` 靠它比對版本與 SHA512；Release 上沒有它，
+          #    已安裝的 app 去查更新會拿到 404，而且**是安靜的**（我們的 error handler 只寫 log）。
+          #    ⚠️ 這裡不可以用 `dist-app/*` —— 會把 `.blockmap`、未壓縮的 `win-unpacked/` 全掃進來。
+          path: |
+            dist-app/*.exe
+            dist-app/latest.yml
 
   mac-app:
     needs: version
@@ -210,7 +216,13 @@ jobs:
           name: desktop-mac
           retention-days: 14
           if-no-files-found: error
-          path: dist-app/*.dmg
+          # 🔴 **mac 的自動更新走 `.zip`，不走 `.dmg`。** dmg 是給人手動拖的，
+          #    `electron-updater` 下載的是 zip（`electron-builder.yml` 的 mac target 早就有 zip，
+          #    只是以前沒上傳）。少了 zip ⇒ latest-mac.yml 指到一個 Release 上不存在的檔。
+          path: |
+            dist-app/*.dmg
+            dist-app/*-mac.zip
+            dist-app/latest-mac.yml
 
   # 🔴 **fast-forward，不 merge。** `main` 一直是 `staging` 的祖先，
   #    ff 推不上去代表有人在 main 上直接改過東西 —— 那要人來看，不該用 merge commit 蓋過去。
@@ -240,11 +252,49 @@ jobs:
     needs: [version, promote]
     runs-on: ubuntu-latest
     steps:
+      - uses: actions/checkout@v4 # 🔴 要讀 RELEASE-NOTES/next.md，這個 job 原本沒有 checkout
       - uses: actions/download-artifact@v4
         with:
           path: assets
           merge-multiple: true
       - run: ls -lh assets/
+
+      # 🔴 **AGENTS.md §3：閘門要守「涵蓋率」不是守「有沒有資料」。**
+      #    `fail_on_unmatched_files` 只保證 `assets/*` 有東西，不保證 feed 檔在裡面。
+      #    少了 latest.yml 這一版照樣發得出去，而**所有已安裝的 app 從此靜默收不到更新**——
+      #    沒有人會回報這種故障，因為它的症狀就是「什麼都沒發生」。
+      - name: 斷言自動更新的 feed 檔都在
+        shell: bash
+        run: |
+          MISSING=0
+          for f in latest.yml latest-mac.yml; do
+            if [ -f "assets/$f" ]; then echo "  ✅ $f"; else echo "::error::assets/$f 不存在 —— 自動更新會整條斷掉"; MISSING=1; fi
+          done
+          ls assets/*-mac.zip >/dev/null 2>&1 && echo "  ✅ mac 更新用的 zip" || { echo "::error::assets 裡沒有 *-mac.zip —— latest-mac.yml 會指到不存在的檔"; MISSING=1; }
+          ls assets/*Setup*.exe >/dev/null 2>&1 && echo "  ✅ Windows 安裝版（可自動更新的那個）" || { echo "::error::assets 裡沒有 Setup exe"; MISSING=1; }
+          exit $MISSING
+
+      # 🔴 RN3：發版說明缺席就要紅，不可以靜靜發一個沒有說明的版本。
+      #    判準是「有沒有實質內容」，不是「檔案在不在」——空檔案照樣擋。
+      - name: 組出 release notes（下載指引 ＋ 這一版的更新內容）
+        shell: bash
+        run: |
+          NOTES=RELEASE-NOTES/next.md
+          [ -f "$NOTES" ] || { echo "::error::$NOTES 不存在，發版說明沒寫"; exit 1; }
+          if [ "$(tr -d '[:space:]' < "$NOTES" | wc -c)" -lt 10 ]; then
+            echo "::error::$NOTES 實質內容不足 10 個字元，發版說明沒寫"; exit 1
+          fi
+          if grep -q '這一版還在準備中' "$NOTES"; then
+            echo "::error::$NOTES 還是樣板內容，發版說明沒寫"; exit 1
+          fi
+          {
+            cat RELEASE-NOTES/_download-table.md
+            echo
+            echo '---'
+            echo
+            cat "$NOTES"
+          } > release-body.md
+          echo "--- 實際要發出去的 body ---"; cat release-body.md
 
       # 🔴 tag 由這一步當場建（`GITHUB_TOKEN` 推的 tag 不會觸發 workflow，
       #    所以「打 tag 再讓別支發版」那條路是死的）。
@@ -252,18 +302,8 @@ jobs:
         with:
           tag_name: v${{ needs.version.outputs.version }}
           target_commitish: ${{ github.sha }}
-          generate_release_notes: true
+          # 🔴 不用 generate_release_notes —— 它列的是我們的 commit／PR 標題，
+          #    那是寫給自己看的。使用者看的內容一律來自 RELEASE-NOTES/next.md。
           fail_on_unmatched_files: true # 少一個平台就要紅，不要靜靜發一包不完整的
-          body: |
-            ## 要下載哪一個
-
-            | 你是 | 下載 |
-            |---|---|
-            | Windows | `.exe` —— 雙擊安裝 |
-            | Mac | `.dmg` |
-            | 已經有 Node 24 / 想自己跑 | `.zip` —— 解壓後執行 `啟動.command`（Mac）或 `啟動.bat`（Windows）|
-
-            Mac 的 `.dmg` 是 ad-hoc 簽章，第一次開啟要在「系統設定 → 隱私權與安全性」按允許。
-
-            ---
+          body_path: release-body.md
           files: assets/*

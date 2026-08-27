@@ -13,6 +13,15 @@
 # ⇒ 沒有那個旗標的話，一次「只是想 build 一個 exe 給朋友測」會變成**真的發了一版**。
 appId: dev.vellum.app
 productName: Vellum
+# 🔴 **這段的用途是「產生 feed 檔」，不是「發佈」。**
+# 有了它，electron-builder 才會 ① 把 `app-update.yml` 塞進 app 的 resources（`autoUpdater`
+# 靠它知道要去哪裡查更新）② 在 `dist-app/` 產出 `latest.yml`／`latest-mac.yml`。
+# 上傳仍然是 CD 的事（`cd.yml` 的 `release` job），**不是 electron-builder 的事**——
+# 上面那段 `--publish never` 的理由完全沒有變，加了 publish 之後只有更重要。
+publish:
+  provider: github
+  owner: PietaTony
+  repo: SillyTavern-Vellum
 directories:
   output: dist-app
 # 🔴 打包完對整個 bundle 做 ad-hoc 簽章 —— 理由與實測數據在該檔檔頭。

@@ -26,7 +26,23 @@ export type UpdateInfo = {
    * 🔴 設定頁的「上次檢查」要顯示這個，不是「現在」——這支只在快取過期或 `force=1` 時才會變。
    */
   checkedAt: number;
+  /**
+   * 🔴 **有沒有「原生更新器」接手這台機器的更新。**
+   * `true` ⇒ Electron 的 `autoUpdater` 會用系統原生對話框負責通知／下載／重啟
+   *          ⇒ **網頁 banner 必須讓開**，否則同一件事講兩次，而且兩邊的按鈕做的事還不一樣。
+   * `false` ⇒ 沒人接手（zip 版、dev、**以及 portable exe**）⇒ banner 要照常出現。
+   *
+   * 🔴 **portable 版是 Electron 但沒有原生更新器**（沒有安裝路徑可覆寫，見 `electron/updater.cjs`）。
+   * 只看 `process.versions.electron` 的話，portable 使用者會**兩邊都收不到通知** —— banner 被
+   * 隱藏了，而原生更新器根本沒啟動。所以這裡兩個條件都要看。
+   */
+  nativeUpdater: boolean;
 };
+
+/** 判準跟 `electron/updater.cjs` 的 `shouldCheck()` 是同一條，改一邊要改兩邊。 */
+function hasNativeUpdater(): boolean {
+  return Boolean(process.versions.electron) && !process.env.PORTABLE_EXECUTABLE_DIR;
+}
 
 /** 從 release notes 認出破壞性變更。純函式，可測。 */
 export function hasBreaking(notes: string | null): boolean {
@@ -41,8 +57,12 @@ export function trimNotes(body: string | undefined | null, max = 1200): string |
   return t.length > max ? `${t.slice(0, max)}⋯` : t;
 }
 
-/** `look()` 不知道自己被快取多久，`checkedAt` 由呼叫端（handler）填 —— 那裡才知道快取時間。 */
-type LookResult = Omit<UpdateInfo, 'checkedAt'>;
+/**
+ * `look()` 不知道自己被快取多久，`checkedAt` 由呼叫端（handler）填 —— 那裡才知道快取時間。
+ * `nativeUpdater` 同理：它是**這台機器**的性質，跟 GitHub 查到什麼無關，
+ * 而且**不可以被快取**（快取活六小時，但它是 process 常數，混在一起只會讓人以為它會變）。
+ */
+type LookResult = Omit<UpdateInfo, 'checkedAt' | 'nativeUpdater'>;
 
 let cache: { at: number; info: LookResult } | null = null;
 
@@ -90,5 +110,5 @@ export const update = new Hono().get('/', async (c) => {
   // 否則按了也看不到剛發布的新版。
   const force = c.req.query('force') === '1';
   if (!cache || force || now - cache.at > TTL_MS) cache = { at: now, info: await look() };
-  return c.json({ ...cache.info, checkedAt: cache.at });
+  return c.json({ ...cache.info, checkedAt: cache.at, nativeUpdater: hasNativeUpdater() });
 });

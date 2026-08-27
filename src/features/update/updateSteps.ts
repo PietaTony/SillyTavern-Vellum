@@ -31,3 +31,23 @@ export const UPDATE_STEPS: readonly string[] = [
 export const UPDATE_WHY = `為什麼不是按一下就更新完：這個 app 就是你電腦上的一個資料夾，
 它沒辦法在執行中把自己換掉，也不該有權限刪你的檔案。
 另一個理由：更新前你應該先看過這一版改了什麼 —— 尤其是標著破壞性變更的那幾版。`;
+
+/**
+ * 🔴 **桌面安裝版走的是另一條路**（2026-08-27，Peter 裁定推翻「只通知不自動更新」）。
+ * 上面那三步是給 zip 版與 portable exe 的 —— 那些人真的要自己搬 `data/`。
+ * 但**桌面安裝版的資料在系統的 userData，安裝程式碰不到它** ⇒ 一鍵更新是安全的，
+ * 而且更新流程由 Electron 的原生對話框負責，網頁這邊只需要說「會發生什麼」。
+ *
+ * ⚠️ **不要把這幾行拿去給 zip 版用** —— 對他們來說這是假的承諾。
+ * 誰看到哪一份由 `UpdateInfo.nativeUpdater` 決定，判準寫在 `server/routes/update.ts`。
+ */
+export const DESKTOP_UPDATE_STEPS: readonly string[] = [
+  'Vellum 會自己發現新版，跳出視窗問你要不要更新。',
+  '按「下載並更新」之後可以繼續用，下載完才會問你要不要重新啟動。',
+  '你的角色、對話與設定都不會被動到 —— 它們不在 app 資料夾裡。',
+];
+
+/** 桌面版沒有「為什麼不能一鍵」這個問題，改成講清楚什麼時候會發生。 */
+export const DESKTOP_UPDATE_WHY = `Vellum 每次啟動後會查一次有沒有新版（不會一直查）。
+你也可以在這一頁按「檢查更新」立刻查。
+選「稍後」的話不會消失 —— 下次關掉 Vellum 時會自動裝好。`;

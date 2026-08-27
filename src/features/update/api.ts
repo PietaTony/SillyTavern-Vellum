@@ -13,6 +13,11 @@ export type UpdateInfo = {
   error?: string;
   /** 上次真正打了 GitHub 的時間（epoch ms）。設定頁「上次檢查」顯示這個，不是「現在」。 */
   checkedAt: number;
+  /**
+   * 🔴 桌面版（安裝版）有 Electron 的原生更新器接手 ⇒ **banner 要讓開**。
+   * portable exe 與 zip 版是 `false`，那些人還是要靠 banner。
+   */
+  nativeUpdater: boolean;
 };
 
 /**

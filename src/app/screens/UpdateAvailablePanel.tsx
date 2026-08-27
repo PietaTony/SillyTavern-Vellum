@@ -17,7 +17,7 @@ export function UpdateAvailablePanel({ info }: { info: UpdateInfo }) {
       </Typography>
 
       <UpdateNotes notes={info.notes} breaking={info.breaking} />
-      <UpdateSteps notesUrl={info.url} />
+      <UpdateSteps notesUrl={info.url} native={info.nativeUpdater} />
     </Stack>
   );
 }
