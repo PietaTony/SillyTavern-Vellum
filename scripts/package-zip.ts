@@ -53,7 +53,15 @@ const fail = (msg: string): never => {
 /** 🔴 先確認 build 過了。少了這一步就是「打包出一個空殼還說成功」。 */
 // 🔴 `LICENSE` 也是「少了就不該打包」的一項 —— AGPL 要求散布時附授權全文。
 //    把它跟 build 產物放在同一條檢查裡，而不是「記得複製」。
-for (const need of ['dist/index.html', 'dist-server/index.mjs', 'default', 'LICENSE']) {
+for (const need of [
+  'dist/index.html',
+  'dist-server/index.mjs',
+  'default',
+  'LICENSE',
+  // 🔴 第三方授權聲明也是「少了就不該打包」的一項：打包進去的上百個套件
+  //    （MIT／BSD／ISC）都要求保留版權聲明與授權全文。見 `scripts/notices.ts`。
+  'THIRD-PARTY-NOTICES.md',
+]) {
   if (!existsSync(join(ROOT, need))) fail(`少了 ${need} —— 先跑 pnpm build`);
 }
 
@@ -67,6 +75,7 @@ for (const dir of ['dist', 'dist-server', 'default']) {
 cpSync(join(ROOT, 'packaging'), STAGE, { recursive: true });
 // 🔴 **AGPL：散布就要附授權全文。** 不是「最好有」，是條款要求的。
 cpSync(join(ROOT, 'LICENSE'), join(STAGE, 'LICENSE'));
+cpSync(join(ROOT, 'THIRD-PARTY-NOTICES.md'), join(STAGE, 'THIRD-PARTY-NOTICES.md'));
 
 writeFileSync(
   join(STAGE, 'package.json'),
@@ -108,6 +117,23 @@ if (process.platform === 'win32') {
 } else {
   execFileSync('zip', ['-qry', `${NAME}.zip`, NAME], { cwd: OUT });
 }
+/**
+ * 🔴 **從產出那一端讀回來，不是從來源端檢查。**（2026-08-27 實測抓到）
+ * 上面那條 `for (const need of …)` 驗的是「repo 裡有沒有這個檔」——
+ * 把 `cpSync` 那一行刪掉，它照樣全過，而 zip 裡少了一份授權聲明，
+ * **`pnpm package` 回 EXIT=0，沒有任何東西擋下來**。
+ * ⇒ 驗證的範圍要對齊動作的範圍：動作是「複製進 STAGE」，就要驗 STAGE。
+ * ⚠️ 少了 `THIRD-PARTY-NOTICES.md` 的後果不是功能壞掉，是**安靜地違反上百個授權**。
+ */
+for (const need of [
+  'LICENSE',
+  'THIRD-PARTY-NOTICES.md',
+  'dist/index.html',
+  'dist-server/index.mjs',
+]) {
+  if (!existsSync(join(STAGE, need))) fail(`STAGE 裡少了 ${need} —— 有人把複製那一行刪掉了`);
+}
+
 rmSync(STAGE, { recursive: true, force: true });
 
 if (!existsSync(zipPath)) fail('壓縮完卻找不到 zip 檔');
