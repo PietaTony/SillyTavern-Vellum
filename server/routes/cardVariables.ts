@@ -1,5 +1,5 @@
 import { Hono } from 'hono';
-import { z } from 'zod';
+import { nextVars, VarsBody } from '../lib/varsWrite.ts';
 import type { Character } from '../lib/character.ts';
 import { safeId } from '../lib/ids.ts';
 import { loadSettings, saveSettings } from '../services/settings.ts';
@@ -23,12 +23,7 @@ import { readJson, writeJson } from '../adapters/storage.ts';
  * 它是唯一一個卡片腳本寫得到的全域位置 —— 讓 body 決定要寫哪個鍵，
  * 一個 PATCH 就能改掉 `providerModels` 或 `globalWorlds`。
  */
-const PatchBody = z.object({ patch: z.record(z.string(), z.unknown()) });
-
-const merge = (
-  base: Record<string, unknown> | undefined,
-  patch: Record<string, unknown>,
-): Record<string, unknown> => ({ ...(base ?? {}), ...patch });
+/** 🔴 合併／覆寫的判準與 body 形狀在 `lib/varsWrite.ts` —— 三支端點共用一份。 */
 
 export const cardVariables = new Hono()
   /** 種進 iframe 用的那一份。🔴 `characterId` 空字串是合法的（還沒選好友）⇒ 回空的 character。 */
@@ -42,10 +37,10 @@ export const cardVariables = new Hono()
   })
 
   .patch('/global', async (c) => {
-    const body = PatchBody.safeParse(await c.req.json());
+    const body = VarsBody.safeParse(await c.req.json());
     if (!body.success) return c.json({ error: '參數不合法' }, 400);
     const s = await loadSettings();
-    const variables = merge(s.variables, body.data.patch);
+    const variables = nextVars(s.variables, body.data);
     await saveSettings({ ...s, variables });
     return c.json({ variables });
   })
@@ -53,11 +48,11 @@ export const cardVariables = new Hono()
   .patch('/character/:id', async (c) => {
     const id = safeId(c.req.param('id'));
     if (!id) return c.json({ error: '找不到這個角色' }, 404);
-    const body = PatchBody.safeParse(await c.req.json());
+    const body = VarsBody.safeParse(await c.req.json());
     if (!body.success) return c.json({ error: '參數不合法' }, 400);
     const ch = await readJson<Character | null>(`characters/${id}.json`, null);
     if (!ch) return c.json({ error: '找不到這個角色' }, 404);
-    const variables = merge(ch.variables, body.data.patch);
+    const variables = nextVars(ch.variables, body.data);
     await writeJson(`characters/${id}.json`, { ...ch, variables });
     return c.json({ variables });
   });

@@ -41,7 +41,11 @@ export type BridgeDeps = {
    * 再非同步呼叫這支存檔 —— 回傳值沒有人在等（見 `runtime/vars.ts`）。
    * 🔴 **`scope` 決定存到哪裡**（三個端點各一）。在此之前四種範圍全存進同一份對話變數。
    */
-  saveVariables: (patch: Record<string, unknown>, scope: CardVarScope) => Promise<unknown>;
+  saveVariables: (
+    vars: Record<string, unknown>,
+    scope: CardVarScope,
+    mode?: 'merge' | 'replace',
+  ) => Promise<unknown>;
   /** 建立 iframe 時要種進去的三份變數（見 `useCardScripts` 的 `vars`）。 */
   initialVars?: CardVarScopes | undefined;
 };
@@ -88,6 +92,15 @@ export function buildBridge(deps: BridgeDeps): Record<string, unknown> {
     setVariables(patch: unknown, opts?: unknown) {
       return patch !== null && typeof patch === 'object'
         ? deps.saveVariables(patch as Record<string, unknown>, scopeOf(opts))
+        : undefined;
+    },
+    /**
+     * 🔴 **整包覆寫**（GAP-123）。與 `setVariables` 分成兩支而不是加一個旗標：
+     * 「刪得掉」與「刪不掉」是兩種語意，混在一支裡遲早有人送錯而且沒人發現。
+     */
+    replaceVariables(next: unknown, opts?: unknown) {
+      return next !== null && typeof next === 'object'
+        ? deps.saveVariables(next as Record<string, unknown>, scopeOf(opts), 'replace')
         : undefined;
     },
     setChatMessages: applyUpdates,

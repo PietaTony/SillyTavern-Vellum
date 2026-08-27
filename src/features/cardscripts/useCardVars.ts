@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
-import { fetchCardVarScopes, patchCardVariables } from './api';
+import { type CardVarWrite, fetchCardVarScopes, patchCardVariables } from './api';
 import type { CardVarScope, CardVarScopes } from './runtime/scopes';
 
 /**
@@ -33,7 +33,11 @@ import type { CardVarScope, CardVarScopes } from './runtime/scopes';
 export function useCardVars(ids: { chatId: string; characterId: string }): {
   /** 把「這段對話那一份」補進來，湊成種進 iframe 的三份。 */
   chatVarsOf: (chatVars: Record<string, unknown> | undefined) => CardVarScopes | undefined;
-  saveVariables: (patch: Record<string, unknown>, scope: CardVarScope) => Promise<unknown>;
+  saveVariables: (
+    vars: Record<string, unknown>,
+    scope: CardVarScope,
+    mode?: CardVarWrite,
+  ) => Promise<unknown>;
 } {
   const q = useQuery({
     queryKey: ['card-var-scopes', ids.characterId],
@@ -51,6 +55,6 @@ export function useCardVars(ids: { chatId: string; characterId: string }): {
             character: q.data?.character ?? {},
             chat: chatVars ?? {},
           },
-    saveVariables: (patch, scope) => patchCardVariables(scope, ids, patch),
+    saveVariables: (vars, scope, mode) => patchCardVariables(scope, ids, vars, mode),
   };
 }

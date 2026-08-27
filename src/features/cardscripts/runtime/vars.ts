@@ -58,14 +58,17 @@ export const VARS_SHIM = /* js */ `
     }
     return target;
   };
-  /* ⚠️ **已知落差（本次沒修）**：存檔端點是淺層合併 ⇒ 這裡刪掉的鍵在檔案裡還在，
-     重新整理之後會回來。要修得加一支「整包覆寫」的端點。記在 plans/90-BACKLOG.md。 */
+  /* 🔴 **整包覆寫，而且真的存得下去**（GAP-123，2026-08-27 修）。
+     上一版本地快取真的清空了，但送出去的是 setVariables ＝ 淺層合併 ⇒
+     刪掉的鍵在檔案裡還在，重新整理又冒回來。**本地與檔案兩份對不上，
+     而且只有下一次載入才看得出來。** 現在走自己的那一支。 */
   window.replaceVariables = function (next, opts) {
     var scope = scopeOf(opts);
     var target = SCOPES[scope];
     if (next && typeof next === 'object') {
       Object.keys(target).forEach(function (k) { delete target[k]; });
-      window.insertOrAssignVariables(next, { type: scope });
+      Object.keys(next).forEach(function (k) { target[k] = next[k]; });
+      call('replaceVariables', [next, { type: scope }]);
     }
     return target;
   };

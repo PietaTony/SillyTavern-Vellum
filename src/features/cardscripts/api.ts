@@ -50,17 +50,24 @@ export const fetchCardVarScopes = (
   get(`/api/card-variables/${characterId}`);
 
 /**
- * 存變數（淺層合併）。🔴 **三種範圍三支端點** —— 存錯地方比存不進去更難查，
+ * 存變數。🔴 **三種範圍三支端點** —— 存錯地方比存不進去更難查，
  * 因為卡片當下讀得到（本地快取），下次進來才發現不見了。
  * 🔴 走 `shared/lib/http`，不自己 `fetch` —— 那是前端唯一的 HTTP 出口（A2）。
+ *
+ * 🔴 **`mode` 預設 `merge`**（GAP-123）。卡片的 `replaceVariables()` 名字說要整包換掉，
+ * 而在此之前一律合併 ⇒ **卡片刪掉的鍵在檔案裡還在**，重新整理又冒回來。
+ * ⚠️ 覆寫要明講，不可以變成預設：卡片一次只寫它關心的那幾個鍵，
+ * 預設覆寫會抹掉別支腳本的狀態。
  */
+export type CardVarWrite = 'merge' | 'replace';
 export function patchCardVariables(
   scope: CardVarScope,
   ids: { chatId: string; characterId: string },
   vars: Record<string, unknown>,
+  mode: CardVarWrite = 'merge',
 ): Promise<unknown> {
-  if (scope === 'global') return patch('/api/card-variables/global', { patch: vars });
-  if (scope === 'character')
-    return patch(`/api/card-variables/character/${ids.characterId}`, { patch: vars });
-  return patch(`/api/chats/${ids.chatId}/variables`, { patch: vars });
+  const body = mode === 'replace' ? { replace: vars } : { patch: vars };
+  if (scope === 'global') return patch('/api/card-variables/global', body);
+  if (scope === 'character') return patch(`/api/card-variables/character/${ids.characterId}`, body);
+  return patch(`/api/chats/${ids.chatId}/variables`, body);
 }
