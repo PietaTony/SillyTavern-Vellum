@@ -2,7 +2,7 @@ import { Hono } from 'hono';
 import { z } from 'zod';
 import type { Chat } from '../lib/chatModel.ts';
 import { safeId } from '../lib/ids.ts';
-import { readJson, writeJson } from '../lib/storage.ts';
+import { readJson, writeJson } from '../adapters/storage.ts';
 
 /**
  * 卡片腳本的變數（M13 第三期）。**與 `chats.ts` 分開一支**：那支已經貼著 150 行的上限。

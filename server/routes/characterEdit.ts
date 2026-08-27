@@ -2,7 +2,7 @@ import { Hono } from 'hono';
 import { z } from 'zod';
 import type { Character } from '../lib/character.ts';
 import { safeId } from '../lib/ids.ts';
-import { readJson, writeJson } from '../lib/storage.ts';
+import { readJson, writeJson } from '../adapters/storage.ts';
 
 /**
  * 編輯既有角色。**與 `characters.ts` 分開一支**：那支已經 130+ 行，

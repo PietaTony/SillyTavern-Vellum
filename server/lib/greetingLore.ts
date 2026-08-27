@@ -12,7 +12,7 @@
 import type { CharWorld } from './charWorld.ts';
 import { applyDecisions, decide } from './loreRules.ts';
 import { extractLoreTags, hasLoreTags } from './loreTags.ts';
-import { readJson, writeJson } from './storage.ts';
+import { readJson, writeJson } from '../adapters/storage.ts';
 
 export type LoreApplied = {
   include: string[];

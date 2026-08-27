@@ -7,8 +7,8 @@
  * ⇒ 這裡只組不啟動；`index.ts` 負責啟動。
  */
 import { Hono } from 'hono';
-import { apiBodyLimit } from './lib/bodyLimits.ts';
-import { hostGuard } from './lib/hostGuard.ts';
+import { apiBodyLimit } from './http/bodyLimits.ts';
+import { hostGuard } from './http/hostGuard.ts';
 import { personas } from './routes/personas.ts';
 import { secrets } from './routes/secrets.ts';
 import { providerTests } from './routes/providerTests.ts';
@@ -27,7 +27,7 @@ import { globalWorlds } from './routes/globalWorlds.ts';
 import { chatImport } from './routes/chatImport.ts';
 import { generate } from './routes/generate.ts';
 import { update } from './routes/update.ts';
-import { currentVersion } from './lib/version.ts';
+import { currentVersion } from './adapters/version.ts';
 
 export const app = new Hono()
   .use('*', hostGuard())

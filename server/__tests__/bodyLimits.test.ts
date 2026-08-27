@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { sizeFor } from '../lib/bodyLimits.ts';
+import { sizeFor } from '../http/bodyLimits.ts';
 
 const MB = 1024 * 1024;
 

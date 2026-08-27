@@ -1,6 +1,6 @@
 // @vitest-environment node
 import { describe, expect, it } from 'vitest';
-import { isNewer } from '../lib/version.ts';
+import { isNewer } from '../adapters/version.ts';
 
 describe('isNewer', () => {
   it.each([

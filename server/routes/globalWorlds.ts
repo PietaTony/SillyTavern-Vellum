@@ -5,7 +5,7 @@ import { templateWorld } from '../lib/globalWorld.ts';
 import { findPreset, WORLD_PRESETS } from '../lib/worldPresets.ts';
 import { safeId } from '../lib/ids.ts';
 import { loadSettings, saveSettings } from '../lib/settings.ts';
-import { deleteJson, readJson, writeJson } from '../lib/storage.ts';
+import { deleteJson, readJson, writeJson } from '../adapters/storage.ts';
 
 /**
  * 全域世界書 —— **所有對話都套用的那一種**（Peter 2026-08-27）。

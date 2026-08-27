@@ -1,7 +1,7 @@
 // @vitest-environment node
 import { describe, expect, it } from 'vitest';
 import { safeId } from '../lib/ids.ts';
-import { isAllowedHost } from '../lib/hostGuard.ts';
+import { isAllowedHost } from '../http/hostGuard.ts';
 
 describe('safeId —— 白名單，不是黑名單', () => {
   it.each([
@@ -56,14 +56,14 @@ describe('isAllowedHost —— DNS rebinding 防線', () => {
 
 describe('pathFor —— 最後一道防線', () => {
   it('放行資料目錄內的路徑', async () => {
-    const { pathFor } = await import('../lib/storage.ts');
+    const { pathFor } = await import('../adapters/storage.ts');
     expect(pathFor('chats', 'abc.json')).toMatch(/data[/\\]chats[/\\]abc\.json$/);
   });
 
   it.each([['../secrets.json'], ['../../package.json'], ['chats/../../../etc/passwd']])(
     '🔴 越界要丟例外：%s',
     async (bad) => {
-      const { pathFor } = await import('../lib/storage.ts');
+      const { pathFor } = await import('../adapters/storage.ts');
       expect(() => pathFor(bad)).toThrow();
     },
   );

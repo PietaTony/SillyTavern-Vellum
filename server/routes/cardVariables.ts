@@ -3,7 +3,7 @@ import { z } from 'zod';
 import type { Character } from '../lib/character.ts';
 import { safeId } from '../lib/ids.ts';
 import { loadSettings, saveSettings } from '../lib/settings.ts';
-import { readJson, writeJson } from '../lib/storage.ts';
+import { readJson, writeJson } from '../adapters/storage.ts';
 
 /**
  * 卡片腳本的變數 —— **`global` 與 `character` 兩種範圍**。

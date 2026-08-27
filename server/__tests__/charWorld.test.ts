@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { readCard } from '../lib/card.ts';
 import { cardIdentity, contentHash, driftFromOrigin, setEntryEnabled, worldFromCard } from '../lib/charWorld.ts';
-import { isPrivateAddress } from '../lib/fetchCard.ts';
+import { isPrivateAddress } from '../adapters/fetchCard.ts';
 import { encodePayload } from '../lib/card.ts';
 import { makeText, writeChunks } from '../lib/png.ts';
 

@@ -11,7 +11,7 @@ import type { CharWorld } from './charWorld.ts';
 import type { Chat } from './chatModel.ts';
 import type { Persona } from './persona.ts';
 import { loadSettings } from './settings.ts';
-import { readJson } from './storage.ts';
+import { readJson } from '../adapters/storage.ts';
 import { planInjection, type InjectionPlan } from './wiInject.ts';
 import { orderLayers } from './wiLayers.ts';
 import { buildScanText, selectEntries, type ScanMessage } from './wiSelect.ts';

@@ -1,9 +1,9 @@
 import { serve } from '@hono/node-server';
 import { distExists, mountStatic } from './static.ts';
-import { currentVersion } from './lib/version.ts';
-import { describeData } from './lib/storage.ts';
-import { seedBackgrounds } from './lib/backgroundSeed.ts';
-import { openBrowser } from './lib/openBrowser.ts';
+import { currentVersion } from './adapters/version.ts';
+import { describeData } from './adapters/storage.ts';
+import { seedBackgrounds } from './adapters/backgroundSeed.ts';
+import { openBrowser } from './adapters/openBrowser.ts';
 import { app } from './app.ts';
 
 

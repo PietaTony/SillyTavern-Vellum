@@ -51,7 +51,7 @@ const chatWith = (swipes: string[], extra: Chat['messages'] = []): Chat => ({
 });
 
 const seed = async (chat: Chat) => {
-  const { writeJson } = await import('../lib/storage.ts');
+  const { writeJson } = await import('../adapters/storage.ts');
   await writeJson(`characters/${CH.id}.json`, CH);
   await writeJson(`worlds/${CH.id}.json`, {
     characterId: CH.id,
@@ -78,7 +78,7 @@ const swipe = async (chat: Chat, messageId: string, index: number) => {
 };
 
 const saved = async () => {
-  const { readJson } = await import('../lib/storage.ts');
+  const { readJson } = await import('../adapters/storage.ts');
   return readJson<Chat | null>('chats/chat1.json', null);
 };
 
@@ -135,7 +135,7 @@ describe('PATCH /api/chats/:id/messages/:messageId/swipe', () => {
     expect(r.status).toBe(200);
     expect(r.body.lore).toBeNull();
     // 尺沒壞的證明：同一個 index、換成對得上的內容就會回 lore（上一條測試）
-    const { readJson } = await import('../lib/storage.ts');
+    const { readJson } = await import('../adapters/storage.ts');
     const world = await readJson<{ entries: { uid: string; enabled: boolean }[] } | null>(
       `worlds/${CH.id}.json`,
       null,

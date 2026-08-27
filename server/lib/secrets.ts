@@ -18,7 +18,7 @@
  * 53 字元、開頭 `AQ.A`，不是文件上的 `AIza` 格式，樣本只有一個，證明不了。
  * ⇒ 這是**衡量過的取捨**，不是「反正沒差」。
  */
-import { readJson, writeJson } from './storage.ts';
+import { readJson, writeJson } from '../adapters/storage.ts';
 
 /**
  * 🔴 **供應商 id 是開放集合，不是列舉。** 家數要從 2 變 26（規格 §2.1），

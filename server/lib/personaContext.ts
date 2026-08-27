@@ -9,7 +9,7 @@ import type { Chat } from './chatModel.ts';
 import type { Persona } from './persona.ts';
 import { resolvePersona, type Resolved } from './resolvePersona.ts';
 import { loadSettings } from './settings.ts';
-import { listJson, readJson } from './storage.ts';
+import { listJson, readJson } from '../adapters/storage.ts';
 
 export async function personaForChat(chat: Chat): Promise<Resolved> {
   const [character, settings, all] = await Promise.all([

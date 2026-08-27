@@ -11,7 +11,7 @@ import { Hono } from 'hono';
 import { z } from 'zod';
 import { getKey, redact } from '../lib/secrets.ts';
 import { safeId } from '../lib/ids.ts';
-import { readJson, writeJson } from '../lib/storage.ts';
+import { readJson, writeJson } from '../adapters/storage.ts';
 import { adapterFor } from '../providers/dispatch.ts';
 import { byId, isSelectable } from '../providers/registry.ts';
 import type { Chat, Message } from '../lib/chatModel.ts';

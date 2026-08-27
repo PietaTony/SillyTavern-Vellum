@@ -12,7 +12,7 @@ import { applyLoreTags } from '../lib/greetingLore.ts';
 import { applyEntryEdit } from '../lib/wiEdit.ts';
 import { exclusiveOff, isLineActive, linesFromGreetings } from '../lib/wiLines.ts';
 import { safeId } from '../lib/ids.ts';
-import { readJson, writeJson } from '../lib/storage.ts';
+import { readJson, writeJson } from '../adapters/storage.ts';
 
 /**
  * 🔴 **只收引擎會讀的欄位。** 這張表就是規格總則五的機械形式：

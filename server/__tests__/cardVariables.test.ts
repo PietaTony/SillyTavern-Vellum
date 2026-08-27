@@ -36,7 +36,7 @@ const CH: Character = {
 };
 
 const seedChar = async () => {
-  const { writeJson } = await import('../lib/storage.ts');
+  const { writeJson } = await import('../adapters/storage.ts');
   await writeJson(`characters/${CH.id}.json`, CH);
 };
 
@@ -109,7 +109,7 @@ describe('PATCH — 淺層合併，不是整包覆寫', () => {
 
   it('🔴 角色的變數不會混進另一位角色', async () => {
     const a = await app();
-    const { writeJson } = await import('../lib/storage.ts');
+    const { writeJson } = await import('../adapters/storage.ts');
     await seedChar();
     await writeJson('characters/other1.json', { ...CH, id: 'other1' });
     await patch(a, `/api/card-variables/character/${CH.id}`, { patch: { 好感度: 7 } });

@@ -1,5 +1,5 @@
 import { Hono } from 'hono';
-import { currentVersion, isNewer } from '../lib/version.ts';
+import { currentVersion, isNewer } from '../adapters/version.ts';
 
 const REPO = 'PietaTony/SillyTavern-Vellum';
 const LATEST = `https://api.github.com/repos/${REPO}/releases/latest`;

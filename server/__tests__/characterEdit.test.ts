@@ -25,7 +25,7 @@ async function app() {
 }
 
 const seed = async (ch: Character) => {
-  const { writeJson } = await import('../lib/storage.ts');
+  const { writeJson } = await import('../adapters/storage.ts');
   await writeJson(`characters/${ch.id}.json`, ch);
 };
 

@@ -6,7 +6,7 @@
  * thought 只有 signature）。重寫等於把那些實打成果丟掉。
  * ⇒ 這裡只把它接成統一介面。
  */
-import { buildBody, parseChunk, streamGenerate, testKey, type GeminiChunk } from '../../lib/gemini.ts';
+import { buildBody, parseChunk, streamGenerate, testKey, type GeminiChunk } from '../../adapters/gemini.ts';
 import type { Adapter, ProviderEvent } from '../types.ts';
 
 export const gemini: Adapter = {

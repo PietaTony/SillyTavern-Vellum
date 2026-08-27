@@ -19,8 +19,8 @@ async function load() {
   vi.resetModules();
   process.env['VELLUM_DATA'] = root;
   const [seed, bg] = await Promise.all([
-    import('../lib/backgroundSeed.ts'),
-    import('../lib/backgrounds.ts'),
+    import('../adapters/backgroundSeed.ts'),
+    import('../adapters/backgrounds.ts'),
   ]);
   return { ...bg, ...seed };
 }

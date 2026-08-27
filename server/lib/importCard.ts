@@ -10,7 +10,7 @@
 import { readCard, viewOf, type Card } from './card.ts';
 import { worldFromCard, type CharWorld } from './charWorld.ts';
 import { spriteBytes, spriteExt, spritesInCard } from './sprite.ts';
-import { listJson, writeBin, writeJson } from './storage.ts';
+import { listJson, writeBin, writeJson } from '../adapters/storage.ts';
 import { displayNameOf, uniqueDisplayName } from './displayName.ts';
 import { fromRegexScripts } from './outputRules.ts';
 import type { Character } from './character.ts';

@@ -4,7 +4,7 @@ import { readCard } from '../lib/card.ts';
 import { inventoryOf } from '../lib/cardScripts.ts';
 import type { Character } from '../lib/character.ts';
 import { safeId } from '../lib/ids.ts';
-import { readBin, readJson, writeJson } from '../lib/storage.ts';
+import { readBin, readJson, writeJson } from '../adapters/storage.ts';
 
 /**
  * 角色卡自帶腳本：**盤點、內容、同意**（M13 第二期）。

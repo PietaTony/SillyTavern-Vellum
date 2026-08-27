@@ -5,10 +5,10 @@ import {
   listBackgrounds,
   removeBackground,
   safeBackgroundName,
-} from '../lib/backgrounds.ts';
+} from '../adapters/backgrounds.ts';
 import { FITTINGS, type Fitting, loadSettings, saveSettings } from '../lib/settings.ts';
 import type { Chat } from '../lib/chatModel.ts';
-import { listJson, readBin, writeBin, writeJson } from '../lib/storage.ts';
+import { listJson, readBin, writeBin, writeJson } from '../adapters/storage.ts';
 
 /**
  * 背景圖端點。**與角色媒體分開一支**，理由同 `characterMedia.ts`：

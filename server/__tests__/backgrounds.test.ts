@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { safeBackgroundName } from '../lib/backgrounds.ts';
+import { safeBackgroundName } from '../adapters/backgrounds.ts';
 
 /**
  * 🔴 這支守的是**檔名白名單的兩端**，兩端都出過事：

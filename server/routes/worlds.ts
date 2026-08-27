@@ -10,7 +10,7 @@ import type { Character } from '../lib/character.ts';
 import type { CharWorld } from '../lib/charWorld.ts';
 import type { Persona } from '../lib/persona.ts';
 import { safeId } from '../lib/ids.ts';
-import { listJson, listJsonMeta, readJson } from '../lib/storage.ts';
+import { listJson, listJsonMeta, readJson } from '../adapters/storage.ts';
 import { friendBindings, LAYER_FACTS } from '../lib/wiBindings.ts';
 import { summarizeWorlds } from '../lib/worldList.ts';
 

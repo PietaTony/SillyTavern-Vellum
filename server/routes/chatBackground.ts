@@ -1,9 +1,9 @@
 import { Hono } from 'hono';
-import { listBackgrounds, safeBackgroundName } from '../lib/backgrounds.ts';
+import { listBackgrounds, safeBackgroundName } from '../adapters/backgrounds.ts';
 import type { Chat } from '../lib/chatModel.ts';
 import { safeId } from '../lib/ids.ts';
 import { FITTINGS, type Fitting } from '../lib/settings.ts';
-import { readJson, writeJson } from '../lib/storage.ts';
+import { readJson, writeJson } from '../adapters/storage.ts';
 
 /**
  * 這一段對話自己的背景。**與 `chats.ts` 分開一支**：那支已經 136 行，

@@ -8,7 +8,7 @@ import { mergeOwned } from '../lib/cardMerge.ts';
 import type { Character } from '../lib/character.ts';
 import { safeId } from '../lib/ids.ts';
 import { readChunks, writeChunks } from '../lib/png.ts';
-import { readBin, readJson } from '../lib/storage.ts';
+import { readBin, readJson } from '../adapters/storage.ts';
 
 export const characterMedia = new Hono()
   /**

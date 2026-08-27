@@ -1,12 +1,12 @@
 import { Hono } from 'hono';
 import { z } from 'zod';
 import { CharacterSchema, type Character } from '../lib/character.ts';
-import { listJson, writeJson, readJson } from '../lib/storage.ts';
+import { listJson, writeJson, readJson } from '../adapters/storage.ts';
 import { intoCharacter } from '../lib/importCard.ts';
-import { BadCardUrl, fetchCardBytes } from '../lib/fetchCard.ts';
+import { BadCardUrl, fetchCardBytes } from '../adapters/fetchCard.ts';
 import { extractLoreTags, stripLoreTags, titleOfGreeting } from '../lib/loreTags.ts';
 import { getKey, redact } from '../lib/secrets.ts';
-import { draftFromImage } from '../lib/gemini.ts';
+import { draftFromImage } from '../adapters/gemini.ts';
 import { altNumbering } from '../lib/greetings.ts';
 import { safeId } from '../lib/ids.ts';
 

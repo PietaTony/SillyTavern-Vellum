@@ -35,7 +35,7 @@ const CH: Character = {
 };
 
 const seed = async () => {
-  const { writeJson } = await import('../lib/storage.ts');
+  const { writeJson } = await import('../adapters/storage.ts');
   await writeJson(`characters/${CH.id}.json`, CH);
 };
 
@@ -129,7 +129,7 @@ describe('POST /api/chats/import', () => {
 
   it('落檔那份與回傳那份一致（回 200 不代表寫進去了）', async () => {
     const r = await doImport();
-    const { readJson } = await import('../lib/storage.ts');
+    const { readJson } = await import('../adapters/storage.ts');
     const saved = await readJson<Chat | null>(`chats/${r.body.id}.json`, null);
     expect(saved?.messages[1]?.swipes).toHaveLength(3);
   });
