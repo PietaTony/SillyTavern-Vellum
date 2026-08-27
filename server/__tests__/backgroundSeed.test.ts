@@ -74,6 +74,35 @@ describe('seedBackgrounds', () => {
     expect(imagesIn(dir)).toContain('bedroom clean.jpg');
   });
 
+  /**
+   * 🔴 **來源在、但空的** —— 架構線列「一天撞四次靜默失敗」時沒提到這一半。
+   * 「找不到來源」那條早就會出聲了（`seedDir()` 回 null ⇒ `console.warn`），
+   * 但**來源找得到、裡面沒有合格圖檔**時，上一版會複製 0 張、照樣寫下 `.seeded`
+   * ⇒ 背景永遠是空的、**再也不會重試**，而且一行訊息都沒有。
+   * 判準與「找不到來源就不建目錄」同一條：**不確定成功就不要留下「做過了」的痕跡。**
+   */
+  it('🔴 來源目錄是空的：要出聲，而且不可以寫完成標記（否則永遠不重試）', async () => {
+    const cwd = process.cwd();
+    const fake = mkdtempSync(join(tmpdir(), 'vellum-emptysrc-'));
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    try {
+      // `seedDir()` 的第一個候選就是 `cwd/default/backgrounds` ⇒ 換 cwd 就換得掉來源。
+      mkdirSync(join(fake, 'default', 'backgrounds'), { recursive: true });
+      process.chdir(fake);
+      const { seedBackgrounds } = await load();
+
+      expect(await seedBackgrounds()).toBe(0);
+      expect(warn).toHaveBeenCalledTimes(1);
+      expect(String(warn.mock.calls[0]?.[0])).toContain('沒有任何合格的圖檔');
+      // 🔴 沒有標記 ⇒ 路徑修好之後下一次啟動會補上。有標記就再也補不回來了。
+      expect(existsSync(join(root, 'backgrounds', '.seeded')), '竟然標記成完成了').toBe(false);
+    } finally {
+      process.chdir(cwd);
+      warn.mockRestore();
+      rmSync(fake, { recursive: true, force: true });
+    }
+  });
+
   it('完成標記不會出現在背景清單裡（點開頭，`safeBackgroundName` 擋掉）', async () => {
     const { listBackgrounds, seedBackgrounds } = await load();
     await seedBackgrounds();

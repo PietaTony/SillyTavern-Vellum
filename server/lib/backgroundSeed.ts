@@ -69,8 +69,19 @@ export async function seedBackgrounds(): Promise<number> {
     return 0;
   }
 
-  await mkdir(dir, { recursive: true });
   const names = (await readdir(seed)).filter((n) => safeBackgroundName(n));
+  /**
+   * 🔴 **來源在、但一張合格的都沒有 —— 這也要出聲，而且不可以寫完成標記。**
+   * 上一版走到這裡會複製 0 張、照樣寫下 `.seeded` ⇒ 背景永遠是空的、
+   * **而且再也不會重試**，log 一行都沒有。使用者看到的是一個正常的空清單。
+   * 判準與上面「找不到來源就不建目錄」同一條：**不確定成功就不要留下「做過了」的痕跡。**
+   */
+  if (names.length === 0) {
+    console.warn(`[vellum] 內建背景來源 ${seed} 裡沒有任何合格的圖檔 —— 這次不標記完成`);
+    return 0;
+  }
+
+  await mkdir(dir, { recursive: true });
   let n = 0;
   for (const name of names) {
     // 使用者已經有同名檔就不覆蓋 —— seed 是補空缺，不是還原出廠設定。
