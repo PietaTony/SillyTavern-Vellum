@@ -44,7 +44,7 @@
     "package": "tsx scripts/package-zip.ts",
     "gate:no-docker": "tsx scripts/gate-no-docker.ts",
     "app:dev": "pnpm build && electron .",
-    "app:build": "pnpm build && electron-builder --config electron-builder.yml"
+    "app:build": "pnpm build && electron-builder --config electron-builder.yml --publish never"
   },
   "dependencies": {
     "@emotion/react": "^11.14.0",

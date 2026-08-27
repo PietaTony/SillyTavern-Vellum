@@ -6,6 +6,11 @@
 #     自己 build 的 `.app` 雙擊就開；**但掛上 GitHub Release 給別人下載的一定帶 quarantine
 #     ⇒ 那一刻 Apple Developer US$99/年是必要而非可選。**
 # ⇒ 現在產出的 `.app` **只適合自己用**。要給別人下載之前必須先簽章＋公證。
+# 🔴 **`--publish never` 寫在 `package.json` 的 `app:build` 裡，不是可選的。**
+# electron-builder **偵測到 CI 就會自動嘗試發佈到 GitHub Releases**
+# （2026-08-27 實測：`Implicit publishing triggered by CI detection`，
+#  只因為沒有 `GH_TOKEN` 才停下來）。
+# ⇒ 沒有那個旗標的話，一次「只是想 build 一個 exe 給朋友測」會變成**真的發了一版**。
 appId: dev.vellum.app
 productName: Vellum
 directories:
