@@ -6,7 +6,7 @@ import { useQuery } from '@tanstack/react-query';
 import { useState } from 'react';
 import { DraftField } from '@/shared/ui/DraftField';
 import type { ToastMsg } from '@/shared/ui/toastMsg';
-import { effectiveModel, isOffList, modelOptions } from '../modelOptions';
+import { effectiveModel, isOffList, modelOptions, needsManualEntry } from '../modelOptions';
 import { fetchModels } from '../registryApi';
 import { useModelTest } from '../useModelTest';
 
@@ -70,7 +70,13 @@ export function ModelPicker({
    */
   const value = effectiveModel(pending ?? chosen, models, fallback);
 
-  const manual = q.data && !q.data.ok;
+  /*
+   * 🔴 **只有後端說「這一家沒有清單端點」才給手動輸入** —— 判準在 `needsManualEntry()`。
+   * 「還沒設定金鑰」也是 `ok:false`，但它是暫時的，補了金鑰就有清單。
+   */
+  const manual = needsManualEntry(q.data);
+  // 拉不到清單、但也不是該手動輸入的那種 ⇒ 把後端那句話原文說出來，不要留一個空下拉。
+  const why = q.data && !q.data.ok && !manual ? q.data.message : '';
   return (
     <Stack spacing={2}>
       {manual ? (
@@ -112,7 +118,9 @@ export function ModelPicker({
               .finally(() => setPending(null));
           }}
           helperText={
-            test.isPending ? '測試中…' : `${models.length} 個可用 · 選了就自動測試，通過才會存`
+            test.isPending
+              ? '測試中…'
+              : why || `${models.length} 個可用 · 選了就自動測試，通過才會存`
           }
           slotProps={{ input: spinner(test.isPending) }}
         >

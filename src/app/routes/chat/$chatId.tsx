@@ -39,7 +39,7 @@ function ChatPage() {
   const [showChar, setShowChar] = useState(false);
   // ☰ →「換開場」開的候選目錄（M12 第三批）。同一個元件，第三個入口。
   const [showGreetings, setShowGreetings] = useState(false);
-  const { messages, streaming, failure, setFailure, send, reset } = useChatStream(
+  const { messages, streaming, thinking, failure, setFailure, send, reset } = useChatStream(
     chatId,
     q.data?.messages,
   );
@@ -88,11 +88,19 @@ function ChatPage() {
         />
       }
       scroll={false}
-      footer={<Composer chatId={chatId} busy={streaming !== null} onSend={send} />}
+      // 🔴 **失敗橫幅在 footer，不在捲動區**：這一頁 `scroll={false}` ＋ `Thread` 佔滿高度
+      // ⇒ 擺在 children 裡會被擠出容器、疊到輸入框上（Peter 2026-08-27 的截圖）。
+      footer={
+        <>
+          {failure ? <ChatFailure message={failure} onDismiss={() => setFailure(null)} /> : null}
+          <Composer chatId={chatId} busy={streaming !== null} onSend={send} />
+        </>
+      }
     >
       <Thread
         messages={messages}
         streaming={streaming}
+        thinking={thinking}
         avatar={char.data?.avatar || undefined}
         name={q.data.characterName}
         characterId={q.data.characterId}
@@ -133,7 +141,6 @@ function ChatPage() {
           onConfirm={cards.confirm}
         />
       ) : null}
-      {failure ? <ChatFailure message={failure} onDismiss={() => setFailure(null)} /> : null}
     </Screen>
   );
 }

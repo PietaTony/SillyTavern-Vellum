@@ -37,3 +37,22 @@ export function effectiveModel(
 ): string {
   return chosen ?? models[0] ?? registryDefault;
 }
+
+/**
+ * 該不該退回「手動輸入模型名稱」。
+ *
+ * 🔴 **只有後端說 `manual: true` 才算**（Peter 2026-08-27 實機踩到：
+ * 「第一次填寫 api key 以後，下方的 dropdown 會錯誤變成 input box」）。
+ *
+ * 在此之前這裡寫的是 `q.data && !q.data.ok` —— **任何一種失敗都掉進手動輸入**。
+ * 而 `/api/secrets/models/:provider` 的失敗有兩種，意思完全相反：
+ *   · `{ok:false, message:'還沒設定 X 的金鑰。'}`（400）—— 暫時的，補了金鑰就有清單
+ *   · `{ok:false, message:'X 沒有提供模型清單…', manual:true}`（200）—— 這一家真的沒有端點
+ * 後端**特地加了這個旗標**來分辨，前端卻沒有讀它。
+ *
+ * ⚠️ 認錯的代價不對稱：把「暫時沒金鑰」當成「這家沒清單」，
+ * 使用者就得自己打出模型名稱 —— 而他根本不知道有哪些可以打。
+ */
+export function needsManualEntry(r: { ok: boolean; manual?: boolean } | undefined): boolean {
+  return r !== undefined && !r.ok && r.manual === true;
+}

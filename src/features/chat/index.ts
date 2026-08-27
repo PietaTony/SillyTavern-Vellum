@@ -9,7 +9,14 @@ export {
   swipeMessage,
 } from './api';
 export { byRecency, lastActivityAt, latestChatOf, previewOf, relativeTime } from './list';
-export { type Chat, type Message, parseSse, type StreamEvent } from './model';
+export {
+  type Chat,
+  type ChatFailureInfo,
+  failureOf,
+  type Message,
+  parseSse,
+  type StreamEvent,
+} from './model';
 export { ChatList, type ChatListItem } from './ui/ChatList';
 export { Composer } from './ui/Composer';
 export { FrontendNotice } from './ui/FrontendNotice';

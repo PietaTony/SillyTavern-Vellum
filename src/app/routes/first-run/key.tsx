@@ -92,10 +92,17 @@ function KeyPage() {
              * —— 金鑰一存下來就算「設定完成」，後者會被 first-run 的守衛擋下來。
              * 中間多這一步是 Peter 的 P-1：讓人知道「我是誰」這件事存在。**那一步可以跳過。**
              */
+            /*
+             * 🔴 **等作廢真的做完再導頁。** 下一頁的守衛第一件事就是問
+             * 「設定完了嗎」，而它問的是同一份快取 —— 邊導頁邊作廢的話，
+             * 守衛可能比作廢先跑到，然後把人踢回這裡（實機踩過）。
+             */
             onClick={() => {
-              void setActiveProvider(id).catch(() => {});
-              void qc.invalidateQueries({ queryKey: KEY_STATUS_QUERY.queryKey });
-              void nav({ to: '/profile', search: { setup: true } });
+              void (async () => {
+                await setActiveProvider(id).catch(() => {});
+                await qc.invalidateQueries({ queryKey: KEY_STATUS_QUERY.queryKey });
+                await nav({ to: '/profile', search: { setup: true } });
+              })();
             }}
           >
             下一步 → 加入好友

@@ -8,6 +8,7 @@ import { fetchBackgrounds } from '../api';
 import type { Fitting } from '../model';
 import { useBackgroundActions } from '../useBackgroundActions';
 import { BackgroundGrid } from './BackgroundGrid';
+import { BackgroundPreview } from './BackgroundPreview';
 import { ScopeRow } from './ScopeRow';
 import { UploadButton } from './UploadButton';
 
@@ -77,6 +78,12 @@ export function BackgroundsLayer({
             所有頁面與沒有自訂背景的對話都用這一張。
           </Typography>
         )}
+
+        {/*
+         * 🔴 **預覽在最上面、在縮放方式之上。** 改縮放的當下要看得到結果，
+         * 中間隔著別的東西就變成「改完再往上捲一次」。
+         */}
+        <BackgroundPreview name={current} fitting={(fitting ?? 'classic') as Fitting} />
 
         <ScopeRow
           fitting={(fitting ?? 'classic') as Fitting}

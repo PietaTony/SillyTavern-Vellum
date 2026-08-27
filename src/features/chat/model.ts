@@ -32,6 +32,17 @@ export type Chat = {
 
 export type StreamEvent =
   | { type: 'delta'; text: string }
+  /**
+   * 🔴 **推理模型的思考過程**（Peter 2026-08-27：「文字生成的時候應該要有…或是
+   * thinking 的 loading」）。
+   * 後端**一直都在送這個事件**（`generate.ts:115`），但這裡以前沒有這個分支
+   * ⇒ `parseSse` 默默把它丟掉，前端完全不知道模型正在思考。
+   * 又一次「引擎有了、沒有門」：使用者盯著一個不會動的省略號，
+   * 而那段時間可能長達十幾秒。
+   * ⚠️ **內容不進正文** —— 後端檔頭寫得很清楚：混進去會變成角色的台詞。
+   * 這裡只拿它當「還活著、而且在想」的訊號。
+   */
+  | { type: 'thinking'; text: string }
   | { type: 'done'; message: Message; finishReason: string }
   | { type: 'error'; message: string };
 
@@ -58,6 +69,7 @@ export function parseSse(buffer: string): { events: StreamEvent[]; rest: string 
       finishReason?: string;
     };
     if (name === 'delta') events.push({ type: 'delta', text: payload.text ?? '' });
+    else if (name === 'thinking') events.push({ type: 'thinking', text: payload.text ?? '' });
     else if (name === 'done' && payload.message && typeof payload.message !== 'string')
       events.push({
         type: 'done',
@@ -91,4 +103,37 @@ export function shouldSubmitOnKey(e: {
   if (e.isComposing) return false;
   if (e.keyCode === 229) return false;
   return true;
+}
+
+/** 生成失敗時該顯示什麼。`setupKey` ＝ 後端說「缺金鑰」，畫面要給得出那個出口。 */
+export type ChatFailureInfo = { text: string; setupKey: boolean };
+
+/**
+ * 把後端回來的錯誤 **body 原文**翻成人看的一句話（Peter 2026-08-27 實機踩到）。
+ *
+ * 🔴 **他看到的是一整串 JSON**：`{"error":"尚未設定 Google Gemini 金鑰","action":"setup-…`
+ * —— `api.ts` 的 `streamGenerate` 在 `!res.ok` 時直接把 `res.text()` 切 300 字丟出來，
+ * 而 `server/routes/generate.ts` 回的是 `c.json({ error, action })`。
+ * 「原文照顯示」這條規則是為了**不要把供應商的錯誤訊息改寫掉**，
+ * 但它不該連我們自己那層 JSON 外殼一起端上去。
+ *
+ * 🔴 **`action: 'setup-key'` 要接成真的出口。** 使用者缺的是金鑰，
+ * 而這一頁給的鈕是「重新送出上一句」—— 再送一百次也還是同一個錯。
+ *
+ * ⚠️ **解析不出來就原文照顯示**，不要吞掉。上游（Gemini／OpenAI）的錯誤是純文字或
+ * 另一種 JSON 形狀，猜錯格式而丟掉內容，比多幾個括號糟得多。
+ */
+export function failureOf(raw: string): ChatFailureInfo {
+  const t = raw.trim();
+  if (!t) return { text: '送不出去', setupKey: false };
+  if (t.startsWith('{')) {
+    try {
+      const o = JSON.parse(t) as { error?: unknown; action?: unknown };
+      if (typeof o.error === 'string' && o.error.trim())
+        return { text: o.error, setupKey: o.action === 'setup-key' };
+    } catch {
+      // 不是完整的 JSON（例如被 slice(300) 切掉尾巴）⇒ 落回原文。
+    }
+  }
+  return { text: t, setupKey: false };
 }

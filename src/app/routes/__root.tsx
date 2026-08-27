@@ -1,10 +1,41 @@
-import { createRootRoute, Outlet } from '@tanstack/react-router';
+import { createRootRoute, Navigate, Outlet, redirect } from '@tanstack/react-router';
 import { AppBackground } from '@/app/screens/AppBackground';
+import { isSetUp, needsFirstRun } from '@/app/setup';
+import { LanWarning } from '@/features/network';
 import { ToastStack } from '@/shared/ui/ToastStack';
 
 export const Route = createRootRoute({
+  /**
+   * 🔴 **首次流程是必經的，而且守在「全站的入口」，不是每一支 route 各自守**
+   * （Peter 2026-08-27：「沒跑過不能路由亂跑」）。
+   * 在此之前只有 `/` 會分流 —— 其餘每一支直接打網址就進得去，
+   * 而那時候一把金鑰都沒有：清單是空的、送訊息必然失敗。
+   * 那不是「你還沒設定」，看起來是「這個產品壞了」。
+   *
+   * ⚠️ **一支一支加守衛必漏** —— 這個 repo 反覆講的同一件事：
+   * 「要記得的東西一定會漏」。加在根上，新 route 天生就被守著。
+   *
+   * 🔴 判準在 `needsFirstRun()`（純函式、單獨測）：唯一會出人命的地方是
+   * `/first-run/*` 自己要放行，否則守衛把它導向自己 ⇒ 無限重導。
+   */
+  beforeLoad: async ({ location }) => {
+    if (needsFirstRun(location.pathname, await isSetUp()))
+      throw redirect({ to: '/first-run/provider' });
+  },
   component: RootLayout,
+  notFoundComponent: NotFound,
 });
+
+/**
+ * 認不得的網址 → 聊天清單（Peter 2026-08-27：「跑過了 first run，則亂跑路由要回到 chat-list」）。
+ *
+ * 🔴 **`replace`**：不要在歷史裡留下那個不存在的網址，否則按上一頁又跳回來一次。
+ * ⚠️ 還沒設定過的人根本走不到這裡 —— 上面的 `beforeLoad` 已經先把他導去首次流程了。
+ * 兩條的先後順序是刻意的：**「還沒設定」比「網址打錯」重要**。
+ */
+function NotFound() {
+  return <Navigate to="/chat-list" replace />;
+}
 
 /**
  * 🔴 **tips 堆疊掛在這裡，全站只有一份**（Peter 2026-08-26 要求 tips 要能堆疊）。
@@ -18,6 +49,12 @@ function RootLayout() {
   return (
     <>
       <AppBackground />
+      {/*
+       * 🔴 **走區網連進來的警告掛在這裡，全站一份**（Peter 2026-08-27）。
+       * 掛在單一畫面的話，換頁就沒了 —— 而風險是整段使用期間都存在的。
+       * 本機打開時它完全不掛（判準見 `hostKind`），所以絕大多數人不會看到它。
+       */}
+      <LanWarning />
       <Outlet />
       <ToastStack />
     </>
