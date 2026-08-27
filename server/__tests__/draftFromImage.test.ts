@@ -8,8 +8,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
  *   ① **加入好友那一句 prompt 一字不變** —— 它是先來的呼叫端，
  *      這次為了 persona 動 `draftFromImage`，不可以順手改到它。
  *      所以下面把原句**寫死成黃金字串**：任何人動那句，這條就紅。
- *   ② **`kind` 省略 ＝ `'character'`** —— 前端舊版不送這個欄位，
- *      預設值就是它的護欄。改成 required 的話加入好友當場 400。
+ *   ② **`kind` 必填，沒有預設值** —— 不送就是 400，不會默默當成角色那一套。
+ *      Peter 2026-08-27 裁定不留相容層，所以兩個呼叫端都要明寫。
  *   ③ **persona 拿到第一人稱、而且沒有 `firstMessage`** ——
  *      persona 只有兩格，多生一則初始訊息回來也是丟掉，等於每次白花一段生成。
  *
@@ -107,11 +107,11 @@ describe('draftSpec —— 兩套規格本身', () => {
 });
 
 describe('draftFromImage —— 送出去的 body', () => {
-  it('🔴 不給 kind ＝ 加入好友那一版，prompt 與三個欄位都不變', async () => {
+  it('🔴 kind=character ＝ 加入好友那一版，prompt 與三個欄位都不變', async () => {
     vi.resetModules();
     const { draftFromImage } = await import('../adapters/gemini.ts');
     stubFetch({ name: 'A', description: 'B', firstMessage: 'C' });
-    const r = await draftFromImage('k', 'image/png', 'AAAA');
+    const r = await draftFromImage('k', 'image/png', 'AAAA', 'character');
     expect(r.ok).toBe(true);
     expect(sent!.prompt).toBe(CHARACTER_PROMPT);
     expect(sent!.schema.required).toEqual(['name', 'description', 'firstMessage']);
@@ -139,9 +139,29 @@ describe('draftFromImage —— 送出去的 body', () => {
 });
 
 describe('POST /api/characters/from-image', () => {
-  it('🔴 body 不帶 kind（前端舊版）照樣通，而且走 character 那一套', async () => {
+  it('🔴 不帶 kind 是 400 —— 不會默默當成 character', async () => {
     stubFetch({ name: 'A', description: 'B', firstMessage: 'C' });
     const res = await post({ dataUrl: PNG });
+    expect(res.status).toBe(400);
+    expect(sent).toBeNull();
+  });
+
+  /**
+   * 🔴 實機踩到的：只忘了 `kind`，訊息卻說「需要一張圖片」——
+   * 圖從頭到尾都沒問題，於是人會一直換圖。**錯的欄位要指對。**
+   */
+  it('少 kind 與少圖片，錯誤訊息要指到對的那一格', async () => {
+    stubFetch({ name: 'A', description: 'B', firstMessage: 'C' });
+    const noKind = (await (await post({ dataUrl: PNG })).json()) as { error: string };
+    expect(noKind.error).toContain('persona');
+    expect(noKind.error).not.toContain('圖片');
+    const noImage = (await (await post({ kind: 'persona' })).json()) as { error: string };
+    expect(noImage.error).toContain('圖片');
+  });
+
+  it('kind=character 走的還是原本那一套', async () => {
+    stubFetch({ name: 'A', description: 'B', firstMessage: 'C' });
+    const res = await post({ dataUrl: PNG, kind: 'character' });
     expect(res.status).toBe(200);
     expect(await res.json()).toEqual({ name: 'A', description: 'B', firstMessage: 'C' });
     expect(sent!.prompt).toBe(CHARACTER_PROMPT);

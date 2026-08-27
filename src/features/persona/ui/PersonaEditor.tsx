@@ -46,18 +46,16 @@ export function PersonaEditor({
    * 🔴 **與「加入好友」同一支端點、同一顆按鈕的措辭**（Peter 2026-08-27：「這邊也要有
    * 圖片自動生成文字」）。同一件事在兩個入口不可以長得不一樣，也不該各接一條路。
    *
-   * 🔴 **只取 `name` 與 `description`** —— 回來的 `firstMessage` 是「角色開口的第一句話」，
-   * persona 沒有那個欄位。丟掉它，不要硬塞進自我介紹。
-   *
-   * ⚠️ **已知的不對味**：後端那句 prompt 寫的是「看這張**角色**圖…描述寫外貌與性格」
-   * （`server/adapters/gemini.ts`），所以生出來的自我介紹會像第三人稱的角色簡介，
-   * 而這一格要的是「你是誰」。欄位可以直接改所以不擋人，但要真的對味
-   * 得請主執行線加一句 persona 版的 prompt（那支是他們的地盤）。
+   * 🔴 **端點共用，但規格不共用** —— 送 `kind: 'persona'` 拿到的是**第一人稱**的自我介紹
+   * （「我是一名在醫院工作的醫生…」），不是第三人稱的角色簡介。
+   * 兩套 prompt 與欄位在 `server/lib/draftSpec.ts`，實打 Gemini 驗過。
+   * 回來的物件**根本沒有 `firstMessage` 這一鍵**（persona 沒有那個欄位），
+   * 所以不必在這裡「記得丟掉」——型別就沒有它。
    * 🔴 失敗走 tips 不佔版面 —— 下一步是「換一張圖再按一次」，橫幅擋在中間反而礙事。
    */
   const gen = useMutation({
     // 🔴 **先轉成 data URL** —— 存著的頭像可能是一個路徑，直接送過去會被擋。
-    mutationFn: async (src: string) => draftFromImage(await toDataUrl(src)),
+    mutationFn: async (src: string) => draftFromImage(await toDataUrl(src), 'persona'),
     onError: (e: Error) => pushToast({ severity: 'warning', text: `生成失敗：${e.message}` }),
     onSuccess: (r) => onChange({ ...value, name: r.name, description: r.description }),
   });

@@ -78,10 +78,18 @@ export const characters = new Hono()
     const parsed = z
       .object({
         dataUrl: z.string().startsWith('data:image/'),
-        kind: z.enum(DRAFT_KINDS).default('character'),
+        kind: z.enum(DRAFT_KINDS),
       })
       .safeParse(await c.req.json());
-    if (!parsed.success) return c.json({ error: '需要一張圖片' }, 400);
+    // 🔴 兩個欄位錯法不同，訊息不可以共用一句 —— 實機踩到：只忘了 `kind`，
+    // 卻被告知「需要一張圖片」，於是人會一直換圖，而圖從頭到尾都沒問題。
+    if (!parsed.success) {
+      const bad = parsed.error.issues[0]?.path[0];
+      return c.json(
+        { error: bad === 'kind' ? "要指定生成哪一種：'character' 或 'persona'" : '需要一張圖片' },
+        400,
+      );
+    }
 
     const key = await getKey('google');
     if (!key) return c.json({ error: '尚未設定 Gemini 金鑰', action: 'setup-key' }, 400);

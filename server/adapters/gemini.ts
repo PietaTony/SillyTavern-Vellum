@@ -93,14 +93,14 @@ export type PersonaDraft = { name: string; description: string };
  *
  * 🔴 **兩個呼叫端，需求相反**：加入好友要第三人稱的角色簡介＋初始訊息，
  * 「你是誰」要第一人稱的自我介紹、而且沒有初始訊息。
- * 那兩套 prompt 與欄位在 `lib/draftSpec.ts`，**`kind` 省略時等於 `'character'`**
- * ——省略就是加入好友原本的行為，這條預設值是它的護欄。
+ * 那兩套 prompt 與欄位在 `lib/draftSpec.ts`。**`kind` 必填，刻意不給預設值** ——
+ * 有預設值的話，將來第三個入口會默默拿到角色那一套而且沒有人會發現。
  */
 export async function draftFromImage(
   key: string,
   mimeType: string,
   base64: string,
-  kind: DraftKind = 'character',
+  kind: DraftKind,
   model = DEFAULT_MODEL,
 ): Promise<{ ok: true; draft: CharacterDraft | PersonaDraft } | { ok: false; message: string }> {
   const spec = DRAFT_SPEC[kind];

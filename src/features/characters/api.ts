@@ -29,13 +29,29 @@ export const createCharacter = (c: NewCharacter): Promise<Character> =>
   post<Character>('/api/characters', c);
 
 /**
- * 🔴 **新功能，ST 沒有。** 把一張圖交給 Gemini，回名稱／描述／初始訊息。
+ * 🔴 **新功能，ST 沒有。** 把一張圖交給 Gemini，回一份草稿。
  * 實查依據：ST 只有 Image Captioning extension（把圖轉描述插入對話，不碰角色欄位）；
  * `generateCharacter`／`createCharacterFrom` 在 `public/scripts/` 202 個檔裡零命中。
+ *
+ * 🔴 **`kind` 必填，刻意不給預設值。** 兩個入口要的東西相反 ——
+ * `'character'` 要**第三人稱**的角色簡介＋初始訊息（那是「對方」），
+ * `'persona'` 要**第一人稱**的自我介紹、而且沒有初始訊息（那是「我方」）。
+ * 有預設值的話，將來第三個入口會**默默拿到角色那一套**；必填等於逼呼叫端表態。
+ * 兩套 prompt 與欄位的正本在 `server/lib/draftSpec.ts`。
+ *
+ * ⚠️ 回傳型別跟著 `kind` 走 —— persona 那邊拿到的物件**根本沒有 `firstMessage` 這一鍵**，
+ * 想用會被 tsc 擋下來，不必靠人記得「那一欄要丟掉」。
  */
-export type ImageDraft = { name: string; description: string; firstMessage: string };
-export const draftFromImage = (dataUrl: string): Promise<ImageDraft> =>
-  post<ImageDraft>('/api/characters/from-image', { dataUrl });
+export type ImageDraftOf = {
+  character: { name: string; description: string; firstMessage: string };
+  persona: { name: string; description: string };
+};
+export type ImageDraftKind = keyof ImageDraftOf;
+export const draftFromImage = <K extends ImageDraftKind>(
+  dataUrl: string,
+  kind: K,
+): Promise<ImageDraftOf[K]> =>
+  post<ImageDraftOf[K]>('/api/characters/from-image', { dataUrl, kind });
 
 /** 顯示用的名字。🔴 **每個要顯示名字的地方都走這支**，不要各自寫 `c.name`。 */
 export const nameOf = (c: { name: string; displayName?: string }): string =>
