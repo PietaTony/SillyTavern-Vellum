@@ -36,10 +36,14 @@ export const VENDOR_HOSTS = [...new Set(VENDOR.map((u) => new URL(u).host))];
  * ⚠️ **不要在這裡放產品邏輯。** 這一段是「橋」：把 API 名字擺到 iframe 的全域範圍，
  * 每一支都轉成一則 `postMessage` 丟給主頁去做。真正的實作在主頁的 `bridge.ts`。
  */
+import { GLOBALS_SHIM } from './globalsShim';
+import { LOG_SHIM } from './logShim';
 import { VARS_SHIM } from './vars';
 
 export const PREAMBLE = /* js */ `
 (function () {
+  /* 🔴 **最先裝**：後面每一段自己的警告也要轉得出去（理由見 logShim.ts）。 */
+  ${LOG_SHIM}
   var pending = {}, seq = 0;
   addEventListener('message', function (e) {
     var d = e.data;
@@ -113,25 +117,7 @@ export const PREAMBLE = /* js */ `
     },
   });
 
-  /* 腳本之間互相等待用的登記處。沙箱下各 iframe 獨立，登記在自己身上就好。 */
-  var globals = {};
-  window.initializeGlobal = function (name, value) { globals[name] = value; window[name] = value; };
-  window.waitGlobalInitialized = function (name) {
-    return new Promise(function (resolve) {
-      var tick = function () {
-        var v = globals[name] !== undefined ? globals[name] : window[name];
-        if (v !== undefined) { resolve(v); return; }
-        setTimeout(tick, 50);
-      };
-      tick();
-    });
-  };
-  /* 卡片常把整段包在 errorCatched 裡；沒有它就整支不跑。 */
-  window.errorCatched = function (fn) {
-    return function () {
-      try { return fn.apply(this, arguments); } catch (e) { console.error('[卡片腳本]', e); }
-    };
-  };
+  ${GLOBALS_SHIM}
   /* 🔴 **卡片的提示不自己畫，轉給主頁**（理由與判準在 cardToast.ts 的檔頭）。 */
   var T = { options: {}, clear: function () {}, remove: function () {} };
   ['success', 'info', 'warning', 'error'].forEach(function (k) {
@@ -141,7 +127,5 @@ export const PREAMBLE = /* js */ `
     };
   });
   window.toastr = T;
-  window.getScriptId = function () { return window.name || 'vellum-script'; };
-  window.SillyTavern = { getContext: function () { return {}; } };
 })();
 `;

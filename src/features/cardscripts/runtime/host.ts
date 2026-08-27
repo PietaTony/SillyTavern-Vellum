@@ -1,3 +1,4 @@
+import { showCardLog } from './cardLog';
 import { markInteracted, showCardToast } from './cardToast';
 
 /**
@@ -63,7 +64,13 @@ function cloneable(v: unknown): unknown {
   }
 }
 
-type Call = { __vellumCall?: unknown; args?: unknown; id?: unknown; __vellumToast?: unknown };
+type Call = {
+  __vellumCall?: unknown;
+  args?: unknown;
+  id?: unknown;
+  __vellumToast?: unknown;
+  __vellumLog?: unknown;
+};
 
 async function serve(
   src: Window,
@@ -113,6 +120,10 @@ export function installBridgeHost(api: Record<string, unknown>): () => void {
     const events = src ? frames.get(src) : undefined;
     // 不是我們開的 frame ⇒ 不執行、也不回應（回應本身就是一種存在證明）。
     if (!src || !events) return;
+    if (d.__vellumLog !== null && typeof d.__vellumLog === 'object') {
+      showCardLog(d.__vellumLog as Record<string, unknown>);
+      return;
+    }
     if (d.__vellumToast !== null && typeof d.__vellumToast === 'object') {
       showCardToast(d.__vellumToast as Record<string, unknown>);
       return;

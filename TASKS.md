@@ -103,10 +103,22 @@ Node 遇到 unhandled rejection 預設**直接終止行程**。要不要補是�
 - [ ] 桌寵點擊的動畫範圍 ── Peter 回報，我點了多次沒能重現，**等截圖**
 - [ ] 桌寵**尺寸**仍會重置 ── 卡片存在 iframe 的 localStorage，而我們的沙箱是 opaque
       origin ⇒ 那支 API 用不了。要嘛卡片改存變數，要嘛我們補一層 shim
-- [ ] 親密值有沒有真的開始更新 ── 事件確定發出去了（測試守著），但要跑完一整輪
-      生成、而且知道正確數值才驗得了
+- [x] 親密值有沒有真的開始更新 ── **沒有，而且從來沒有過**。把 iframe 的 console 轉發
+      出來之後當場看到：MVU 一載入就炸
+      `ReferenceError: Vue is not defined`（MagVarUpdate/artifact/bundle.js）
+      `ReferenceError: z is not defined`（tavern_resource/dist/util/mvu_zod.js）
+      ⇒ MVU 從來沒初始化 ⇒ 卡片的 `await waitGlobalInitialized('Mvu')` 永遠等不到
+      ⇒ 狀態欄不更新、`Mvu.events.VARIABLE_UPDATE_ENDED` 也從來沒訂到。
+      🔴 我們的 `VENDOR` 只給 lodash／jquery／js-yaml，**沒有 Vue 也沒有 zod**
+      （酒館助手是自己 bundle 這兩個給 iframe 用的）。**要不要補是 Peter 的決定**：
+      補＝多兩條外連、同意視窗的網域清單會變長。
 
 ## 交給主執行線的（已寫成 prompt 交付）
+- 🔴 **一則訊息要有兩個版本**（原文給卡片與 prompt、顯示版給畫面）。
+  現在 `GET /api/chats/:id` 只回顯示版，而 `<UpdateVariable>` 正是被顯示規則拿掉的那塊
+  ⇒ **重整之後卡片再也讀不到變數更新**。⚠️ `generate.ts` 的 `done` 送原文是目前唯一的窗口，
+  **不要單獨修它**。建議加 `raw` 欄位不改既有語意。規格在
+  `scratchpad/prompt-message-two-versions.md`。
 - 🔴 **切開場永遠不會重算世界書**（Peter 2026-08-27 回報，已實測證明）。
   `server/routes/chats.ts` swipe 路由同一行上有**兩個獨立的 bug**：
   ① `ch.greetings[idx] === target` 是「生的」比「剝過的」—— 建立對話時存的是

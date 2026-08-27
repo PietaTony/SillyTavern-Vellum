@@ -1,5 +1,5 @@
 import Box from '@mui/material/Box';
-import { useEffect, useRef } from 'react';
+import { useCallback, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { registerFrame } from '../runtime/host';
 import type { CardVarScopes } from '../runtime/scopes';
@@ -54,8 +54,16 @@ export function ScriptFrame({
   /**
    * 🔴 **向 host 登記自己。** 沙箱是 opaque origin ⇒ 主頁那端無法用 `e.origin` 分辨來源，
    * 只能比對 `contentWindow` 的物件 identity。沒登記 ＝ 這個 frame 講的話全部被忽略。
+   *
+   * 🔴 **用 callback ref 不用 `useEffect`**：effect 跑得比 iframe 開始載入還晚 ⇒ 前導程式
+   * 最前面那幾行講的話會被丟掉，而**最早的那幾句正是最有價值的**（一載入就炸的例外）。
+   * ⚠️ 回傳值是 React 19 的卸載清理函式，別改成箭頭簡寫。
    */
-  useEffect(() => registerFrame(ref.current?.contentWindow), []);
+  const attach = useCallback((el: HTMLIFrameElement | null) => {
+    ref.current = el;
+    if (!el) return;
+    return registerFrame(el.contentWindow);
+  }, []);
 
   useEffect(() => {
     if (mode === 'hidden') return;
@@ -128,7 +136,7 @@ export function ScriptFrame({
   const frame = (
     <Box
       component="iframe"
-      ref={ref}
+      ref={attach}
       name={name}
       title={name}
       sandbox="allow-scripts"
