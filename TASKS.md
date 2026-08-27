@@ -52,6 +52,9 @@
 - [ ] 角色設定（CharacterLayer）── 點頭像
 - [ ] └ 世界書（WorldSection）── 層中層
 - [ ] &nbsp;&nbsp;└ 單一條目（WorldEntryLayer）── 層中層中層
+- [ ] 長按訊息的動作選單 ── 觸控按住 500ms／桌機右鍵，四項
+- [ ] 就地編輯訊息 ── 從上面那個選單進去（🔴 儲存要等後端端點）
+- [ ] 刪除／重新生成的確認框 ── 兩個都不可逆
 - [ ] 切換開場／切換候選（SwipePicker）── 點 swipe 的計數器
 - [ ] 卡片程式同意（ConsentDialog）
 - [ ] 生成失敗橫幅 ── 送訊息但沒金鑰時
@@ -65,6 +68,14 @@
 - [ ] 區網連線警告（LanWarning）── 用 `192.168.x.x` 開才會出現
 
 ## 已知未做 / 未驗
+- [ ] **長按選單的「編輯／刪除／重新生成」按下去會 404** ── 後端還沒有那兩支端點
+      （規格已寫成 prompt 交付，見下）。前端會跳一則說明原因的 tips，不是靜默失敗。
+- [ ] **「複製文字」沒在實機驗到** ── 自動化開的是背景分頁，Chrome 的
+      `navigator.clipboard.writeText` 在 `visibilityState === 'hidden'` 時
+      **promise 不會 settle**（實測 1.2s 仍 pending）⇒ 連 tips 都不會跳。
+      前景分頁應該正常，但要你手點一次確認。
+      ⚠️ 順帶一提 `src/shared/lib/copyText.ts`（UI 線不能改）沒有 timeout，
+      那條路一旦卡住就是「按了、什麼都沒發生」——要不要補 timeout 由你決定。
 - [ ] `/settings` 的「外觀」── 標著「還沒做」
 - [ ] persona 圖生文的 prompt 不對味 ── 等主執行線加 persona 版 prompt（prompt 已交付）
 - [ ] 桌寵點擊的動畫範圍 ── Peter 回報，我點了多次沒能重現，**等截圖**
@@ -74,6 +85,16 @@
       生成、而且知道正確數值才驗得了
 
 ## 交給主執行線的（已寫成 prompt 交付）
+- 🔴 **對話訊息的「改內容」與「刪除」兩支端點**（長按選單缺的就是這個）：
+  · `PATCH  /api/chats/:id/messages/:messageId`  body `{ text }`
+    —— **有候選的訊息要一併寫回 `swipes[swipeIndex]`**，只改 `text` 的話
+    切走再切回來就被蓋掉，看起來像「存了又自己變回去」。
+  · `DELETE /api/chats/:id/messages/:messageId[?cascade=1]`
+    —— `cascade=1` ＝ 連同之後的一起刪，「從這則重新生成」用它。
+  完整規格（含回應形狀與第一則開場白的邊界）在
+  `scratchpad/prompt-message-endpoints.md`。
+  🔴 端點到位後，UI 線要把 `src/app/screens/messageActions.ts` 的三支 `fetch`
+  搬進 `features/chat/api.ts`，並拿掉那段 404 特判。
 - `server/adapters/gemini.ts:107` 的 from-image prompt 只寫給角色用，persona 那邊
   生出來是第三人稱簡介。建議加 `kind: 'character' | 'persona'`，省略時等於 character。
   🔴 若改了 request 形狀，UI 線這邊 `characters/api.ts` 與兩個呼叫端要跟著改。

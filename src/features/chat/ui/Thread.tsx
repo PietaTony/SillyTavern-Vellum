@@ -1,11 +1,12 @@
 import Box from '@mui/material/Box';
 import Stack from '@mui/material/Stack';
 import type { Message } from '../model';
+import type { MessageActions } from '../useRowActions';
 import { useStickToBottom } from '../useStickToBottom';
 import { useSwipeKeys } from '../useSwipeKeys';
 import { type FrontendRenderer, MessageContent } from './MessageContent';
+import { MessageRow } from './MessageRow';
 import { ScrollToLatest } from './ScrollToLatest';
-import { SwipeBar } from './SwipeBar';
 import { ThemRow } from './ThemRow';
 import { StreamCaret, Typing } from './Typing';
 
@@ -13,21 +14,15 @@ import { StreamCaret, Typing } from './Typing';
  * 對話串。兩種形狀來自設計正本 `Foundations.dc.html` 的 Semantic 層：
  *   我的訊息 → `--bubble-me-line`：**D31 選 A3，描邊不是實底**，圓角 14
  *   他的回覆 → `--block-them-rule`：**沒有圓角、沒有容器**，只有一條左豎線
- * 🔴 上一版兩邊都做成實底氣泡，那是 Material 的預設長相，不是這個產品的。
+ * 兩個外框各自住 `MeRow`／`ThemRow`，一則訊息的完整長相在 `MessageRow`。
  *
  * 字型分工（乙案）：**內容襯線，介面無襯線**。這一區是「書」，所以走 SERIF。
  * 🔴 頭像用 `characterId` 現取，不把圖複製一份進對話。
+ *
+ * 🔴 **這一層不持有任何「某一則訊息」的狀態**：長按選單、編輯框、確認框都在
+ * `MessageRow` 裡各自一份。放這裡的話一個 state 會被 N 則共用 ——
+ * 按 A 開的選單會錨在 B 身上。
  */
-function Content({ text, frontend }: { text: string; frontend?: FrontendRenderer | undefined }) {
-  /**
-   * 🔴 **M13 第一期：從「純文字」改成「markdown ＋ 淨化後的 HTML」。**
-   * 在此之前這裡是 `whiteSpace: pre-wrap` 的純文字，而且後端還先把 HTML 壓平
-   * ⇒ 卡片的狀態欄、表格、粗體、程式碼區塊全部變成一整片沒有結構的字。
-   * 淨化在 `render/html.ts`，那是唯一一處 `dangerouslySetInnerHTML`。
-   */
-  return <MessageContent text={text} frontend={frontend} />;
-}
-
 export function Thread({
   messages,
   streaming,
@@ -37,6 +32,7 @@ export function Thread({
   frontend,
   onSwipe,
   onAvatarClick,
+  actions,
   thinking = false,
 }: {
   messages: Message[];
@@ -53,6 +49,8 @@ export function Thread({
   onSwipe?: ((messageId: string, index: number) => void) | undefined;
   /** 沒給就不綁 —— 一顆點了沒反應的頭像比不能點更糟。 */
   onAvatarClick?: (() => void) | undefined;
+  /** 長按一則訊息能做的四件事。沒給就不掛長按（見 `MessageRow`）。 */
+  actions?: MessageActions | undefined;
   /**
    * 模型正在思考、但一個字都還沒吐（推理模型會先想十幾秒）。
    * 🔴 只影響那一列等待指示的**措辭**，不影響版面（見 `Typing`）。
@@ -78,33 +76,11 @@ export function Thread({
     <ThemRow key="streaming" avatar={avatar} name={name}>
       {streaming ? (
         <>
-          <Content text={streaming} frontend={frontend} />
+          <MessageContent text={streaming} frontend={frontend} />
           <StreamCaret />
         </>
       ) : (
         <Typing name={name} thinking={thinking} />
-      )}
-    </ThemRow>
-  );
-
-  const theirs = (key: string, text: string, message?: Message) => (
-    <ThemRow key={key} avatar={avatar} name={name} onAvatarClick={onAvatarClick}>
-      {/*
-       * 🔴 **`SwipeBar` 是把內容「包起來」，不是掛在下面。**
-       * 上下各一條置中（Peter 2026-08-27）—— 開場白那種一整頁的訊息，
-       * 只有下面一條時要一路捲到底才切得動。
-       */}
-      {message && onSwipe ? (
-        <SwipeBar
-          message={message}
-          characterId={characterId}
-          isGreeting={message.id === firstId}
-          onSwipe={onSwipe}
-        >
-          <Content text={text} frontend={frontend} />
-        </SwipeBar>
-      ) : (
-        <Content text={text} frontend={frontend} />
       )}
     </ThemRow>
   );
@@ -118,26 +94,20 @@ export function Thread({
         sx={{ height: '100%', overflowY: 'auto', p: 2 }}
       >
         <Stack spacing={2.5}>
-          {messages.map((m) =>
-            m.role === 'user' ? (
-              <Box key={m.id} sx={{ display: 'flex', justifyContent: 'flex-end' }}>
-                <Box
-                  sx={{
-                    maxWidth: '78%',
-                    px: 1.5,
-                    py: 1,
-                    border: 1,
-                    borderColor: 'vellum.bubbleMeLine',
-                    borderRadius: (t) => `${t.palette.vellum.radiusBubble}px`,
-                  }}
-                >
-                  <Content text={m.text} frontend={frontend} />
-                </Box>
-              </Box>
-            ) : (
-              theirs(m.id, m.text, m)
-            ),
-          )}
+          {messages.map((m) => (
+            <MessageRow
+              key={m.id}
+              message={m}
+              isGreeting={m.id === firstId}
+              avatar={avatar}
+              name={name}
+              characterId={characterId}
+              frontend={frontend}
+              onSwipe={onSwipe}
+              onAvatarClick={onAvatarClick}
+              actions={actions}
+            />
+          ))}
           {streaming !== null ? waiting : null}
         </Stack>
       </Box>
