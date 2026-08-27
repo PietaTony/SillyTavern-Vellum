@@ -78,7 +78,17 @@ export function buildBridge(deps: BridgeDeps): Record<string, unknown> {
       return all;
     },
     getLastMessageId: () => Math.max(0, deps.messages().length - 1),
-    getCurrentMessageId: () => Math.max(0, deps.messages().length - 1),
+    /**
+     * 🔴 **「呼叫它的那一則」，不是「最後一則」**（GAP-121）。兩支回同一個值的話，
+     * 舊訊息裡的卡片區塊會印成最新那一則的號碼（標的卡拿它算樓層號 `page.NNN`）。
+     * ⚠️ `owner` 由 `host.ts` 代填 —— **只有那一層知道是哪個 frame 在問**。
+     * 🔴 找不到就退回最後一則，不丟例外：卡片拿它算頁碼，炸掉整張卡就不見了。
+     */
+    getCurrentMessageId: (owner?: unknown) => {
+      const list = deps.messages();
+      const i = typeof owner === 'string' && owner ? list.findIndex((m) => m.id === owner) : -1;
+      return i >= 0 ? i : Math.max(0, list.length - 1);
+    },
     /**
      * ⚠️ 這兩支**幾乎不會被呼叫**：iframe 那端已經用同步快取蓋掉了（`runtime/vars.ts`）。
      * 留著是為了「萬一有卡片走 TavernHelper.getVariables()」時不會掉進「沒實作」那條。
@@ -94,10 +104,7 @@ export function buildBridge(deps: BridgeDeps): Record<string, unknown> {
         ? deps.saveVariables(patch as Record<string, unknown>, scopeOf(opts))
         : undefined;
     },
-    /**
-     * 🔴 **整包覆寫**（GAP-123）。與 `setVariables` 分成兩支而不是加一個旗標：
-     * 「刪得掉」與「刪不掉」是兩種語意，混在一支裡遲早有人送錯而且沒人發現。
-     */
+    /** 🔴 **整包覆寫**（GAP-123）。與 `setVariables` 分兩支：「刪得掉」與「刪不掉」是兩種語意。 */
     replaceVariables(next: unknown, opts?: unknown) {
       return next !== null && typeof next === 'object'
         ? deps.saveVariables(next as Record<string, unknown>, scopeOf(opts), 'replace')

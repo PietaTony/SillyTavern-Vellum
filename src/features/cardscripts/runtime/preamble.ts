@@ -54,7 +54,8 @@ export const PREAMBLE = /* js */ `
     var id = ++seq;
     return new Promise(function (resolve, reject) {
       pending[id] = { resolve: resolve, reject: reject };
-      parent.postMessage({ __vellumCall: fn, args: args, id: id, frame: window.name }, '*');
+      /* owner ＝ 這個 frame 屬於哪一則訊息（GAP-121）。name 裡沒有訊息 id。 */
+      parent.postMessage({ __vellumCall: fn, args: args, id: id, frame: window.name, owner: window.__vellumOwner }, '*');
     });
   }
 

@@ -31,6 +31,7 @@ import { buildSrcDoc, type FrameMode, wrap } from '../runtime/srcdoc';
 export function ScriptFrame({
   code,
   name,
+  owner,
   allow,
   mode = 'hidden',
   preWrapped = false,
@@ -38,6 +39,7 @@ export function ScriptFrame({
 }: {
   code: string;
   name: string;
+  /** 屬於哪一則訊息（GAP-121）。overlay 無歸屬 ⇒ 省略。 */ owner?: string | undefined;
   /** 🔴 使用者同意過的外連網域。空陣列 ＝ 完全斷網（連我們的 vendor 都不給）。 */
   allow: string[];
   mode?: FrameMode;
@@ -89,7 +91,14 @@ export function ScriptFrame({
     return () => window.removeEventListener('message', onMsg);
   }, [name, mode]);
 
-  const srcDoc = buildSrcDoc({ body: preWrapped ? code : wrap(code), name, mode, allow, vars });
+  const srcDoc = buildSrcDoc({
+    body: preWrapped ? code : wrap(code),
+    name,
+    mode,
+    allow,
+    vars,
+    owner,
+  });
 
   const sx = {
     hidden: { display: 'none', width: 0, height: 0, border: 0 },

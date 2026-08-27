@@ -63,7 +63,21 @@ function cloneable(v: unknown): unknown {
   }
 }
 
-type Call = { __vellumCall?: unknown; args?: unknown; id?: unknown; __vellumToast?: unknown };
+type Call = {
+  __vellumCall?: unknown;
+  args?: unknown;
+  id?: unknown;
+  __vellumToast?: unknown;
+  /** 這個 frame 屬於哪一則訊息（GAP-121）。preamble 每次呼叫都帶。 */
+  owner?: unknown;
+};
+
+/**
+ * 🔴 **這幾支要知道「是誰在問」**，而 bridge 收到的參數裡沒有 frame ——
+ * 只有這一層知道。⇒ 由 host 把 frame 的歸屬（`owner`）代入第一個參數。
+ * ⚠️ 卡片自己是不帶參數呼叫的，所以**一律覆蓋**，不是「沒給才補」。
+ */
+const OWNER_AWARE = new Set(['getCurrentMessageId']);
 
 async function serve(
   src: Window,
@@ -72,6 +86,7 @@ async function serve(
   args: unknown[],
   events: Set<string>,
   api: Record<string, unknown>,
+  owner: string,
 ): Promise<void> {
   const send = (body: { result?: unknown; error?: string }) => {
     try {
@@ -98,7 +113,8 @@ async function serve(
     return;
   }
   try {
-    send({ result: cloneable(await (impl as (...a: unknown[]) => unknown)(...args)) });
+    const real = OWNER_AWARE.has(fn) ? [owner] : args;
+    send({ result: cloneable(await (impl as (...a: unknown[]) => unknown)(...real)) });
   } catch (e) {
     send({ error: e instanceof Error ? e.message : String(e) });
   }
@@ -118,7 +134,8 @@ export function installBridgeHost(api: Record<string, unknown>): () => void {
       return;
     }
     if (typeof d.__vellumCall !== 'string' || typeof d.id !== 'number') return;
-    void serve(src, d.id, d.__vellumCall, Array.isArray(d.args) ? d.args : [], events, api);
+    const owner = typeof d.owner === 'string' ? d.owner : '';
+    void serve(src, d.id, d.__vellumCall, Array.isArray(d.args) ? d.args : [], events, api, owner);
   };
   window.addEventListener('message', onMessage);
   // 🔴 「使用者動過沒有」——卡片載入時的自我介紹靠它擋掉（理由見 `cardToast.ts`）。
