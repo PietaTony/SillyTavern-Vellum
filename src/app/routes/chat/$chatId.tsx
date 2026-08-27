@@ -8,7 +8,7 @@ import { ChatMenu } from '@/app/screens/ChatMenu';
 import { ChatLoading, ChatUnavailable } from '@/app/screens/ChatUnavailable';
 import { useBack } from '@/app/screens/useBack';
 import { useChatBackgroundOverride } from '@/app/screens/useChatBackgroundOverride';
-import { ConsentDialog, useCardScripts, useCardVars } from '@/features/cardscripts';
+import { ConsentDialog, useCardEvents, useCardScripts, useCardVars } from '@/features/cardscripts';
 import { CharacterLayer, fetchCharacter } from '@/features/characters';
 import {
   Composer,
@@ -46,6 +46,8 @@ function ChatPage() {
 
   const swipe = useSwipeMessage(chatId, () => q.refetch(), reset);
 
+  useCardEvents(chatId, messages); // 發事件給卡片腳本；判準與時機在 `useCardEvents`
+
   // 卡片變數的四種範圍 —— 種什麼進去、寫到哪裡（見 `useCardVars`）。
   const vars = useCardVars({ chatId, characterId: q.data?.characterId ?? '' });
 
@@ -60,8 +62,7 @@ function ChatPage() {
     // 重讀會讓 srcdoc 變、iframe 整個重生，桌寵每存一次就閃一次。
     // 範圍決定存到哪一支端點，理由見 `useCardVars`。
     saveVariables: vars.saveVariables,
-    // 🔴 **對話還沒讀回來要給 `undefined`，不能給空物件**：種子只認第一份，
-    //    給了空的就永遠種不進真的變數（桌寵 x／y 就在裡面）。理由詳見 `useCardVars`。
+    // 🔴 對話還沒讀回來要給 `undefined` 不能給空物件（種子只認第一份）—— 見 `useCardVars`。
     initialVars: q.data ? vars.chatVarsOf(q.data.variables) : undefined,
   });
 

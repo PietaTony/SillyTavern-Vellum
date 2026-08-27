@@ -13,5 +13,6 @@ export { emitToCards } from './runtime/host';
 export { CARD_VAR_SCOPES, type CardVarScope, type CardVarScopes, scopeOf } from './runtime/scopes';
 export { ConsentDialog } from './ui/ConsentDialog';
 export { ScriptFrame } from './ui/ScriptFrame';
+export { useCardEvents } from './useCardEvents';
 export { type CardScriptsView, useCardScripts } from './useCardScripts';
 export { useCardVars } from './useCardVars';
