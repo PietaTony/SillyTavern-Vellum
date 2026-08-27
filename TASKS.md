@@ -66,6 +66,28 @@
 
 ## 已知未做 / 未驗
 - [ ] `/settings` 的「外觀」── 標著「還沒做」
-- [ ] 對話串**不會自動捲到底** ── 送出訊息後看不到生成中那一列
-- [ ] persona 圖生文的 prompt 不對味 ── 等主執行線加 persona 版 prompt
-- [ ] 桌寵點擊的動畫範圍 ── Peter 回報，我沒能重現，等截圖
+- [ ] persona 圖生文的 prompt 不對味 ── 等主執行線加 persona 版 prompt（prompt 已交付）
+- [ ] 桌寵點擊的動畫範圍 ── Peter 回報，我點了多次沒能重現，**等截圖**
+- [ ] 桌寵**尺寸**仍會重置 ── 卡片存在 iframe 的 localStorage，而我們的沙箱是 opaque
+      origin ⇒ 那支 API 用不了。要嘛卡片改存變數，要嘛我們補一層 shim
+- [ ] 親密值有沒有真的開始更新 ── 事件確定發出去了（測試守著），但要跑完一整輪
+      生成、而且知道正確數值才驗得了
+
+## 交給主執行線的（已寫成 prompt 交付）
+- `server/adapters/gemini.ts:107` 的 from-image prompt 只寫給角色用，persona 那邊
+  生出來是第三人稱簡介。建議加 `kind: 'character' | 'persona'`，省略時等於 character。
+  🔴 若改了 request 形狀，UI 線這邊 `characters/api.ts` 與兩個呼叫端要跟著改。
+- `hostKind()`（`features/network/hostKind.ts`）與 `server/adapters/network.ts` 的
+  `isTailscale()` 是同一條 CGNAT `100.64.0.0/10` 的兩份實作 —— 改判準時兩邊一起改。
+
+## 這一輪修掉的（PR #3 已合、#4 待審）
+PR #3（八項，已合進 staging）：錯誤橫幅吐 JSON／模型下拉變輸入框／first-run 必經
+＋亂打網址回 chat-list／Tailscale 兩邊警告／「下一步」回歸／persona 圖生文／
+生成中 loading ＋接上被丟掉的 `thinking`／背景即時預覽。
+
+PR #4（三項，待審）：輸入框當場清空＋LINE 式黏底與「回到最新」／桌寵位置不再重置／
+卡片腳本終於收得到事件（`emitToCards` 原本有零個呼叫端）。
+
+🔴 **這一輪的共同形狀是「引擎接好了、沒有門」**，一共三個：
+被丟掉的 `thinking` 事件、沒人讀的 `manual` 旗標、零呼叫端的 `emitToCards`。
+下次看到「某某功能沒反應」，先查那條路徑的**最後一哩有沒有人接**。
