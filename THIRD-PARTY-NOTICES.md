@@ -2821,7 +2821,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 ```
 
-## js-yaml 4.1.0
+## js-yaml 4.3.1
 
 **MIT**　·　https://github.com/nodeca/js-yaml#readme
 
@@ -2849,7 +2849,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 ```
 
-## js-yaml（內嵌於 vendor/js-yaml.min.js） 4.1.0
+## js-yaml（內嵌於 vendor/js-yaml.min.js） 4.3.1
 
 **MIT**
 
@@ -3131,7 +3131,7 @@ licenses; we recommend you read them, as their terms may differ from the
 terms above.
 ```
 
-## lodash（內嵌於 vendor/lodash.min.js） 4.17.21
+## lodash（內嵌於 vendor/lodash.min.js） 4.18.1
 
 **MIT**　·　https://lodash.com/
 
