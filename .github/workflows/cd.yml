@@ -287,13 +287,16 @@ jobs:
           if grep -q '這一版還在準備中' "$NOTES"; then
             echo "::error::$NOTES 還是樣板內容，發版說明沒寫"; exit 1
           fi
+          # 下載表格裡寫的是 `Vellum Setup <版本>.exe`，但使用者眼前的檔名是
+          # `Vellum.Setup.0.2.7.exe` —— 讓他自己把佔位符換算成版號是我們偷懶。
           {
-            cat RELEASE-NOTES/_download-table.md
+            sed 's/<版本>/${{ needs.version.outputs.version }}/g' RELEASE-NOTES/_download-table.md
             echo
             echo '---'
             echo
             cat "$NOTES"
           } > release-body.md
+          grep -q '<版本>' release-body.md && { echo "::error::還有沒被換掉的 <版本> 佔位符"; exit 1; } || true
           echo "--- 實際要發出去的 body ---"; cat release-body.md
 
       # 🔴 tag 由這一步當場建（`GITHUB_TOKEN` 推的 tag 不會觸發 workflow，
