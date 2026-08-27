@@ -85,16 +85,24 @@ export function Thread({
       >
         {name.slice(0, 1)}
       </Avatar>
+      {/*
+       * 🔴 **`SwipeBar` 是把內容「包起來」，不是掛在下面。**
+       * 上下各一條置中（Peter 2026-08-27）—— 開場白那種一整頁的訊息，
+       * 只有下面一條時要一路捲到底才切得動。
+       */}
       <Box sx={{ borderLeft: 2, borderColor: 'vellum.blockThemRule', pl: 1.5, flex: 1 }}>
-        <Content text={text} frontend={frontend} />
         {message && onSwipe ? (
           <SwipeBar
             message={message}
             characterId={characterId}
             isGreeting={message.id === firstId}
             onSwipe={onSwipe}
-          />
-        ) : null}
+          >
+            <Content text={text} frontend={frontend} />
+          </SwipeBar>
+        ) : (
+          <Content text={text} frontend={frontend} />
+        )}
       </Box>
     </Stack>
   );

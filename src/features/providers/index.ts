@@ -8,13 +8,9 @@
  */
 export { fetchKeyStatus } from './api';
 export { failureToast } from './failureToast';
-export { PROVIDERS, providerById } from './model';
 export { byUsefulness } from './popularity';
 export { fetchProviderRows, STATUS_COPY, setActiveProvider } from './registryApi';
-export { useProviderChoice } from './store';
 export { verifyProvider } from './switchActive';
-export { KeyGate } from './ui/KeyGate';
-export { ProviderCard } from './ui/ProviderCard';
 export {
   ProviderDetailPane,
   ProviderStatusChip,
