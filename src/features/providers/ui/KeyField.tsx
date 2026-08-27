@@ -67,6 +67,15 @@ export function KeyField({
       void qc.invalidateQueries({ queryKey: ['providerRows'] });
       // 換了新金鑰 ⇒ 遮罩也要跟著換，不然畫面上還是舊那把的前四後四。
       void qc.invalidateQueries({ queryKey: ['keyPreview'] });
+      /*
+       * 🔴 **模型清單在「存下金鑰」的那一刻就過期了**（Peter 2026-08-27 實機踩到）。
+       * 沒金鑰時 `/models/:provider` 回的是 400「還沒設定 X 的金鑰。」，而那份
+       * `{ok:false}` 會留在 react-query 的 `['models', provider]` 快取裡
+       * —— 對話現在打哪一家由清單頁的 `InlineModelPicker` 先拉過一次，
+       * 所以連還沒設金鑰的預設那家都已經有一筆壞掉的快取。
+       * 不作廢的話：金鑰設好了，下面的模型下拉還停在「拉不到清單」那個狀態。
+       */
+      void qc.invalidateQueries({ queryKey: ['models', p.id] });
       // 存好了 ⇒ 回到「顯示伺服器那把的遮罩」，不要停在他剛打的那串。
       setDirty(false);
       setReal('');
