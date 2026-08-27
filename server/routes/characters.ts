@@ -7,6 +7,7 @@ import { BadCardUrl, fetchCardBytes } from '../adapters/fetchCard.ts';
 import { extractLoreTags, stripLoreTags, titleOfGreeting } from '../lib/loreTags.ts';
 import { getKey, redact } from '../services/secrets.ts';
 import { draftFromImage } from '../adapters/gemini.ts';
+import { DRAFT_KINDS } from '../lib/draftSpec.ts';
 import { altNumbering } from '../lib/greetings.ts';
 import { safeId } from '../lib/ids.ts';
 
@@ -65,11 +66,21 @@ export const characters = new Hono()
   })
 
   /**
-   * 🔴 **新功能，不是從 ST 搬來的。** 從一張圖產生角色的名稱／描述／初始訊息。
+   * 🔴 **新功能，不是從 ST 搬來的。** 從一張圖產生內容。
    * 圖片以 data URL 傳入 —— 前端已先縮到 256px，原圖不進這條路。
+   *
+   * 🔴 **兩個入口共用這一支**（加入好友／「你是誰」），靠 `kind` 分流；
+   * 兩套 prompt 與欄位在 `lib/draftSpec.ts`。
+   * ⚠️ **`kind` 可省略，省略＝ `'character'`** —— 加入好友是先來的那個呼叫端，
+   * 它不送這個欄位，行為必須一字不變。這條預設值就是它的護欄，不要改成 required。
    */
   .post('/from-image', async (c) => {
-    const parsed = z.object({ dataUrl: z.string().startsWith('data:image/') }).safeParse(await c.req.json());
+    const parsed = z
+      .object({
+        dataUrl: z.string().startsWith('data:image/'),
+        kind: z.enum(DRAFT_KINDS).default('character'),
+      })
+      .safeParse(await c.req.json());
     if (!parsed.success) return c.json({ error: '需要一張圖片' }, 400);
 
     const key = await getKey('google');
@@ -78,7 +89,7 @@ export const characters = new Hono()
     const m = /^data:(image\/[a-z+]+);base64,(.+)$/.exec(parsed.data.dataUrl);
     if (!m?.[1] || !m[2]) return c.json({ error: '圖片格式看不懂' }, 400);
 
-    const r = await draftFromImage(key, m[1], m[2]);
+    const r = await draftFromImage(key, m[1], m[2], parsed.data.kind);
     return r.ok ? c.json(r.draft) : c.json({ error: redact(r.message, [key]) }, 502);
   })
 

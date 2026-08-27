@@ -7,6 +7,8 @@
  *   ② `gemini-3.6-flash` 強制 thinking 且吃掉 maxOutputTokens；`thinkingBudget:0` 回 400
  *   ③ thought 只有 signature（~1.4KB base64），拿不到可顯示的文字（SPEC B3）
  */
+import { DRAFT_SPEC, responseSchemaFor, type DraftKind } from '../lib/draftSpec.ts';
+
 const BASE = 'https://generativelanguage.googleapis.com/v1beta';
 
 /** 首次啟動的預設。實測無 thinking ⇒ 使用者第一印象不賭 thinking 預算 */
@@ -77,6 +79,8 @@ export function parseChunk(chunk: GeminiChunk): { text: string; finishReason?: s
 }
 
 export type CharacterDraft = { name: string; description: string; firstMessage: string };
+/** persona 沒有 `firstMessage` ——「你是誰」那頁只有名稱與自我介紹兩格。 */
+export type PersonaDraft = { name: string; description: string };
 
 /**
  * 從一張圖產生角色設定。**多模態 ＋ 結構化輸出，兩者都已實打驗證**（2026-08-25）。
@@ -85,14 +89,21 @@ export type CharacterDraft = { name: string; description: string; firstMessage: 
  * 它把圖片轉成描述**插入對話**，不碰角色欄位；
  * `generateCharacter`／`createCharacterFrom` 在 `public/scripts/` 202 個檔裡零命中。
  *
- * `responseSchema` 讓模型只能回這三個欄位 —— 不必自己 parse 自由文字。
+ * `responseSchema` 讓模型只能回規格裡那幾個欄位 —— 不必自己 parse 自由文字。
+ *
+ * 🔴 **兩個呼叫端，需求相反**：加入好友要第三人稱的角色簡介＋初始訊息，
+ * 「你是誰」要第一人稱的自我介紹、而且沒有初始訊息。
+ * 那兩套 prompt 與欄位在 `lib/draftSpec.ts`，**`kind` 省略時等於 `'character'`**
+ * ——省略就是加入好友原本的行為，這條預設值是它的護欄。
  */
 export async function draftFromImage(
   key: string,
   mimeType: string,
   base64: string,
+  kind: DraftKind = 'character',
   model = DEFAULT_MODEL,
-): Promise<{ ok: true; draft: CharacterDraft } | { ok: false; message: string }> {
+): Promise<{ ok: true; draft: CharacterDraft | PersonaDraft } | { ok: false; message: string }> {
+  const spec = DRAFT_SPEC[kind];
   const res = await fetch(
     `${BASE}/models/${model}:generateContent?key=${encodeURIComponent(key)}`,
     {
@@ -104,22 +115,14 @@ export async function draftFromImage(
             role: 'user',
             parts: [
               { inline_data: { mime_type: mimeType, data: base64 } },
-              { text: '看這張角色圖，為一個角色扮演 app 產生角色設定。全部用繁體中文。描述寫外貌與性格，初始訊息寫他開口的第一句話。' },
+              { text: spec.prompt },
             ],
           },
         ],
         generationConfig: {
           maxOutputTokens: 4096,
           responseMimeType: 'application/json',
-          responseSchema: {
-            type: 'OBJECT',
-            properties: {
-              name: { type: 'STRING' },
-              description: { type: 'STRING' },
-              firstMessage: { type: 'STRING' },
-            },
-            required: ['name', 'description', 'firstMessage'],
-          },
+          responseSchema: responseSchemaFor(kind),
         },
       }),
     },
@@ -131,5 +134,5 @@ export async function draftFromImage(
   if (!res.ok) return { ok: false, message: body.error?.message ?? `HTTP ${res.status}` };
   const text = body.candidates?.[0]?.content?.parts?.[0]?.text;
   if (!text) return { ok: false, message: '模型沒有回傳內容' };
-  return { ok: true, draft: JSON.parse(text) as CharacterDraft };
+  return { ok: true, draft: JSON.parse(text) as CharacterDraft | PersonaDraft };
 }
