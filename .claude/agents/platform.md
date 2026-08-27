@@ -19,6 +19,8 @@ the user, starts, updates, and cannot be trivially broken into.
   🔴 Paths are relative to `src/app/routes/`. `index.tsx` means the app's own root index,
   not `worlds/index.tsx` (H3's) or `settings/providers/index.tsx` (H5's).
 - `src/app/screens/` — `AppBackground.tsx` `UpdateAvailablePanel.tsx` `UpdateCheckCard.tsx` `SettingsAboutScreen.tsx`
+  `appFailure.ts` `AppUnreachable.tsx` `ReportButton.tsx`
+- `src/app/report.ts`
 
 **Back end**
 - `server/routes/` — `update.ts` `network.ts` `backgrounds.ts` `chatBackground.ts`

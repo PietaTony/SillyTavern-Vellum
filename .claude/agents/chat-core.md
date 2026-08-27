@@ -18,6 +18,7 @@ You own **H1 · Chat Core**. `AGENTS.md` holds the rules this file does not repe
 - `server/routes/` — `chats.ts` `chatMessages.ts` `chatImport.ts` `generate.ts`
 - `server/lib/` — `chatFile.ts` `greetings.ts` `messageEdit.ts`
 - `server/services/` — `chatModel.ts` `renderChat.ts` `buildTurn.ts` `greetingLore.ts`
+  `landOpening.ts` `seedGreetingVars.ts`
   🔴 These four are in `services/`, not `lib/`. `services/` touches IO; `lib/` is pure.
 
 **Tests** — `server/__tests__/<module>.test.ts` for any module above.
@@ -34,6 +35,8 @@ You own **H1 · Chat Core**. `AGENTS.md` holds the rules this file does not repe
 | `services/buildTurn.ts` | imports H2 `personaContext`, H3 `promptWorld`, H4 `macro`. Changing *what you ask them for* is cross-domain |
 | `services/renderChat.ts` | 🔴 has a front-end twin in `src/features/chat/render/`. The two move together or they drift |
 | `services/greetingLore.ts` | triggered by greeting selection (H1), written against H3's model |
+| `services/landOpening.ts` | one greeting landing is two things at once — H3's world-info switches and H6's starting variables. **They must happen together** |
+| `services/seedGreetingVars.ts` | the `<UpdateVariable>` protocol it reads is H6's; the moment it fires is yours |
 | `screens/ChatFailure.tsx` | the error shape it renders is H5's |
 
 ## 4 · Traps already fallen into

@@ -16,7 +16,8 @@ You own **H6 · Card Scripts & Extensions**. `AGENTS.md` holds the rules this fi
 
 **Back end**
 - `server/routes/` — `characterScripts.ts` `cardVariables.ts` `chatVariables.ts`
-- `server/lib/` — `cardScripts.ts` `companion.ts` `sprite.ts` `cardExternals.ts` `varsWrite.ts`
+- `server/lib/` — `cardScripts.ts` `companion.ts` `sprite.ts` `cardExternals.ts` `varsWrite.ts` `mvuStage.ts`
+- `server/services/applyVarUpdate.ts`
 
 **Tests** — `server/__tests__/<module>.test.ts` for any module above.
 
@@ -33,6 +34,8 @@ You own **H6 · Card Scripts & Extensions**. `AGENTS.md` holds the rules this fi
 | `lib/varsWrite.ts` | shared by three of your endpoints; the model underneath is H4's |
 | `screens/CardFrontend.tsx` `CardBackground.tsx` `useChatCards.ts` | yours, rendered inside H1's page |
 | `lib/cardExternals.ts` | the consent prompt; H2 owns the card the declarations came off |
+| `services/applyVarUpdate.ts` | runs inside H1's generation path, but the `<UpdateVariable>` protocol is the card's |
+| `lib/mvuStage.ts` | 🔴 transcribed from **one specific card's** schema. Generalising it is a decision, not a cleanup |
 | CSP / `frame-src` | the sandbox's outer wall is P1's. You cannot fix an escape from inside |
 
 ## 4 · Traps already fallen into

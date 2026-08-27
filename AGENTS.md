@@ -13,7 +13,7 @@ file headers, which in this repo record *why* a thing exists.
 > **One file, one writer.**
 
 Ownership is declared **per path and per filename** in `.claude/agents/*.md`.
-Seven owners exist:
+Eleven owners exist — **seven that own existing code, four that are still empty**:
 
 | Agent | Domain |
 |---|---|
@@ -24,6 +24,19 @@ Seven owners exist:
 | `providers` | H5 — Anthropic / Gemini / the other vendors, keys, model checks |
 | `card-scripts` | H6 — card-embedded scripts, card & chat variables, sprites, companion |
 | `platform` | P1 — packaging, Electron, CI/CD, updates, backgrounds, network, gates |
+| `presets` | H7 — prompt presets: the stored preset, its prompt order, sampling parameters 🌱 |
+| `audio` | H8 — background music, ambient tracks, playlists, playback state 🌱 |
+| `extensions` | H9 — installing and managing third-party extensions 🌱 🔴 highest-risk layer |
+| `commands` | H10 — the slash-command parser, registry and dispatch pipeline 🌱 |
+
+🌱 **These four layers have no code yet.** Their agent files declare the boundary the
+layer *will* have. Declare a file there before writing it, not after — a greenfield layer
+is exactly where two agents silently start the same file.
+
+🔴 **A layer is a feature area, never a third-party product.** Porting another project's
+API does not create a layer: its functions land in whichever existing layer owns that
+subject. If a port has nowhere to land, that is a missing *feature*, and the layer gets
+named after the feature — never after the product it came from.
 
 **Ownership is long-lived.** A short-lived task may borrow another owner's files —
 see §3. Nothing else may.
