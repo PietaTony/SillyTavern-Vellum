@@ -97,6 +97,21 @@ lodash／jQuery／js-yaml 三支從 CDN `<script src>` 改成**整份內嵌進 s
 實測：載入那一頁，主頁對外部網域的請求 **0 次**；兩個 frame 的 srcdoc 都不含
 `<script src="https`，而 jQuery 在裡面。
 
+## 卡片變數：資料鏈路通了，畫面還沒（2026-08-27）
+Peter 2026-08-27 授權 UI 線接手 `server/`，變數引擎已接上（`services/applyVarUpdate.ts`
+→ `routes/generate.ts` 的 `commitTurn`）。實測（不花錢，直接跑服務餵一段假回覆）：
+```
+生成前：只有桌寵存的東西
+[vellum] 變數：安全感 15→17、面具 85→82（變化量被夾回 ±3（想要 55））、親密度 20→21
+        ｜拒絕 時期、不存在的東西
+生成後：時期=成年、安全感=17、面具=82、親密度=21，桌寵那份原封不動
+```
+⇒ 夾持生效並留痕跡、唯讀擋得住、未宣告丟得掉、不覆蓋卡片自己存的東西。
+變數也確實種進 iframe 了（`__vellumVars` 讀得到那四個）。
+
+- [ ] 🔴 **但卡片的狀態欄畫面仍然是空的** ── 資料到了、UI 沒動。下一步用 iframe 的
+      console 轉發線去挖（現在挖得到），可能是鍵名／巢狀形狀或那張卡的渲染條件。
+
 ## 已知未做 / 未驗
 - [ ] **長按選單的「編輯／刪除／重新生成」按下去會 404** ── 後端還沒有那兩支端點
       （規格已寫成 prompt 交付，見下）。前端會跳一則說明原因的 tips，不是靜默失敗。
@@ -123,12 +138,6 @@ lodash／jQuery／js-yaml 三支從 CDN `<script src>` 改成**整份內嵌進 s
       補＝多兩條外連、同意視窗的網域清單會變長。
 
 ## 交給主執行線的（已寫成 prompt 交付）
-- 🔴 **把我們自己的變數引擎接上**（親密度就是靠這個）。`server/lib/varUpdate.ts` ＋
-  `varApply.ts` 是一台寫好、測過、但**零個產品端呼叫端**的引擎；`generate.ts` 串流結束時
-  沒有人叫它 ⇒ `chat.variables` 只有桌寵存的東西，角色變數從第一天就沒動過。
-  拿 Peter 的真卡跑 `verify:vars` 是過的（安全感 15→18、想要 35 被夾回、拒絕 2 項）。
-  UI 線那半已經做好（`mvuShim` ＋ `pushVarsToCards` ＋ 生成後 refetch），
-  **只差第 4 步「寫回 chat.variables」**。規格在 `scratchpad/prompt-varupdate-wiring.md`。
 - 🔴 **一則訊息要有兩個版本**（原文給卡片與 prompt、顯示版給畫面）。
   現在 `GET /api/chats/:id` 只回顯示版，而 `<UpdateVariable>` 正是被顯示規則拿掉的那塊
   ⇒ **重整之後卡片再也讀不到變數更新**。⚠️ `generate.ts` 的 `done` 送原文是目前唯一的窗口，

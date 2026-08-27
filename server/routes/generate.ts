@@ -11,12 +11,13 @@ import { Hono } from 'hono';
 import { z } from 'zod';
 import { getKey, redact } from '../services/secrets.ts';
 import { safeId } from '../lib/ids.ts';
-import { readJson, writeJson } from '../adapters/storage.ts';
+import { readJson } from '../adapters/storage.ts';
 import { adapterFor } from '../providers/dispatch.ts';
 import { byId, isSelectable } from '../providers/registry.ts';
-import type { Chat, Message } from '../services/chatModel.ts';
+import type { Chat } from '../services/chatModel.ts';
 import { buildTurn } from '../services/buildTurn.ts';
 import { getActiveProvider, getProviderModel } from '../services/settings.ts';
+import { commitTurn } from '../services/applyVarUpdate.ts';
 
 const Body = z.object({
   chatId: z.string(),
@@ -125,9 +126,8 @@ export const generate = new Hono().post('/', async (c) => {
             }
           }
         }
-        const msg: Message = { id: crypto.randomUUID(), role: 'model', text: full, at: new Date().toISOString() };
-        chat.messages.push(msg);
-        await writeJson(`chats/${chatId}.json`, chat);
+        // 落地：訊息進檔案，順便把這一輪的 `<UpdateVariable>` 套進變數（見 `commitTurn`）。
+        const msg = await commitTurn(chatId, chat, full);
         ctrl.enqueue(
           enc.encode(sse('done', { message: msg, finishReason: finish ?? 'STOP', usage })),
         );
