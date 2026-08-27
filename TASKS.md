@@ -67,6 +67,24 @@
 - [ ] 全站 tips（ToastStack）── 會堆疊
 - [ ] 區網連線警告（LanWarning）── 用 `192.168.x.x` 開才會出現
 
+## 伺服器忽然死掉 —— 查到哪了（2026-08-27）
+症狀：`18530` 的畫面活著，所有 `/api` 回 502。後端 `18531` **沒有人在聽**，
+但 `tsx watch` 那層還活著 ⇒ 真正的 server process 自己退掉了。
+🔴 **`tsx watch` 不會在 crash 之後自動重起**（它只在檔案變動時重起）——
+所以死一次就會一直是 502，而且看起來像前端壞了。
+
+已排除：前端檔案變動不會觸發後端重啟（實測 `touch src/.../Thread.tsx`，log 沒動）。
+還沒有原因：第一次死的時候輸出沒有落檔，process 也清掉了。**不猜。**
+
+現在有的證據鏈（Peter 2026-08-27：「先不要自動重啟，我要找到原因」）：
+- `scratchpad/run-server.sh` 起後端，輸出 append 到 `/tmp/vellum-ui-server.log`，
+  每次啟動印 `START`、退出印 `EXIT code=`（node 的 uncaught 例外本來就會印到 stderr）
+- `scratchpad/watch-server.sh` 每 5 秒探 `18531`，**只記錄不重啟** ——
+  上次那種死法（tsx 活著、沒人在聽）不會觸發 `EXIT`，所以要有人記下「幾點開始沒人聽」
+
+⚠️ 沒有 `process.on('uncaughtException'/'unhandledRejection')`（`server/index.ts`）——
+Node 遇到 unhandled rejection 預設**直接終止行程**。要不要補是主執行線的決定（`server/` 是禁區）。
+
 ## 已知未做 / 未驗
 - [ ] **長按選單的「編輯／刪除／重新生成」按下去會 404** ── 後端還沒有那兩支端點
       （規格已寫成 prompt 交付，見下）。前端會跳一則說明原因的 tips，不是靜默失敗。
@@ -76,6 +94,7 @@
       前景分頁應該正常，但要你手點一次確認。
       ⚠️ 順帶一提 `src/shared/lib/copyText.ts`（UI 線不能改）沒有 timeout，
       那條路一旦卡住就是「按了、什麼都沒發生」——要不要補 timeout 由你決定。
+- [ ] 卡片內「選開場線」的介面選完之後**沒有自動設定世界書** ── Peter 2026-08-27 回報，還沒查
 - [ ] `/settings` 的「外觀」── 標著「還沒做」
 - [ ] persona 圖生文的 prompt 不對味 ── 等主執行線加 persona 版 prompt（prompt 已交付）
 - [ ] 桌寵點擊的動畫範圍 ── Peter 回報，我點了多次沒能重現，**等截圖**
