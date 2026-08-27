@@ -185,8 +185,8 @@ app 裡有新版時會直接告訴你。更新是三步：
 ```bash
 corepack enable
 pnpm install
-pnpm dev          # 前端 8520 ← 開這個
-pnpm dev:server   # 後端 8521（前端會 proxy 過去）
+pnpm dev          # 前端 18520 ← 開這個
+pnpm dev:server   # 後端 18521（前端會 proxy 過去）
 pnpm verify       # 十三道閘門：build／test／lint／selftest／boundaries／no-hex／
                   # file-size／screens／back／no-eval／draft／guides／toast
 pnpm package      # 打包成 dist-zip/vellum-vX.Y.Z.zip
@@ -195,6 +195,11 @@ pnpm app:build    # 出 .dmg／.exe，產物在 dist-app/
 ```
 
 `pnpm verify` 是宣稱「改好了」的唯一收據。CI 每次 push 都會跑同一組。
+
+> 🔴 **dev 是 18520／18521，正式版是 8520 —— 刻意錯開的。**
+> 在此之前 dev 前端也用 8520，而桌面版預設也要綁 8520 ⇒ 兩邊互撞：
+> 桌面版綁不上 port 就死掉，**而它的視窗載入的是 dev server 的畫面** ——
+> 看起來是成功了，點幾頁才閃退。兩個 bug 互相掩護，找了很久。
 
 > ⚠️ **`pnpm verify` 只在 macOS／Linux 跑得起來。**
 > `gate:selftest` 是 POSIX shell 迴圈、`dev:server` 用行內環境變數 —— 兩者在 Windows 的 cmd 上都會炸。

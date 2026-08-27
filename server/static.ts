@@ -15,7 +15,7 @@ export const distExists = (): boolean => existsSync(resolve(DIST, 'index.html'))
 /**
  * 把打包好的前端掛上去，讓**一個 process 就是整個 app**。
  *
- * 🔴 dev 不走這裡：dev 是 Vite（5173）提供前端、proxy 到後端（8520）。
+ * 🔴 dev 不走這裡：dev 是 Vite（18520）提供前端、proxy 到後端（18521）。
  * 這裡是 `pnpm start` 的那條路 —— 只有一個 port，使用者只要記一個網址。
  *
  * 🔴 **SPA fallback 一定要排除 `/api`**：不排除的話，打錯的 API 路徑會回傳

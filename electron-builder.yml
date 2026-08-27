@@ -35,9 +35,14 @@ mac:
   #    這是個人 side project，不可以用公司的身分簽章（見 AGENTS.md 的絕不可做）。
   #    要簽章是另一次刻意的決定（給別人下載才需要，US$99/年）。
   identity: null
+  # 🔴 **兩種架構都要出**（Peter 2026-08-27：「windows-exe／intel mac／arm mac 都發」）。
+  #    只出 arm64 的話，Intel Mac 使用者下載到一個**永遠打不開**的 dmg ——
+  #    而那個症狀會被誤認成 GAP-100 那個「檔案已損毀」，他會以為是檔案壞了。
   target:
-    - dmg
-    - zip
+    - target: dmg
+      arch: [arm64, x64]
+    - target: zip
+      arch: [arm64, x64]
 win:
   target:
     - nsis

@@ -13,26 +13,59 @@
  * 🔴 **VELLUM_OPEN 一定要關**：這個視窗本身就是瀏覽器，
  * 再叫系統開一次會多跳一個分頁出來。
  */
-const { app, BrowserWindow, shell } = require('electron');
+const { app, BrowserWindow, dialog, shell } = require('electron');
+const { createServer } = require('node:net');
 const { join } = require('node:path');
-
-const PORT = Number(process.env.PORT || 8520);
-const URL = `http://127.0.0.1:${PORT}`;
 
 process.env.NODE_ENV = 'production';
 process.env.VELLUM_OPEN = '0';
 process.env.VELLUM_DATA = join(app.getPath('userData'), 'data');
 
 /**
+ * 🔴 **找一個沒人用的 port，不要寫死 8520。**
+ *
+ * 2026-08-27 實測的災難：Peter 的 dev server 正好在 8520。桌面版啟動之後
+ *   ① 綁 8520 失敗（`EADDRINUSE`），而那個例外**沒有人接** ⇒ 主程式直接死掉
+ *   ② 但 `waitForServer()` 打 8520 **打得通** —— 那是 dev server ⇒
+ *      視窗載入的是**別人的畫面**，看起來像成功了
+ * ⇒ 症狀是「有看到畫面，點幾頁就閃退」。**兩個 bug 疊在一起，而且互相掩護。**
+ *
+ * ⚠️ 一般使用者不會有 dev server，但**開兩個 Vellum 視窗**就會踩到同一條。
+ */
+function freePort(preferred) {
+  return new Promise((resolve) => {
+    const probe = createServer();
+    probe.once('error', () => {
+      // 首選被佔 ⇒ 跟系統要一個隨機的空 port
+      const any = createServer();
+      any.once('error', () => resolve(0)); // 連這個都失敗就交給下游報錯
+      any.once('listening', () => {
+        const { port } = any.address();
+        any.close(() => resolve(port));
+      });
+      any.listen(0, '127.0.0.1');
+    });
+    probe.once('listening', () => probe.close(() => resolve(preferred)));
+    probe.listen(preferred, '127.0.0.1');
+  });
+}
+
+/** 🔴 起不來要**說得出為什麼**，不可以只是視窗消失。 */
+function fatal(why) {
+  dialog.showErrorBox('Vellum 起不來', why);
+  app.quit();
+}
+
+/**
  * 等 server 真的 listen 起來才載入畫面。
  * 🔴 **判準是 body 不是狀態碼**：`/api/version` 在前端沒掛上時照樣回 200。
  * 直接 `loadURL` 而不等的話，使用者看到的是 Electron 的錯誤頁，看不出是還沒起來。
  */
-async function waitForServer(timeoutMs = 30_000) {
+async function waitForServer(url, timeoutMs = 30_000) {
   const deadline = Date.now() + timeoutMs;
   while (Date.now() < deadline) {
     try {
-      const res = await fetch(`${URL}/api/version`);
+      const res = await fetch(`${url}/api/version`);
       const body = await res.text();
       if (body.includes('"name":"vellum"')) return true;
     } catch {
@@ -44,8 +77,18 @@ async function waitForServer(timeoutMs = 30_000) {
 }
 
 async function main() {
+  const port = await freePort(Number(process.env.PORT || 8520));
+  if (port === 0) return fatal('找不到可以使用的網路連接埠。請關掉其他程式再試一次。');
+  process.env.PORT = String(port);
+  const url = `http://127.0.0.1:${port}`;
+
   // server bundle 是 ESM，main process 是 CJS ⇒ 用動態 import。
-  await import(`file://${join(__dirname, '..', 'dist-server', 'index.mjs')}`);
+  // 🔴 **一定要 try/catch** —— 少了它，`serve()` 綁不上 port 就是「視窗默默消失」。
+  try {
+    await import(`file://${join(__dirname, '..', 'dist-server', 'index.mjs')}`);
+  } catch (e) {
+    return fatal(`後端啟動失敗：\n\n${e instanceof Error ? e.message : String(e)}`);
+  }
 
   const win = new BrowserWindow({
     width: 1100,
@@ -64,8 +107,8 @@ async function main() {
     return { action: 'deny' };
   });
 
-  if (await waitForServer()) {
-    await win.loadURL(URL);
+  if (await waitForServer(url)) {
+    await win.loadURL(url);
   } else {
     await win.loadURL(
       `data:text/html;charset=utf-8,${encodeURIComponent(
@@ -74,6 +117,15 @@ async function main() {
     );
   }
 }
+
+/**
+ * 🔴 **未捕捉的例外要說出來，不可以讓視窗默默消失。**
+ * 「閃退」是使用者唯一看得到的訊息，而它什麼都沒說。
+ */
+process.on('uncaughtException', (e) => {
+  dialog.showErrorBox('Vellum 發生未預期的錯誤', e instanceof Error ? e.stack || e.message : String(e));
+  app.quit();
+});
 
 app.whenReady().then(main);
 

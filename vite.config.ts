@@ -5,13 +5,16 @@ import { defineConfig } from 'vite';
 
 // 後端是 ST 原本的 Express（M1 搬過來），跑在 8000。
 // dev 時前端 5173，/api 與其他後端路由 proxy 過去。
-// dev 時後端讓開到 8521 —— 🔴 **8520 永遠是「使用者要打開的那個網址」**，
-// 不管跑的是 dev 還是正式版。不這樣的話 dev 是 5173、正式版是 8520，
+// 🔴 **dev 用 18520／18521，正式版用 8520**（Peter 2026-08-27 裁定）。
+// 在此之前 dev 前端也是 8520 —— 而**桌面版寫死要綁 8520** ⇒ 兩邊互撞：
+// 桌面版綁不上、例外沒人接就死掉，而它的視窗載入的是 dev server 的畫面
+// （看起來成功了，點幾頁才閃退）。**兩個 bug 互相掩護。**
+// ⚠️ 正式版那個 8520 不要跟著改 —— 那是使用者要打開的網址。
+// 不這樣的話 dev 是 5173、正式版是 8520，
 // 手機上還要記兩個。
 // 🔴 可覆寫**只是為了開第二組隔離環境**（拿臨時 `VELLUM_DATA` 比對 first-run 與設定頁的版面）。
-// 預設值不變 —— 8520／8521 仍然是「使用者要打開的那個網址」。
-const BACKEND = process.env['VELLUM_BACKEND'] ?? 'http://localhost:8521';
-const PORT = Number(process.env['VELLUM_PORT'] ?? 8520);
+const BACKEND = process.env['VELLUM_BACKEND'] ?? 'http://localhost:18521';
+const PORT = Number(process.env['VELLUM_PORT'] ?? 18520);
 
 export default defineConfig({
   plugins: [
