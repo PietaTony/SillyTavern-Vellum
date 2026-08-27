@@ -60,7 +60,9 @@ function ChatPage() {
     // 重讀會讓 srcdoc 變、iframe 整個重生，桌寵每存一次就閃一次。
     // 範圍決定存到哪一支端點，理由見 `useCardVars`。
     saveVariables: vars.saveVariables,
-    initialVars: vars.chatVarsOf(q.data?.variables),
+    // 🔴 **對話還沒讀回來要給 `undefined`，不能給空物件**：種子只認第一份，
+    //    給了空的就永遠種不進真的變數（桌寵 x／y 就在裡面）。理由詳見 `useCardVars`。
+    initialVars: q.data ? vars.chatVarsOf(q.data.variables) : undefined,
   });
 
   if (q.isPending) return <ChatLoading />;
