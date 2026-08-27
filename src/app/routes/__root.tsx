@@ -1,6 +1,7 @@
 import { createRootRoute, Navigate, Outlet, redirect } from '@tanstack/react-router';
 import { AppBackground } from '@/app/screens/AppBackground';
 import { isSetUp, needsFirstRun } from '@/app/setup';
+import { LanWarning } from '@/features/network';
 import { ToastStack } from '@/shared/ui/ToastStack';
 
 export const Route = createRootRoute({
@@ -48,6 +49,12 @@ function RootLayout() {
   return (
     <>
       <AppBackground />
+      {/*
+       * 🔴 **走區網連進來的警告掛在這裡，全站一份**（Peter 2026-08-27）。
+       * 掛在單一畫面的話，換頁就沒了 —— 而風險是整段使用期間都存在的。
+       * 本機打開時它完全不掛（判準見 `hostKind`），所以絕大多數人不會看到它。
+       */}
+      <LanWarning />
       <Outlet />
       <ToastStack />
     </>

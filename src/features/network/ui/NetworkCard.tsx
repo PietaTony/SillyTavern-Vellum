@@ -4,6 +4,7 @@ import Stack from '@mui/material/Stack';
 import Switch from '@mui/material/Switch';
 import Typography from '@mui/material/Typography';
 import type { NetworkState } from '../api';
+import { NoLoginWarning } from './NoLoginWarning';
 
 /**
  * 「允許其他裝置連線」（Peter 2026-08-27：想用 Tailscale ＋ 手機瀏覽器玩）。
@@ -63,13 +64,33 @@ export function NetworkCard({
           </Alert>
         ) : null}
 
-        {/* 🔴 這一段不能省：使用者以為自己只開給了 Tailscale。 */}
+        {/* 🔴 這一段不能省：使用者以為自己只開給了 Tailscale。文案與連進來那台共用。 */}
         <Alert severity={live ? 'warning' : 'info'}>
-          <b>Vellum 沒有登入機制</b> —— 連得到的人可以讀你全部的對話、用你的 API 金鑰花錢。
+          <NoLoginWarning />
           <br />
           而且打開之後<b>不只 Tailscale</b>：<b>同一個 wifi 上的人也連得到</b>
           （室友、訪客、被入侵的裝置）。在公共 wifi 上請不要打開。
         </Alert>
+
+        {/*
+         * 🔴 **有位址、但沒有 Tailscale 那一條** —— 這是最容易被誤會的狀態
+         *（Peter 2026-08-27）：畫面上有網址可以抄，使用者不會發現抄到的是區網那條，
+         * 而那條**同一個 wifi 的人都連得到**。舊版只在「一條都沒有」時才說話。
+         */}
+        {live && state.urls.length > 0 && !state.urls.some((u) => u.kind === 'tailscale') ? (
+          <Alert severity="warning">
+            <b>找不到 Tailscale 位址 —— 它沒有在這台電腦上跑。</b>
+            <br />
+            下面只剩區域網路那一條，<b>同一個 wifi 上的人都連得到</b>。
+            <Typography variant="body2" component="ol" sx={{ pl: 2.5, m: 0, mt: 1 }}>
+              <li>在這台電腦開啟 Tailscale 並登入</li>
+              <li>
+                手機也裝 Tailscale，登入<b>同一個帳號</b>
+              </li>
+              <li>回到這一頁重新整理，會多出一條開頭是 100. 的網址</li>
+            </Typography>
+          </Alert>
+        ) : null}
 
         {live && state.urls.length > 0 ? (
           <Stack spacing={0.5}>

@@ -128,3 +128,51 @@ describe('允許其他裝置連線', () => {
     expect(onToggle).toHaveBeenCalledWith(true);
   });
 });
+
+/**
+ * 🔴 Peter 2026-08-27：「在沒有開啟 Tailscale 時被連線的話，要顯示正確的錯誤訊息、
+ * 提示流程及警告。」
+ *
+ * 🔴 **最容易被誤會的不是「一條網址都沒有」，是「有網址、但那條是區網」** ——
+ * 畫面上有東西可以抄，使用者不會發現抄到的是同一個 wifi 的人都連得到的那一條。
+ * 舊版只在 `urls.length === 0` 時才說話，這個狀態它完全靜音。
+ */
+describe('Tailscale 沒在跑', () => {
+  const live = { ...base, enabled: true, bound: '0.0.0.0' };
+
+  it('🔴 有區網位址但沒有 Tailscale 那一條 ⇒ 要說出「找不到 Tailscale」並給步驟', () => {
+    const { container } = render(
+      <NetworkCard
+        state={{ ...live, urls: [{ kind: 'lan', url: 'http://192.168.86.31:8520' }] }}
+        onToggle={noop}
+        busy={false}
+      />,
+    );
+    expect(container.textContent).toContain('找不到 Tailscale 位址');
+    expect(container.textContent).toContain('開頭是 100.');
+  });
+
+  it('有 Tailscale 那一條就不要嘮叨', () => {
+    const { container } = render(
+      <NetworkCard
+        state={{
+          ...live,
+          urls: [
+            { kind: 'tailscale', url: 'http://100.89.95.93:8520' },
+            { kind: 'lan', url: 'http://192.168.86.31:8520' },
+          ],
+        }}
+        onToggle={noop}
+        busy={false}
+      />,
+    );
+    expect(container.textContent).not.toContain('找不到 Tailscale 位址');
+    // 尺沒壞的證明：同一份文案在上一條測試裡找得到
+    expect(container.textContent).toContain('100.89.95.93');
+  });
+
+  it('還沒開放時不要先講 —— 那時候根本沒有人連得進來', () => {
+    const { container } = render(<NetworkCard state={base} onToggle={noop} busy={false} />);
+    expect(container.textContent).not.toContain('找不到 Tailscale 位址');
+  });
+});
