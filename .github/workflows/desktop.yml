@@ -1,0 +1,64 @@
+# 手動觸發：在真的 Windows／macOS 機器上 build 桌面版，產物掛成 CI artifact。
+#
+# 🔴 **這不是發版。** 不建 GitHub Release、不打 tag、不動 main ——
+#    產物只留在這次 run 的 Artifacts 裡（預設保留 90 天）。
+#    要發版走 release.yml（打 tag 才會跑）。
+#
+# 🔴 **為什麼不在 Mac 上 build Windows 的 exe**：那要 Wine，產出不可信。
+#    Windows 的東西要在 Windows 上 build。
+#
+# 用法：Actions → desktop → Run workflow（選分支）
+name: desktop
+
+on:
+  workflow_dispatch:
+    inputs:
+      platforms:
+        description: '要 build 哪些平台'
+        type: choice
+        default: windows
+        options: [windows, mac, both]
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false # 一邊掛掉不該讓另一邊也拿不到
+      matrix:
+        include:
+          - os: windows-latest
+            id: windows
+          - os: macos-latest
+            id: mac
+    runs-on: ${{ matrix.os }}
+    # 只跑被選到的平台
+    if: >-
+      github.event.inputs.platforms == 'both' ||
+      github.event.inputs.platforms == matrix.id
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile --config.minimumReleaseAge=0
+
+      - run: pnpm app:build
+        env:
+          # 🔴 不要讓 electron-builder 去撈 runner 上任何憑證（本機實測它會自己撈）。
+          CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+
+      # 🔴 順手也附一份 Node zip —— exe 萬一在朋友機器上打不開，
+      #    那條路只要裝 Node 就能跑，不用等下一次 CI。
+      - run: pnpm package
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: vellum-${{ matrix.id }}
+          retention-days: 14
+          if-no-files-found: error # 🔴 沒產出要紅，不要給一個空的 artifact
+          path: |
+            dist-app/*.exe
+            dist-app/*.dmg
+            dist-app/*.zip
+            dist-zip/*.zip
