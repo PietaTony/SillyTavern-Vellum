@@ -41,7 +41,7 @@ export function EntryStatusRow({
           label="常駐"
         />
         <DraftField
-          noDraft="世界書條目改完就存，沒有「還沒送出」這個狀態"
+          noDraft="這一格的未存狀態由編輯器的草稿管（右上角的「儲存」），不另外落地"
           type="number"
           size="small"
           label="順序"

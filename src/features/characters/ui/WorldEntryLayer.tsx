@@ -1,7 +1,14 @@
 import Alert from '@mui/material/Alert';
 import Typography from '@mui/material/Typography';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { EntryEditor, positionTitle, updateEntry, type WbEntry } from '@/features/worldbook';
+import {
+  EntryEditor,
+  EntrySaveButton,
+  positionTitle,
+  updateEntry,
+  useEntryDraft,
+  type WbEntry,
+} from '@/features/worldbook';
 import { FullScreenLayer } from '@/shared/ui/FullScreenLayer';
 
 /**
@@ -11,8 +18,9 @@ import { FullScreenLayer } from '@/shared/ui/FullScreenLayer';
  * 從對話裡點進去的話，使用者會被丟到一個回不去對話的地方 —— 那是死路，不是導覽。
  * ⇒ 這裡疊一層，左上角是 ←（`onBack`），退回條目列表。
  *
- * 🔴 **改一個欄位就送一次，沒有「儲存」鈕** —— 與清單那一層的開關一致。
- * 兩邊行為不同會讓人不知道哪一個算數（那一頁的檔頭也是這麼寫的，這裡照抄）。
+ * 🔴 **改了不會自動存**（Peter 2026-08-27）：改動先留在草稿裡，右上角跳出「儲存」。
+ * 與 `/worlds/$worldId/$uid` 共用 `useEntryDraft`／`EntrySaveButton` ——
+ * 各寫一份的話遲早有一邊還在自動存，而使用者不知道哪一邊算數。
  */
 export function WorldEntryLayer({
   worldId,
@@ -27,6 +35,7 @@ export function WorldEntryLayer({
   onSaved: () => void;
 }) {
   const qc = useQueryClient();
+  const draft = useEntryDraft(entry);
   const save = useMutation({
     mutationFn: (patch: Partial<WbEntry>) => updateEntry(worldId, entry?.uid ?? '', patch),
     onSuccess: () => {
@@ -42,22 +51,31 @@ export function WorldEntryLayer({
       title={entry?.comment || '條目'}
       onClose={onBack}
       onBack={onBack}
+      action={
+        <EntrySaveButton
+          dirty={draft.dirty}
+          saving={save.isPending}
+          // 🔴 存成功才清草稿 —— 失敗時使用者剛打的字要還在。
+          onSave={() => save.mutate(draft.patch, { onSuccess: draft.clear })}
+        />
+      }
     >
       {save.isError ? (
         <Alert severity="warning" sx={{ m: 2 }}>
           存不起來：{save.error instanceof Error ? save.error.message : ''}
         </Alert>
       ) : null}
-      {entry ? (
+      {draft.value ? (
         <>
           <Typography
             variant="caption"
             color="text.secondary"
             sx={{ px: 2, pt: 2, display: 'block' }}
           >
-            世界書 › {positionTitle(entry.position)} › {entry.comment || entry.uid}
+            世界書 › {positionTitle(draft.value.position)} ›{' '}
+            {draft.value.comment || draft.value.uid}
           </Typography>
-          <EntryEditor value={entry} onChange={(patch) => save.mutate(patch)} />
+          <EntryEditor value={draft.value} onChange={draft.change} />
         </>
       ) : null}
     </FullScreenLayer>

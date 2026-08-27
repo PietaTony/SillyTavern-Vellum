@@ -6,9 +6,11 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { createFileRoute, useNavigate } from '@tanstack/react-router';
 import {
   EntryEditor,
+  EntrySaveButton,
   fetchWorld,
   positionTitle,
   updateEntry,
+  useEntryDraft,
   type WbEntry,
 } from '@/features/worldbook';
 import { Screen } from '@/shared/ui/Screen';
@@ -21,8 +23,8 @@ export const Route = createFileRoute('/worlds/$worldId/$uid')({ component: Entry
  * 🔴 **主區換頁，不用彈窗**（`plans/ui/06-worldbook.md`）：欄位太多，塞不進彈窗，
  * 而且返回鍵已經給了定位。
  *
- * 🔴 **改一個欄位就送一次，沒有「儲存」鈕**。清單那一頁的開關本來就是即時的，
- * 兩邊行為不一致會讓人不知道哪個算數。
+ * 🔴 **改了不會自動存**（Peter 2026-08-27）：改動先留在草稿裡，
+ * 右上角跳出「儲存」，按下去才送。理由寫在 `useEntryDraft` 的檔頭。
  */
 function EntryPage() {
   const { worldId, uid } = Route.useParams();
@@ -30,7 +32,9 @@ function EntryPage() {
   const qc = useQueryClient();
 
   const q = useQuery({ queryKey: ['world', worldId], queryFn: () => fetchWorld(worldId) });
-  const entry = q.data?.entries.find((e) => e.uid === uid) ?? null;
+  const server = q.data?.entries.find((e) => e.uid === uid) ?? null;
+  const draft = useEntryDraft(server);
+  const entry = draft.value;
 
   const save = useMutation({
     mutationFn: (patch: Partial<WbEntry>) => updateEntry(worldId, uid, patch),
@@ -45,6 +49,14 @@ function EntryPage() {
     <Screen
       title={entry?.comment || '條目'}
       onBack={() => void nav({ to: '/worlds/$worldId', params: { worldId } })}
+      action={
+        <EntrySaveButton
+          dirty={draft.dirty}
+          saving={save.isPending}
+          // 🔴 存成功才清草稿 —— 失敗時使用者剛打的字要還在。
+          onSave={() => save.mutate(draft.patch, { onSuccess: draft.clear })}
+        />
+      }
     >
       {q.isPending ? <CircularProgress size={24} /> : null}
       {/* 🔴 找不到條目要說得出「回哪裡」，不是留一句錯誤讓人卡住（每個死路都要有出口）。 */}
@@ -78,7 +90,7 @@ function EntryPage() {
           >
             世界書 › {positionTitle(entry.position)} › {entry.comment || entry.uid}
           </Typography>
-          <EntryEditor value={entry} onChange={(patch) => save.mutate(patch)} />
+          <EntryEditor value={entry} onChange={draft.change} />
         </>
       ) : null}
     </Screen>
