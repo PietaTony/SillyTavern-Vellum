@@ -1,10 +1,11 @@
-import Avatar from '@mui/material/Avatar';
 import Box from '@mui/material/Box';
 import Stack from '@mui/material/Stack';
 import type { Message } from '../model';
 import { useSwipeKeys } from '../useSwipeKeys';
 import { type FrontendRenderer, MessageContent } from './MessageContent';
 import { SwipeBar } from './SwipeBar';
+import { ThemRow } from './ThemRow';
+import { StreamCaret, Typing } from './Typing';
 
 /**
  * 對話串。兩種形狀來自設計正本 `Foundations.dc.html` 的 Semantic 層：
@@ -34,6 +35,7 @@ export function Thread({
   frontend,
   onSwipe,
   onAvatarClick,
+  thinking = false,
 }: {
   messages: Message[];
   streaming: string | null;
@@ -49,6 +51,11 @@ export function Thread({
   onSwipe?: ((messageId: string, index: number) => void) | undefined;
   /** 沒給就不綁 —— 一顆點了沒反應的頭像比不能點更糟。 */
   onAvatarClick?: (() => void) | undefined;
+  /**
+   * 模型正在思考、但一個字都還沒吐（推理模型會先想十幾秒）。
+   * 🔴 只影響那一列等待指示的**措辭**，不影響版面（見 `Typing`）。
+   */
+  thinking?: boolean;
 }) {
   // `←` `→` 切候選（ST 有，M12 G5）。掛在「最後一則有候選的訊息」上，同 ST 的 `.last_mes`。
   useSwipeKeys(messages, onSwipe);
@@ -56,55 +63,44 @@ export function Thread({
   // 🔴 只有第一則的候選是角色的開場白（`server/routes/chats.ts:73` 建的就只有它）。
   const firstId = messages[0]?.id;
 
+  /**
+   * 🔴 **等待要有動作。** 上一版是 `streaming || '⋯'` —— 一個**不會動的省略號**，
+   * 在畫面上跟「當掉了」長得一模一樣，而推理模型先想十幾秒是常態
+   *（Peter 2026-08-27）。有字之後接一個閃動游標，讓「還在寫」與「寫完了」分得出來。
+   */
+  const waiting = (
+    <ThemRow key="streaming" avatar={avatar} name={name}>
+      {streaming ? (
+        <>
+          <Content text={streaming} frontend={frontend} />
+          <StreamCaret />
+        </>
+      ) : (
+        <Typing name={name} thinking={thinking} />
+      )}
+    </ThemRow>
+  );
+
   const theirs = (key: string, text: string, message?: Message) => (
-    <Stack key={key} direction="row" spacing={1.5} sx={{ alignItems: 'flex-start' }}>
-      {/*
-       * 🔴 **點頭像進角色設定**（Peter 2026-08-26）。
-       * ⚠️ ST 點下去是開一張放大圖浮窗（實查 `script.js:12165`），**不是面板** ——
-       * 這一條是我們自己加的，不是照抄。
-       * 🔴 沒有 `onAvatarClick` 時**不可以看起來能點**：沒有游標變化、沒有 aria-label。
-       */}
-      <Avatar
-        src={avatar}
-        alt={name}
-        {...(onAvatarClick
-          ? {
-              component: 'button' as const,
-              type: 'button' as const,
-              'aria-label': `${name} 的角色設定`,
-              onClick: onAvatarClick,
-            }
-          : {})}
-        sx={{
-          width: 32,
-          height: 32,
-          mt: 0.5,
-          flex: 'none',
-          ...(onAvatarClick ? { cursor: 'pointer', border: 0, p: 0 } : {}),
-        }}
-      >
-        {name.slice(0, 1)}
-      </Avatar>
+    <ThemRow key={key} avatar={avatar} name={name} onAvatarClick={onAvatarClick}>
       {/*
        * 🔴 **`SwipeBar` 是把內容「包起來」，不是掛在下面。**
        * 上下各一條置中（Peter 2026-08-27）—— 開場白那種一整頁的訊息，
        * 只有下面一條時要一路捲到底才切得動。
        */}
-      <Box sx={{ borderLeft: 2, borderColor: 'vellum.blockThemRule', pl: 1.5, flex: 1 }}>
-        {message && onSwipe ? (
-          <SwipeBar
-            message={message}
-            characterId={characterId}
-            isGreeting={message.id === firstId}
-            onSwipe={onSwipe}
-          >
-            <Content text={text} frontend={frontend} />
-          </SwipeBar>
-        ) : (
+      {message && onSwipe ? (
+        <SwipeBar
+          message={message}
+          characterId={characterId}
+          isGreeting={message.id === firstId}
+          onSwipe={onSwipe}
+        >
           <Content text={text} frontend={frontend} />
-        )}
-      </Box>
-    </Stack>
+        </SwipeBar>
+      ) : (
+        <Content text={text} frontend={frontend} />
+      )}
+    </ThemRow>
   );
 
   return (
@@ -130,7 +126,7 @@ export function Thread({
             theirs(m.id, m.text, m)
           ),
         )}
-        {streaming !== null ? theirs('streaming', streaming || '⋯') : null}
+        {streaming !== null ? waiting : null}
       </Stack>
     </Box>
   );

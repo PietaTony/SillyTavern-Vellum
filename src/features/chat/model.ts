@@ -32,6 +32,17 @@ export type Chat = {
 
 export type StreamEvent =
   | { type: 'delta'; text: string }
+  /**
+   * 🔴 **推理模型的思考過程**（Peter 2026-08-27：「文字生成的時候應該要有…或是
+   * thinking 的 loading」）。
+   * 後端**一直都在送這個事件**（`generate.ts:115`），但這裡以前沒有這個分支
+   * ⇒ `parseSse` 默默把它丟掉，前端完全不知道模型正在思考。
+   * 又一次「引擎有了、沒有門」：使用者盯著一個不會動的省略號，
+   * 而那段時間可能長達十幾秒。
+   * ⚠️ **內容不進正文** —— 後端檔頭寫得很清楚：混進去會變成角色的台詞。
+   * 這裡只拿它當「還活著、而且在想」的訊號。
+   */
+  | { type: 'thinking'; text: string }
   | { type: 'done'; message: Message; finishReason: string }
   | { type: 'error'; message: string };
 
@@ -58,6 +69,7 @@ export function parseSse(buffer: string): { events: StreamEvent[]; rest: string 
       finishReason?: string;
     };
     if (name === 'delta') events.push({ type: 'delta', text: payload.text ?? '' });
+    else if (name === 'thinking') events.push({ type: 'thinking', text: payload.text ?? '' });
     else if (name === 'done' && payload.message && typeof payload.message !== 'string')
       events.push({
         type: 'done',
