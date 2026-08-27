@@ -15,6 +15,9 @@ appId: dev.vellum.app
 productName: Vellum
 directories:
   output: dist-app
+# 🔴 打包完對整個 bundle 做 ad-hoc 簽章 —— 理由與實測數據在該檔檔頭。
+# 少了它，使用者看到的是「檔案已損毀」而不是「未識別的開發者」，而且**沒有放行按鈕**。
+afterPack: ./scripts/after-pack.cjs
 # 🔴 只放 runtime 真的要的東西。`node_modules` 不進去 —— 相依已經全 bundle 進
 #    `dist-server/index.mjs`（同 zip 那條路，理由見 scripts/package-zip.ts）。
 files:
