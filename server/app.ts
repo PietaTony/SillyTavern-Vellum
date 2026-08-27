@@ -24,6 +24,7 @@ import { chats } from './routes/chats.ts';
 import { chatVariables } from './routes/chatVariables.ts';
 import { cardVariables } from './routes/cardVariables.ts';
 import { globalWorlds } from './routes/globalWorlds.ts';
+import { chatMessages } from './routes/chatMessages.ts';
 import { chatImport } from './routes/chatImport.ts';
 import { generate } from './routes/generate.ts';
 import { update } from './routes/update.ts';
@@ -64,6 +65,7 @@ export const app = new Hono()
   // 卡片自帶腳本：吐的可能是 2 MB 的 JS，快取與風險等級都與角色資料不同（見該檔檔頭）。
   .route('/api/characters', characterScripts)
   .route('/api/chats', chats)
+  .route('/api/chats', chatMessages)
   .route('/api/chats', chatImport)
   .route('/api/chats', chatVariables)
   // 卡片變數的另外兩種範圍（global／character）——分開一支的理由見該檔檔頭。

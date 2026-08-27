@@ -2,7 +2,7 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from '@tanstack/react-router';
 import { type DragEvent, useState } from 'react';
 import { pushToast } from '@/shared/ui/toastStore';
-import { importCardFile, nameOf } from '../api';
+import { importCardFileWithProgress, nameOf } from '../api';
 import { validateCardFile } from '../lib/validateCardFile';
 
 export type ImportDropStatus = 'idle' | 'dragging' | 'selected' | 'uploading' | 'error';
@@ -25,9 +25,16 @@ export function useImportDrop() {
   const [file, setFile] = useState<File | null>(null);
   const [clientError, setClientError] = useState<string | null>(null);
   const [isOver, setIsOver] = useState(false);
+  /**
+   * 0–1 的上傳進度；`null` ＝ 拿不到（`lengthComputable` 是 false）——
+   * 這時畫面要退回不定量 spinner，不是卡在 0%。
+   */
+  const [progress, setProgress] = useState<number | null>(null);
 
   const m = useMutation({
-    mutationFn: (f: File) => f.arrayBuffer().then(importCardFile),
+    mutationFn: (f: File) =>
+      f.arrayBuffer().then((bytes) => importCardFileWithProgress(bytes, setProgress)),
+    onMutate: () => setProgress(null),
     onSuccess: (c) => {
       void qc.invalidateQueries({ queryKey: ['characters'] });
       pushToast({ severity: 'success', text: `已加入「${nameOf(c)}」` });
@@ -88,6 +95,8 @@ export function useImportDrop() {
     status,
     file,
     errorMessage,
+    /** `null` 時代表不定量：呼叫端要顯示 spinner，不要顯示卡在 0% 的進度條。 */
+    uploadProgress: progress,
     dragProps,
     onFileInputChange: pick,
     onCancel: reset,

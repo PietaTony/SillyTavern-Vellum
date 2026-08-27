@@ -39,7 +39,7 @@ export function AddFriendForm({
    */
   const gen = useMutation({
     // 🔴 **先轉成 data URL** —— 匯入的角色頭像是一個路徑，直接送過去會被擋（見 `toDataUrl`）。
-    mutationFn: async (src: string) => draftFromImage(await toDataUrl(src)),
+    mutationFn: async (src: string) => draftFromImage(await toDataUrl(src), 'character'),
     onError: (e: Error) => pushToast({ severity: 'warning', text: `生成失敗：${e.message}` }),
     onSuccess: (r) =>
       setDraft({

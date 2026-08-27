@@ -30,6 +30,7 @@ function ImportDrop() {
         <ImportSelectedPanel
           file={d.file}
           uploading={d.status === 'uploading'}
+          uploadProgress={d.uploadProgress}
           onCancel={d.onCancel}
           onSubmit={d.onSubmit}
         />

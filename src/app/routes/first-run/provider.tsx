@@ -1,4 +1,6 @@
+import Stack from '@mui/material/Stack';
 import { createFileRoute, useNavigate } from '@tanstack/react-router';
+import { AlphaNotice } from '@/features/about';
 import { ProviderListPane } from '@/features/providers';
 import { Screen } from '@/shared/ui/Screen';
 
@@ -28,7 +30,11 @@ function ProviderPage() {
 
   return (
     <Screen title="選擇供應商">
-      <ProviderListPane onOpen={(id) => void nav({ to: '/first-run/key', search: { id } })} />
+      <Stack spacing={2}>
+        {/* 🔴 擺在第一頁最上面：他還在決定要不要投入的那一刻，不是裝完之後才說。 */}
+        <AlphaNotice />
+        <ProviderListPane onOpen={(id) => void nav({ to: '/first-run/key', search: { id } })} />
+      </Stack>
     </Screen>
   );
 }

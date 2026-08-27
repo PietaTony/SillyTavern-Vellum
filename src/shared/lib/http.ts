@@ -74,6 +74,39 @@ export const postBytes = <T>(path: string, bytes: ArrayBuffer): Promise<T> =>
 export const del = <T>(path: string): Promise<T> => request<T>(path, { method: 'DELETE' });
 
 /**
+ * 跟 `postBytes` 一樣傳原始位元組，但用 `XMLHttpRequest` 換 `fetch` ——
+ * 🔴 **`fetch` 沒有上傳進度 API**，只有 `XMLHttpRequest.upload.onprogress` 有。
+ * 角色卡可以到 6.8 MB，這幾秒使用者要看到百分比而不是乾等一個 spinner。
+ *
+ * ⚠️ **`lengthComputable` 可能是 false**（少數環境／中介層會拿掉 `Content-Length`）——
+ * 這時 `onProgress` 收到 `null`，呼叫端要退回不定量的 spinner，
+ * **不要顯示一個永遠停在 0% 的進度條**。
+ */
+export const postBytesWithProgress = <T>(
+  path: string,
+  bytes: ArrayBuffer,
+  onProgress: (fraction: number | null) => void,
+): Promise<T> =>
+  new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    xhr.open('POST', path);
+    xhr.setRequestHeader('Content-Type', 'application/octet-stream');
+    xhr.upload.onprogress = (e) => onProgress(e.lengthComputable ? e.loaded / e.total : null);
+    xhr.onload = () => {
+      const body = parseBody(xhr.responseText);
+      if (xhr.status < 200 || xhr.status >= 300) {
+        reject(new ApiError(messageOf(body, xhr.status), xhr.status));
+      } else if (body && typeof body === 'object' && '__raw' in body) {
+        reject(new ApiError(`回應不是 JSON（HTTP ${xhr.status}）`, xhr.status));
+      } else {
+        resolve(body as T);
+      }
+    };
+    xhr.onerror = () => reject(new ApiError('網路錯誤', 0));
+    xhr.send(bytes);
+  });
+
+/**
  * 傳表單（背景圖上傳）。
  * 🔴 **不可以自己設 `Content-Type`** —— `multipart/form-data` 必須帶 `boundary`，
  * 那個值只有瀏覽器知道。手寫一個沒有 boundary 的 header，後端會解析出 0 個欄位，
