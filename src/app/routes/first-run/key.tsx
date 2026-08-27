@@ -1,21 +1,51 @@
 import Alert from '@mui/material/Alert';
+import Box from '@mui/material/Box';
 import Button from '@mui/material/Button';
+import Typography from '@mui/material/Typography';
+import { useQueryClient } from '@tanstack/react-query';
 import { createFileRoute, useNavigate } from '@tanstack/react-router';
-import { queryClient } from '@/app/queryClient';
 import { useBack } from '@/app/screens/useBack';
 import { KEY_STATUS_QUERY } from '@/app/setup';
-import { KeyGate, providerById, setActiveProvider, useProviderChoice } from '@/features/providers';
+import {
+  ProviderDetailPane,
+  ProviderStatusChip,
+  setActiveProvider,
+  useProviderRow,
+} from '@/features/providers';
 import { Screen } from '@/shared/ui/Screen';
 
-export const Route = createFileRoute('/first-run/key')({ component: KeyPage });
+export const Route = createFileRoute('/first-run/key')({
+  component: KeyPage,
+  /**
+   * 🔴 **是哪一家寫在網址裡，不是記在記憶體裡**（Peter 2026-08-27 改版）。
+   * 舊版用 zustand 的 `useProviderChoice` 記選了誰 —— 重新整理就沒了，
+   * 而首次流程正是最容易被重新整理的一段（貼金鑰要切出去開另一個分頁拿）。
+   */
+  validateSearch: (s: Record<string, unknown>): { id?: string } =>
+    typeof s['id'] === 'string' && s['id'] ? { id: s['id'] } : {},
+});
 
+/**
+ * 首次啟動第二步：設定那一家的金鑰。
+ *
+ * 🔴 **內容與 `/settings/providers/$id` 是同一份 code** —— 共用 `ProviderDetailPane`。
+ * 舊版的 `KeyGate`（連同 `keyGate.machine`）已經刪掉：它只支援寫死的兩家，
+ * 而且與設定頁那份各自演化，同一件事在兩個入口長得不一樣。
+ *
+ * 🔴 **「測過金鑰才能走」這條不變式還在**，只是判準換了：
+ * 舊版靠 machine 的 `passed` 狀態，現在靠 `row.keySet` ——
+ * 後端是**測試通過的當下才存**（`server/routes/secrets.ts`），
+ * 所以「有金鑰」與「測過了」本來就是同一件事，不需要前端再記一份狀態。
+ */
 function KeyPage() {
+  const { id } = Route.useSearch();
   const nav = useNavigate();
-  const selected = useProviderChoice((s) => s.selected);
   const back = useBack();
+  const qc = useQueryClient();
+  const { row } = useProviderRow(id ?? '');
 
-  // 「永遠引導」：沒有選過供應商就直接進來 → 給出口，不是給死路
-  if (!selected) {
+  // 「永遠引導」：沒帶供應商就直接進來 → 給出口，不是給死路
+  if (!id) {
     return (
       <Screen title="取得金鑰" onBack={back}>
         <Alert
@@ -32,27 +62,48 @@ function KeyPage() {
     );
   }
 
+  const passed = row?.keySet === true;
+
   return (
-    <KeyGate
-      info={providerById(selected)}
+    <Screen
+      title={row?.displayName ?? '供應商'}
       onBack={back}
-      // 🔴 測試通過的當下金鑰就存下來了 ⇒ 這一刻起「設定完成」。
-      // 所以導到 `/me?setup=1`（設定完成後的入口），不是 `/first-run/*`
-      // —— 後者會被 first-run 的守衛擋下來。
-      // 🔴 中間多這一步是 Peter 的 P-1：讓人知道「我是誰」這件事存在。**那一步可以跳過。**
-      onPassed={() => {
-        /*
-         * 🔴 **把首次流程選的那家設成「對話用哪一家」。**
-         * 在此之前這一步漏了：`useProviderChoice` 是 zustand 的記憶體狀態，
-         * 不持久化也沒送給後端 ⇒ 使用者在首次流程選了 Anthropic、設好金鑰，
-         * 對話還是打 Google（`generate.ts` 舊版寫死 default）。
-         * ⚠️ 這裡刻意不擋失敗：金鑰剛剛才測過，設不起來也不該卡住 onboarding，
-         * 使用者之後在設定頁看得到 radio 停在哪一家。
-         */
-        void setActiveProvider(selected).catch(() => {});
-        void queryClient.invalidateQueries({ queryKey: KEY_STATUS_QUERY.queryKey });
-        void nav({ to: '/profile', search: { setup: true } });
-      }}
-    />
+      action={<ProviderStatusChip p={row} />}
+      footer={
+        <Box sx={{ flex: 'none', p: 2, borderTop: 1, borderColor: 'divider' }}>
+          {!passed ? (
+            <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 1 }}>
+              測試成功之前，「下一步」是停用的。
+            </Typography>
+          ) : null}
+          <Button
+            fullWidth
+            variant="contained"
+            size="large"
+            disabled={!passed}
+            /*
+             * 🔴 **把剛設定好的那家設成「對話用哪一家」。**
+             * `useProviderChoice` 那版漏過這件事：選了 Anthropic、設好金鑰，
+             * 對話還是打 Google（後端 default）。
+             * ⚠️ 刻意不擋失敗：金鑰剛剛才測過，設不起來也不該卡住 onboarding，
+             * 使用者之後在設定頁看得到 radio 停在哪一家。
+             *
+             * 🔴 導到 `/profile?setup=1`（設定完成後的入口），不是 `/first-run/*`
+             * —— 金鑰一存下來就算「設定完成」，後者會被 first-run 的守衛擋下來。
+             * 中間多這一步是 Peter 的 P-1：讓人知道「我是誰」這件事存在。**那一步可以跳過。**
+             */
+            onClick={() => {
+              void setActiveProvider(id).catch(() => {});
+              void qc.invalidateQueries({ queryKey: KEY_STATUS_QUERY.queryKey });
+              void nav({ to: '/profile', search: { setup: true } });
+            }}
+          >
+            下一步 → 加入好友
+          </Button>
+        </Box>
+      }
+    >
+      <ProviderDetailPane id={id} onBack={back} />
+    </Screen>
   );
 }

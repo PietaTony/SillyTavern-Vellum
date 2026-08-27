@@ -1,80 +1,11 @@
-/** 純函式。不碰 api／store／ui（A4，由 gate:boundaries 守）。 */
-export type ProviderId = 'google' | 'anthropic';
-
-export type ProviderInfo = {
-  id: ProviderId;
-  name: string;
-  /** 🔴 撞牆警告，刻意不收合（SPEC：誠實標示差別）*/
-  badge: string;
-  badgeTone: 'good' | 'warn';
-  /** focus 才展開的細節 */
-  detail: string;
-  consoleUrl: string;
-  steps: string[];
-  keyHint: string;
-  /**
-   * 🔴 **能力宣告**：這一家後端到底接上了沒。
-   *
-   * 為什麼要有這個欄位，而不是把還沒接上的那家從清單刪掉：
-   * 專案原則是「ST 有 → 我們也要有，零例外」，而 ST 接了 26 家 ——
-   * **這份清單遲早要列滿，所以現在就要有辦法誠實表達「列了但還沒通」**。
-   * 刪掉的話，接上 Claude 時要再加回來，而且中間沒有任何機制擋住下一個人再犯。
-   *
-   * `ready`   ＝ 後端真的送得出去，正常可選
-   * `planned` ＝ **列出來但不可選**，卡片上標明還沒接上
-   */
-  status: 'ready' | 'planned';
-};
-
-/** 依據：SPEC §1 D20「② 該廠商的詳細金鑰引導（帶連結）」 */
-export const PROVIDERS: ProviderInfo[] = [
-  {
-    id: 'google',
-    name: 'Google Gemini',
-    badge: '有免費額度',
-    badgeTone: 'good',
-    detail: '在 Google AI Studio 建一把 key，免費層不需要信用卡。幾分鐘就好。',
-    consoleUrl: 'https://aistudio.google.com/apikey',
-    steps: [
-      '開啟 aistudio.google.com/apikey',
-      '用 Google 帳號登入',
-      '按「Create API key」，選一個專案（沒有就讓它新建）',
-      '複製 AIza… 開頭的字，貼回這裡',
-    ],
-    keyHint: 'AIza…',
-    status: 'ready',
-  },
-  {
-    id: 'anthropic',
-    name: 'Anthropic Claude',
-    badge: '需要先儲值',
-    badgeTone: 'warn',
-    detail:
-      '在 Anthropic Console 建 key。沒有免費額度——帳戶餘額為 0 時，key 是有效的但每一次請求都會被擋下來。',
-    consoleUrl: 'https://console.anthropic.com',
-    steps: [
-      '開啟 console.anthropic.com',
-      '註冊或登入',
-      'Settings → API Keys → Create Key',
-      '先去 Plans & Billing 儲值（餘額 0 的話，金鑰驗證得過、但每次送出都會失敗）',
-      '複製 sk-ant-… 開頭的字，貼回這裡',
-    ],
-    keyHint: 'sk-ant-…',
-    // 🔴 `server/routes/secrets.ts` 的 `/test` 目前只送得出 Google。
-    //    接上之後把這裡改成 `ready` 即可，UI 一行都不用動。
-    status: 'planned',
-  },
-];
-
-/** fallback：找不到就回第一家。用 `?? PROVIDERS[0]` 會被 noUncheckedIndexedAccess 判成 undefined，
- *  所以把「至少有一家」這件事寫成型別上成立的形狀。 */
-const [FIRST] = PROVIDERS as [ProviderInfo, ...ProviderInfo[]];
-
-/** 真的送得出去的那幾家。UI 用它決定可不可以點。 */
-export const isReady = (p: ProviderInfo): boolean => p.status === 'ready';
-
-export const providerById = (id: ProviderId): ProviderInfo =>
-  PROVIDERS.find((p) => p.id === id) ?? FIRST;
+/**
+ * 純函式。不碰 api／store／ui（A4，由 gate:boundaries 守）。
+ *
+ * 🔴 **這裡只剩金鑰的遮罩推導。** 原本還放著 first-run 專用的那份 `PROVIDERS`
+ * （Google 與 Anthropic 兩家的文案），2026-08-27 隨舊版 first-run 一起刪掉 ——
+ * 供應商名單的正本只有後端的 `server/providers/registry.ts`（26 家），
+ * 前端維護第二份的下場是「first-run 說兩家、設定頁說 26 家」，而那看起來像 bug。
+ */
 
 /**
  * 金鑰的遮罩顯示：**前四碼與後四碼明碼，中間打點**。
@@ -116,14 +47,3 @@ export function applyMaskedEdit(real: string, shown: string, next: string): stri
     return real.slice(0, Math.max(0, real.length - (shown.length - next.length)));
   return '';
 }
-
-/**
- * first-run 那兩家的預設模型。
- * 🔴 **權威來源是後端的 `server/providers/registry.ts`** —— 這裡只是 first-run
- * 在拿到 `/api/secrets/providers` 之前的初值，避免選模型框一開始是空的。
- * ⚠️ 兩邊不同步時以後端為準；改預設模型請改後端那份。
- */
-export const DEFAULT_MODEL_BY_PROVIDER: Record<string, string> = {
-  google: 'gemini-3.1-flash-lite',
-  anthropic: 'claude-sonnet-4-5',
-};

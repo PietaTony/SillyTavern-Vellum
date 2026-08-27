@@ -1,47 +1,34 @@
-import Button from '@mui/material/Button';
-import Stack from '@mui/material/Stack';
-import Typography from '@mui/material/Typography';
 import { createFileRoute, useNavigate } from '@tanstack/react-router';
-import { PROVIDERS, ProviderCard, useProviderChoice } from '@/features/providers';
+import { ProviderListPane } from '@/features/providers';
 import { Screen } from '@/shared/ui/Screen';
 
 export const Route = createFileRoute('/first-run/provider')({ component: ProviderPage });
 
-/** 首次啟動第一步。沒有返回鍵：退無可退（`GAP-25` 三個真實入口之一）。 */
+/**
+ * 首次啟動第一步。沒有返回鍵：退無可退（`GAP-25` 三個真實入口之一）。
+ *
+ * 🔴 **內容與 `/settings/providers` 是同一份 code**（Peter 2026-08-27）——
+ * 共用 `ProviderListPane`，不是照著做一個像的。
+ *
+ * 🔴 **舊版的兩張大卡片（`ProviderCard` ＋ `model.ts` 的 `PROVIDERS`）已經刪掉。**
+ * 那一版只列 Google 與 Anthropic 兩家，而後端 registry 有 26 家 ——
+ * 前端自己維護第二份名單的下場就是「first-run 說只有兩家、設定頁說有 26 家」，
+ * 而使用者會以為是自己哪裡沒設定好。名單的正本只有後端那一份。
+ *
+ * 🔴 **這一頁不再有「下一步」**。舊版是「選一家 → 下一步 → 貼金鑰」，
+ * 選取只是個記在記憶體裡的旗標；現在點進哪一家就設定哪一家，
+ * 「選了什麼」與「設定了什麼」不再是兩件會不同步的事。
+ *
+ * ⚠️ `design/screens.json` 說這一頁 `back: null` ⇒ **這支檔案裡不可以出現 `onBack`**
+ * （`gate:back` 反向檢查）。所以點進某一家要跳 `/first-run/key`，
+ * 不能像對話頁 ☰ 的全螢層那樣用 local state 就地展開。
+ */
 function ProviderPage() {
   const nav = useNavigate();
-  const { selected, select } = useProviderChoice();
 
   return (
-    <Screen
-      title="選擇供應商"
-      action={
-        <Button
-          size="small"
-          disabled={!selected}
-          onClick={() => void nav({ to: '/first-run/key' })}
-        >
-          下一步
-        </Button>
-      }
-    >
-      <Stack spacing={2}>
-        <Typography variant="body2" color="text.secondary">
-          {/* 🔴 不要為了排版把中文句子折行 —— JSX 會在折行處留一個半形空格，
-              中文標點後面多一格看起來像沒排版好。整句寫成一個字串。 */}
-          {
-            'Vellum 只接兩家官方 API。目前接上的是 Google Gemini；Anthropic Claude 還在接，所以先不開放選。取得方式兩家差很多——先講清楚，別讓你選完才撞牆。'
-          }
-        </Typography>
-        {PROVIDERS.map((p) => (
-          <ProviderCard
-            key={p.id}
-            info={p}
-            selected={selected === p.id}
-            onToggle={() => select(p.id)}
-          />
-        ))}
-      </Stack>
+    <Screen title="選擇供應商">
+      <ProviderListPane onOpen={(id) => void nav({ to: '/first-run/key', search: { id } })} />
     </Screen>
   );
 }
