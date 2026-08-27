@@ -253,8 +253,12 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4 # 🔴 要讀 RELEASE-NOTES/next.md，這個 job 原本沒有 checkout
+      # 🔴 **只收桌面版的產物**（Peter 2026-08-27：「我只想要 release 出現三個檔案」）。
+      #    `node-zip`（給有 Node 24、想自己跑的人）不再上架 —— 它仍然會被 build，
+      #    `windows-smoke` 那一關驗的就是它，只是不掛到 Release 上。
       - uses: actions/download-artifact@v4
         with:
+          pattern: desktop-*
           path: assets
           merge-multiple: true
       - run: ls -lh assets/
@@ -272,6 +276,27 @@ jobs:
           done
           ls assets/*-mac.zip >/dev/null 2>&1 && echo "  ✅ mac 更新用的 zip" || { echo "::error::assets 裡沒有 *-mac.zip —— latest-mac.yml 會指到不存在的檔"; MISSING=1; }
           ls assets/*Setup*.exe >/dev/null 2>&1 && echo "  ✅ Windows 安裝版（可自動更新的那個）" || { echo "::error::assets 裡沒有 Setup exe"; MISSING=1; }
+
+          # 🔴 **feed 檔在，不代表它指到的檔在。**（2026-08-27 實測）
+          #    `latest.yml` 寫的是 `Vellum-Setup-0.2.12.exe`，而 GitHub 上的資產叫
+          #    `Vellum.Setup.0.2.12.exe`（空白被換成點）⇒ **那個下載網址是 404**。
+          #    症狀特別壞：「查得到新版」照常，只有「下載」那一段死掉 ⇒
+          #    使用者看到的是「一直提示有新版，但更新永遠不會完成」。
+          #    ⇒ 上面那幾條守的是「有沒有資料」，這一條守的才是**涵蓋率**：
+          #      把 feed 檔自己寫的檔名逐一拿去對 assets/。
+          #    ⚠️ 用 awk 不用 `sed -E 's/\s*//'`：`\s` 是 GNU 擴充，BSD 上行為不同
+          #      （GAP-114 踩過一次「本機測得過、CI 上不一樣」）。
+          for f in latest.yml latest-mac.yml; do
+            [ -f "assets/$f" ] || continue
+            for want in $(awk '$1=="url:"{print $2} $1=="-"&&$2=="url:"{print $3}' "assets/$f" | sort -u); do
+              if [ -f "assets/$want" ]; then
+                echo "  ✅ $f → $want"
+              else
+                echo "::error::$f 指到 assets/$want，但那個檔不存在 —— 自動更新會下載到 404"
+                MISSING=1
+              fi
+            done
+          done
           exit $MISSING
 
       # 🔴 RN3：發版說明缺席就要紅，不可以靜靜發一個沒有說明的版本。
