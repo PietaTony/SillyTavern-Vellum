@@ -23,7 +23,14 @@ export type SwipeResult = {
   id: string;
   swipeIndex: number;
   text: string;
-  lore: { include: string[]; exclude: string[]; changed: number; dangling: string[] } | null;
+  lore: {
+    include: string[];
+    exclude: string[];
+    changed: number;
+    dangling: string[];
+    /** 🔴 因為「切換」而被關掉的別條線專屬條目（GAP-120）。空陣列 ＝ 沒有別條線要讓位。 */
+    turnedOff: string[];
+  } | null;
 };
 /**
  * 🔴 卡片腳本的變數（淺層合併）。桌寵把自己的尺寸存在這裡 ——

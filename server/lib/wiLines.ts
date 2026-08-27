@@ -51,6 +51,18 @@ export function linesFromGreetings(greetings: string[]): WiLine[] {
 }
 
 /**
+ * 把「一則開場白帶的標籤」包成一條線，好讓它跟線路切換器走**同一個 `exclusiveOff`**。
+ *
+ * 🔴 存在的理由是 GAP-120：切開場白原本只做加法（標籤說開什麼就開什麼），
+ * 而線路切換器早就在做切換 ⇒ **同一件事、兩個入口、兩種語意**，
+ * 而且分岔的那一邊（切開場）在畫面上完全看不出來。
+ * `greetingLore.ts` 的檔頭早就寫著「兩個入口必須是同一個引擎」——當時只共用了一半。
+ */
+export function lineOfTags(tags: { include: string[]; exclude: string[] }): WiLine {
+  return { key: keyOf(tags.include, tags.exclude), titles: [], ...tags };
+}
+
+/**
  * 切到某一條線時，**要一起關掉的別條線專屬條目**。
  *
  * 🔴 **為什麼「切線」不能只做加法。** 卡片作者的 `<!-- lore -->` 標籤本身是加法的，
