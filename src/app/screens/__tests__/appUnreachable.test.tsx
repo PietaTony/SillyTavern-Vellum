@@ -24,7 +24,7 @@ const show = (error: unknown, reset?: () => void) =>
 describe('AppUnreachable', () => {
   it('502 講的是「後端沒有回應」，而且原文照留', () => {
     show(new ApiError('HTTP 502：Bad Gateway', 502));
-    expect(screen.getByText(/後端沒有回應/)).toBeTruthy();
+    expect(screen.getByText(/Vellum 沒有回應/)).toBeTruthy();
     expect(screen.getByText(/HTTP 502：Bad Gateway/)).toBeTruthy();
   });
 
