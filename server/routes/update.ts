@@ -1,5 +1,6 @@
 import { Hono } from 'hono';
 import { currentVersion, isNewer } from '../adapters/version.ts';
+import { stripDownloadTable } from '../lib/releaseNotes.ts';
 
 const REPO = 'PietaTony/SillyTavern-Vellum';
 const LATEST = `https://api.github.com/repos/${REPO}/releases/latest`;
@@ -89,7 +90,8 @@ async function look(): Promise<LookResult> {
     };
     const latest = payload.tag_name ?? null;
     if (!latest) return { ...base, error: '最新版沒有 tag_name' };
-    const notes = trimNotes(payload.body);
+    // 🔴 先剝掉下載表格再截斷 —— 反過來的話 1200 字元會全花在表格上，正文一個字都進不來。
+    const notes = trimNotes(stripDownloadTable(payload.body));
     return {
       ...base,
       latest,
