@@ -1,7 +1,6 @@
 import Alert from '@mui/material/Alert';
 import Button from '@mui/material/Button';
 import CircularProgress from '@mui/material/CircularProgress';
-import Typography from '@mui/material/Typography';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { createFileRoute, useNavigate } from '@tanstack/react-router';
 import { useState } from 'react';
@@ -12,9 +11,9 @@ import {
   fetchWorld,
   GLOBAL_OWNER,
   groupByPosition,
-  LineSwitcher,
   setEntryEnabled,
   type WiLine,
+  WorldBookHead,
 } from '@/features/worldbook';
 import { Screen } from '@/shared/ui/Screen';
 
@@ -101,22 +100,22 @@ function WorldPage() {
       ) : null}
       {q.data ? (
         <>
-          <LineSwitcher
+          <WorldBookHead
+            total={entries.length}
+            enabled={enabled}
+            /*
+             * 🔴 **說清楚改的是誰的**。不說的話，使用者合理會以為自己在改一份共用設定
+             * ——而那正是 ST 讓人踩到的陷阱（在一段對話關掉，全部對話一起關）。
+             */
+            note={
+              isGlobal
+                ? '🔴 這是全域世界書 —— 開著的條目會套用到你「所有」的對話，不是只有某一位好友。'
+                : '改動只影響這一位好友，不會動到卡片本身，也不會影響用同一張卡的其他好友。'
+            }
             lines={linesQ.data?.lines ?? []}
             busyKey={busyKey}
             onApply={(l) => apply.mutate(l)}
           />
-          <Typography variant="body2" color="text.secondary" sx={{ px: 2, py: 1 }}>
-            {entries.length} 條，目前啟用 {enabled} 條。
-            {/*
-             * 🔴 **說清楚改的是誰的**。不說的話，使用者合理會以為自己在改一份共用設定
-             * ——而那正是 ST 讓人踩到的陷阱（在一段對話關掉，全部對話一起關）。
-             */}
-            <br />
-            {isGlobal
-              ? '🔴 這是全域世界書 —— 開著的條目會套用到你「所有」的對話，不是只有某一位好友。'
-              : '改動只影響這一位好友，不會動到卡片本身，也不會影響用同一張卡的其他好友。'}
-          </Typography>
           <EntryList
             groups={groupByPosition(entries)}
             busyUid={busyUid}
