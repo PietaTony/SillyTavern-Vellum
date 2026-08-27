@@ -9,6 +9,7 @@ import { useRouter } from '@tanstack/react-router';
 import { CopyButton } from '@/shared/ui/CopyButton';
 import { pushToast } from '@/shared/ui/toastStore';
 import { describeFailure } from './appFailure';
+import { ReportButton } from './ReportButton';
 
 /**
  * 整頁打不開時的畫面。**掛在 router 的 `defaultErrorComponent`**（`app/router.ts`）。
@@ -26,6 +27,10 @@ import { describeFailure } from './appFailure';
  * 🔴 **原文照留 ＋ 一顆複製鈕**（Peter 2026-08-26 的既有規則：
  * 「錯誤訊息要提供複製按鈕，方便 user 回傳給我們」）。
  * 判讀出來的那句話是**加上去**的，不是拿來取代原文的。
+ *
+ * 🔴 **「回報問題」在這裡最重要。** 這一頁的前提就是 Vellum 沒在跑 ——
+ * 使用者手上除了這張畫面什麼都沒有，而「回報單」把版本、網址、連線方式、
+ * 錯誤原文整包裝好給他複製（見 `app/report.ts`），他不必自己描述技術細節。
  */
 export function AppUnreachable({
   error,
@@ -59,13 +64,14 @@ export function AppUnreachable({
           {f.detail}
         </Typography>
       </Alert>
-      {f.retryable ? (
-        <Stack direction="row" sx={{ mt: 2, justifyContent: 'flex-end' }}>
+      <Stack direction="row" spacing={1} sx={{ mt: 2, justifyContent: 'flex-end' }}>
+        <ReportButton input={{ what: f.detail }} />
+        {f.retryable ? (
           <Button variant="contained" startIcon={<RefreshOutlinedIcon />} onClick={retry}>
             再試一次
           </Button>
-        </Stack>
-      ) : null}
+        ) : null}
+      </Stack>
     </Box>
   );
 }

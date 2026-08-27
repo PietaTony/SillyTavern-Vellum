@@ -4,6 +4,7 @@ import Stack from '@mui/material/Stack';
 import { useState } from 'react';
 import { failureOf } from '@/features/chat';
 import { ProvidersLayer } from '@/features/providers';
+import { ReportButton } from './ReportButton';
 
 /**
  * 「這一輪沒有生成成功」那條橫幅。
@@ -39,6 +40,12 @@ export function ChatFailure({ message, onDismiss }: { message: string; onDismiss
               去設定金鑰
             </Button>
           ) : null}
+          {/*
+           * 🔴 **生成失敗是最該當場回報的一刻。** 錯誤原文（`message`，不是被縮短過的
+           * `f.text`）直接進回報單 —— 那 21 家沒有人用真金鑰打過的供應商，
+           * 修復完全靠使用者把原文貼回來。
+           */}
+          <ReportButton input={{ what: message }} />
           {/* 🔴 名字要與行為一致 —— 它就是把橫幅關掉，不要再叫「重新送出」。 */}
           <Button size="small" onClick={onDismiss}>
             知道了

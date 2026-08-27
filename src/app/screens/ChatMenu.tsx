@@ -13,6 +13,7 @@ import { useState } from 'react';
 import { BackgroundsLayer } from '@/features/backgrounds';
 import { ChatPersona } from '@/features/persona';
 import { ProvidersLayer } from '@/features/providers';
+import { ReportMenuItem } from './ReportButton';
 
 /**
  * 對話頁右上角的 ☰（Peter 2026-08-26：「這邊右上角讓我們顯示三條橫線，點開來後
@@ -128,6 +129,10 @@ export function ChatMenu({
           {/* 🔴 文案與 `/settings` 那一列**逐字相同** —— 同一件事在兩個入口叫不同名字，使用者要學兩次。 */}
           <ListItemText primary="AI 供應商與金鑰" secondary="26 家供應商、選模型" />
         </MenuItem>
+        {/* 🔴 回報要在他發現問題的當下按得到 —— 埋在設定裡的話他得先離開這段對話，
+            而他要講的往往就是「剛剛這段對話怎麼了」。
+            ⚠️ 帶 `chatId` 但**不帶對話內容**：我們要的是查得到那一間，不是他的故事。 */}
+        <ReportMenuItem input={{ extra: { 對話: chatId } }} onDone={() => setAnchor(null)} />
       </Menu>
       <ChatPersona
         open={layer === 'persona'}

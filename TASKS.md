@@ -63,6 +63,8 @@
 - [ ] 全站背景（BackgroundsLayer, global）── 有即時預覽框
 
 ### 其他
+- [ ] 「回報問題」的四個入口 ── 錯誤頁／`/settings`／對話頁 ☰／失敗橫幅，
+      再加 tips 上那顆複製鈕（複製的是整張回報單）
 - [ ] 世界書選擇器（WorldPicker）── persona 編輯裡
 - [ ] 全站 tips（ToastStack）── 會堆疊
 - [ ] 區網連線警告（LanWarning）── 用 `192.168.x.x` 開才會出現
