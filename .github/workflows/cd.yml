@@ -1,0 +1,269 @@
+# 推 `staging` → 閘門綠 → 自動 fast-forward `main` → 自動發 GitHub Release。
+#
+# 🔴 **這一支就是「prod」**（Peter 2026-08-27 裁定 ②：全自動 CD，
+#    原話「CICD build 推prod staging 也都推到prod」／「朋友永遠拿得到最新版」）。
+#    `desktop.yml` 與 `release.yml` 已被它吸收並刪除 —— **一件事只留一條路。**
+#
+# 🔴 **`GITHUB_TOKEN` 推出去的 commit 與 tag 不會觸發任何 workflow**（GitHub 的防迴圈機制）。
+#    ⇒ ① 不能靠「CI 打 tag → 另一支 workflow 被觸發」，那條路永遠不會跑，
+#         所以 Release 由本檔的 `release` job **當場開**。
+#      ② 也因為這樣，`promote` 推 `main` **不會**再繞回來觸發自己 —— 無限迴圈不可能發生。
+#
+# 🔴 **版號不寫回 repo。** patch 用 `github.run_number`（單調遞增、不與人的 commit 賽跑），
+#    每個 build job 在 build 前把 `package.json` 就地改成該值（不 commit）。
+#    這樣 **Release 的 tag == app 內顯示的版本**，只有一把尺。
+#    `package.json` 裡留的 `0.2.0` 只提供 major.minor。
+#
+# 順序是刻意的：**先 `promote`（main 前進）才 `release`。**
+# main 是「已發佈什麼」的紀錄；main 推不上去就不該有 Release。
+name: cd
+
+on:
+  push:
+    branches: [staging]
+    # 🔴 只改文件不值得燒三台 runner，也不值得多一個 Release 版本。
+    paths-ignore: ['**.md', 'plans/**', 'NOTES/**', 'docs/**']
+  workflow_dispatch:
+
+# 同一條分支只留最新一次 —— 連推三個 commit，前兩包在推完第三次的那一刻就沒人要了。
+concurrency:
+  group: cd-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: write # 推 main、開 Release、建 tag
+
+jobs:
+  # 🔴 **手動觸發要守分支。** `workflow_dispatch` 可以從任何分支跑，而這支會推 `main`
+  #    並對外發版 —— 這個 repo 有 `upstream-staging`（上游 ST 的鏡像），從那條跑一次
+  #    就會把 ST 的 code 當成 Vellum 發出去。守在最前面，後面全部 `needs` 它。
+  guard:
+    runs-on: ubuntu-latest
+    steps:
+      - run: |
+          if [ "${{ github.ref }}" != "refs/heads/staging" ]; then
+            echo "cd 只能從 staging 跑，現在是 ${{ github.ref }}"
+            exit 1
+          fi
+          echo "分支 OK：${{ github.ref }}"
+
+  # 版號只算一次，其他 job 全部拿同一個值 —— 三個平台各自算會有分岔的風險。
+  version:
+    needs: guard
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.v.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+      - id: v
+        shell: bash
+        run: |
+          BASE=$(node -p "require('./package.json').version.split('.').slice(0,2).join('.')")
+          echo "version=${BASE}.${{ github.run_number }}" >> "$GITHUB_OUTPUT"
+          echo "本次版號：${BASE}.${{ github.run_number }}"
+
+  # 十四道閘門 ＋ Node zip。`pnpm verify` 的第一步是 `pnpm build`（不是 tsc）——
+  # routeTree.gen.ts 被 gitignore，要 vite build 才生得出來。
+  gates:
+    needs: version
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: pnpm
+      # 🔴 `--frozen-lockfile`：裝的是本機審過的同一份 lockfile，CI 不自己解析相依。
+      - run: pnpm install --frozen-lockfile --config.minimumReleaseAge=0
+      # 🔴 install 之後才改版號 —— 反過來的話 lockfile 檢查有機會多一個變數。
+      - name: 蓋上本次版號
+        shell: bash
+        run: node .github/set-version.mjs "${{ needs.version.outputs.version }}"
+      - run: pnpm verify
+      - run: pnpm package
+      - uses: actions/upload-artifact@v4
+        with:
+          name: node-zip
+          retention-days: 14
+          if-no-files-found: error # 沒產出要紅，不要交一個空的 artifact
+          path: dist-zip/*.zip
+
+  # 🔴 zip 解出來真的跑得起來 —— **這一關綠了才准發版**。
+  # 「build 成功」跟「使用者雙擊之後有東西」是兩件事。
+  windows-smoke:
+    needs: version
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile --config.minimumReleaseAge=0
+      - name: 蓋上本次版號
+        shell: bash
+        run: node .github/set-version.mjs "${{ needs.version.outputs.version }}"
+      - run: pnpm build
+      - run: pnpm package
+
+      # 解壓到一個乾淨目錄 —— 🔴 **不得沿用 repo 裡的 node_modules**，
+      # 那正是這裡要證明「不需要」的東西。
+      - name: 解壓 zip
+        shell: pwsh
+        run: |
+          $zip = Get-ChildItem dist-zip/*.zip | Select-Object -First 1
+          Expand-Archive -Path $zip.FullName -DestinationPath "$env:RUNNER_TEMP/vellum" -Force
+          Get-ChildItem "$env:RUNNER_TEMP/vellum" -Recurse -Depth 1 | Select-Object FullName
+
+      # 🔴 用**啟動檔本身**啟動，不是自己另外下 node 指令 ——
+      #    要驗的就是那支 .bat（cd /d、Node 版本檢查、NODE_ENV、VELLUM_OPEN）。
+      #    ⚠️ VELLUM_OPEN 在 CI 要關掉，不然會去開一個開不起來的瀏覽器。
+      - name: 啟動並冒煙
+        shell: pwsh
+        run: |
+          $dir = (Get-ChildItem "$env:RUNNER_TEMP/vellum" -Directory | Select-Object -First 1).FullName
+          $env:VELLUM_OPEN = '0'
+          $p = Start-Process -FilePath "$dir\啟動.bat" -WorkingDirectory $env:USERPROFILE -PassThru
+          Start-Sleep -Seconds 12
+
+          # 🔴 比對 **body 內容**，不是狀態碼（AGENTS.md §5：HTTP 200 不等於功能正常）
+          $v = (Invoke-WebRequest -UseBasicParsing http://127.0.0.1:8520/api/version).Content
+          if ($v -notmatch '"name":"vellum"') { throw "版本端點的 body 不對：$v" }
+          if ($v -match '"version":"0\.0\.0"') { throw "版本讀成 0.0.0 —— zip 裡的 package.json 沒生效" }
+          # 🔴 CD 專屬：zip 裡的版本必須就是本次要發的那個號，否則 tag 與 app 是兩把尺
+          if ($v -notmatch '"version":"${{ needs.version.outputs.version }}"') {
+            throw "zip 內版號不是 ${{ needs.version.outputs.version }}：$v"
+          }
+
+          # 🔴 前端真的掛得起來 —— 只打 /api/version 的話，mountStatic 沒掛也照樣 200
+          $home_ = (Invoke-WebRequest -UseBasicParsing http://127.0.0.1:8520/).Content
+          if ($home_ -notmatch '<div id="root"') { throw "首頁沒有 <div id=root> —— 前端沒掛上" }
+
+          # 從別的目錄啟動（上面 WorkingDirectory 是家目錄），data 仍要建在解壓處
+          if (-not (Test-Path "$dir\data")) { throw "data 沒有建在解壓處 —— cd /d 沒生效" }
+          if (Test-Path "$env:USERPROFILE\data") { throw "data 被建到家目錄了" }
+
+          $body = '{"name":"冒煙用角色","description":"CI","firstMessage":"hi"}'
+          Invoke-WebRequest -UseBasicParsing -Method Post -ContentType 'application/json' `
+            -Body $body http://127.0.0.1:8520/api/characters | Out-Null
+
+          Stop-Process -Id $p.Id -Force
+          Get-Process node -ErrorAction SilentlyContinue | Stop-Process -Force
+          Start-Sleep -Seconds 3
+
+          # 重啟之後角色還在 —— 這才是「資料真的留在磁碟上」
+          $p2 = Start-Process -FilePath "$dir\啟動.bat" -WorkingDirectory $env:USERPROFILE -PassThru
+          Start-Sleep -Seconds 12
+          $chars = (Invoke-WebRequest -UseBasicParsing http://127.0.0.1:8520/api/characters).Content
+          if ($chars -notmatch '冒煙用角色') { throw "重啟後角色不見了：$chars" }
+          Stop-Process -Id $p2.Id -Force
+          Write-Host "windows-smoke PASS —— 版號正確、首頁掛得起來、data 在解壓處、重啟後資料還在"
+
+  # 🔴 **Windows 的 exe 要在 Windows 上 build。** 在 Mac 上交叉 build 要 Wine，產出不可信。
+  windows-app:
+    needs: version
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile --config.minimumReleaseAge=0
+      - name: 蓋上本次版號
+        shell: bash
+        run: node .github/set-version.mjs "${{ needs.version.outputs.version }}"
+      # 🔴 **`--publish never` 已經寫在 `app:build` 裡**（GAP-98）：electron-builder 偵測到
+      #    CI 就會自己開 Release。掛檔案的動作一律由下面的 `release` job 明確做。**不要拿掉。**
+      - run: pnpm app:build
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: 'false' # 不要讓它去撈 runner 上任何憑證
+      - uses: actions/upload-artifact@v4
+        with:
+          name: desktop-windows
+          retention-days: 14
+          if-no-files-found: error
+          path: dist-app/*.exe
+
+  mac-app:
+    needs: version
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile --config.minimumReleaseAge=0
+      - name: 蓋上本次版號
+        shell: bash
+        run: node .github/set-version.mjs "${{ needs.version.outputs.version }}"
+      - run: pnpm app:build
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+      - uses: actions/upload-artifact@v4
+        with:
+          name: desktop-mac
+          retention-days: 14
+          if-no-files-found: error
+          path: dist-app/*.dmg
+
+  # 🔴 **fast-forward，不 merge。** `main` 一直是 `staging` 的祖先，
+  #    ff 推不上去代表有人在 main 上直接改過東西 —— 那要人來看，不該用 merge commit 蓋過去。
+  #
+  # 🔴 **用 API 更新 ref，不 checkout 之後 `git push`。** 兩個理由：
+  #   ① `actions/checkout` 預設 `fetch-depth: 1`（淺 clone）⇒ 手上沒有 main→staging 之間
+  #      那些 commit 的物件，`git push` 會被 **`shallow update not allowed`** 擋下。
+  #      改 `fetch-depth: 0` 能修，但那要 clone 一萬多個 commit（這 repo fork 自 ST）。
+  #   ② `PATCH /git/refs` 預設 `force: false` ⇒ **fast-forward 由 GitHub 伺服器端強制**，
+  #      不是靠我們自己記得不要加 `--force`。非 ff 會回 422，job 直接紅。
+  promote:
+    needs: [version, gates, windows-smoke, windows-app, mac-app]
+    runs-on: ubuntu-latest
+    steps:
+      - name: fast-forward main
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh api -X PATCH "repos/${{ github.repository }}/git/refs/heads/main" \
+            -f sha='${{ github.sha }}' -F force=false
+          # 讀回作用端的值 —— 「API 回 200」不等於 ref 真的動了
+          AFTER=$(gh api "repos/${{ github.repository }}/git/ref/heads/main" -q .object.sha)
+          [ "$AFTER" = "${{ github.sha }}" ] || { echo "main 還停在 $AFTER"; exit 1; }
+          echo "main → $AFTER"
+
+  release:
+    needs: [version, promote]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: assets
+          merge-multiple: true
+      - run: ls -lh assets/
+
+      # 🔴 tag 由這一步當場建（`GITHUB_TOKEN` 推的 tag 不會觸發 workflow，
+      #    所以「打 tag 再讓別支發版」那條路是死的）。
+      - uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ needs.version.outputs.version }}
+          target_commitish: ${{ github.sha }}
+          generate_release_notes: true
+          fail_on_unmatched_files: true # 少一個平台就要紅，不要靜靜發一包不完整的
+          body: |
+            ## 要下載哪一個
+
+            | 你是 | 下載 |
+            |---|---|
+            | Windows | `.exe` —— 雙擊安裝 |
+            | Mac | `.dmg` |
+            | 已經有 Node 24 / 想自己跑 | `.zip` —— 解壓後執行 `啟動.command`（Mac）或 `啟動.bat`（Windows）|
+
+            Mac 的 `.dmg` 是 ad-hoc 簽章，第一次開啟要在「系統設定 → 隱私權與安全性」按允許。
+
+            ---
+          files: assets/*

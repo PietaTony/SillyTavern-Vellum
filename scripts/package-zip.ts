@@ -97,7 +97,7 @@ if (process.platform === 'win32') {
   /**
    * ⚠️ `Compress-Archive` **不保留 Unix 執行位元** —— 在 Windows 上壓出來的 zip
    * 拿給 Mac 使用者時，`啟動.command` 會沒有執行權限、雙擊不動。
-   * ⇒ **正式的 release 一律在 Linux runner 上打包**（`release.yml` 的 `zip` job）。
+   * ⇒ **正式的 release 一律在 Linux runner 上打包**（`cd.yml` 的 `gates` job，ubuntu）。
    * 這條分岔只給 Windows CI 的冒煙用。
    */
   execFileSync('powershell', [

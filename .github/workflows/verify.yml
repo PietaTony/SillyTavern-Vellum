@@ -1,13 +1,13 @@
-# 每次 push 與 PR 都跑同一組閘門。
+# PR 的閘門。**推 `staging` 走 `cd.yml`**，那支跑同一組閘門再往下發版。
 # 🔴 這是本專案第一個 CI —— 在此之前「沒人會幫你跑」，全靠人記得下指令。
 name: verify
 
+# 🔴 **只跑 PR。** 2026-08-27 起 `staging` 由 `cd.yml` 全包（同一組閘門 ＋ 桌面版 ＋ 發版），
+# 兩支都掛 staging 只是把同一件事跑兩次。`main` 是被 `GITHUB_TOKEN` fast-forward 推上去的，
+# 那種 push **本來就不會觸發 workflow**，掛在這裡只是一行沒有作用的設定。
 on:
-  push:
-    # 🔴 **staging 一定要在這裡。** 分支分流之後所有開發都在 staging，
-    # 只掛 main 的話 CI 會在「已經合併進 main」之後才第一次跑到 —— 那時擋已經來不及。
-    branches: [main, staging]
   pull_request:
+
 
 jobs:
   gates:
