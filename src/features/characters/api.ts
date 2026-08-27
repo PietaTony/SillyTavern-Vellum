@@ -1,4 +1,4 @@
-import { get, patch, post, postBytes } from '@/shared/lib/http';
+import { get, patch, post, postBytes, postBytesWithProgress } from '@/shared/lib/http';
 
 export type Character = {
   id: string;
@@ -98,3 +98,14 @@ export const importCardByUrl = (url: string): Promise<ImportedCharacter> =>
 
 export const importCardFile = (bytes: ArrayBuffer): Promise<ImportedCharacter> =>
   postBytes<ImportedCharacter>('/api/characters/import', bytes);
+
+/**
+ * 跟 `importCardFile` 送的是同一支路由，**只有 `import/drop` 這條路走這支**——
+ * 那張畫面有百分比進度可以顯示；`ImportCardBox`（加入好友頁頂端的快速匯入）
+ * 沒有對應的進度 UI，不動它原本的行為。見 `postBytesWithProgress` 檔頭。
+ */
+export const importCardFileWithProgress = (
+  bytes: ArrayBuffer,
+  onProgress: (fraction: number | null) => void,
+): Promise<ImportedCharacter> =>
+  postBytesWithProgress<ImportedCharacter>('/api/characters/import', bytes, onProgress);
