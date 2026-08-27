@@ -20,6 +20,13 @@ import type { CardVarScope, CardVarScopes } from './runtime/scopes';
  * ⇒ 現在只有「還在等」才回 `undefined`（等一下值得，因為 seed 只認第一份）；
  *   **error 或沒有 characterId 都照常種，只是那兩桶是空的。**
  *
+ * 🔴 **同一個陷阱還有另一半**（Peter 2026-08-27：「每次回到對話，桌寵位置都會回到
+ * 右下角、預設大小」）：`useCardScripts` 的種子**只認第一份**，而第一次 render 時
+ * 對話那支查詢還沒回來 ⇒ 這裡回的是 `{global:{},character:{},chat:{}}`
+ * —— **不是 undefined，是「空的」** ⇒ 種子凍在空物件上，真正的 `variables` 永遠種不進去。
+ * ⚠️ 這支**分不出**「這段對話沒有變數」與「對話還沒讀回來」（兩種傳進來的都是 `undefined`）
+ * ⇒ 判斷只能放在呼叫端（`chat/$chatId.tsx`，那裡看得到 `q.data`）。
+ *
  * ⚠️ `message` 範圍仍然沒有，處理方式（退回 `chat` 並出聲）在 `runtime/vars.ts`。
  * 🔴 所以真正的桶子只有**三個**。對外別說「四種範圍」——那是行銷話術，會誤導下一個人。
  */

@@ -1,8 +1,10 @@
 import Box from '@mui/material/Box';
 import Stack from '@mui/material/Stack';
 import type { Message } from '../model';
+import { useStickToBottom } from '../useStickToBottom';
 import { useSwipeKeys } from '../useSwipeKeys';
 import { type FrontendRenderer, MessageContent } from './MessageContent';
+import { ScrollToLatest } from './ScrollToLatest';
 import { SwipeBar } from './SwipeBar';
 import { ThemRow } from './ThemRow';
 import { StreamCaret, Typing } from './Typing';
@@ -60,6 +62,10 @@ export function Thread({
   // `←` `→` 切候選（ST 有，M12 G5）。掛在「最後一則有候選的訊息」上，同 ST 的 `.last_mes`。
   useSwipeKeys(messages, onSwipe);
 
+  // 🔴 黏底規則照 LINE，四條判準在 `useStickToBottom`。這裡只定義「什麼算內容變了」：
+  //    訊息數 ＋ 串流字數（串流時每一幀都變 ⇒ 黏住時每一幀跟著到底）。
+  const stick = useStickToBottom(`${messages.length}:${streaming?.length ?? -1}`);
+
   // 🔴 只有第一則的候選是角色的開場白（`server/routes/chats.ts:73` 建的就只有它）。
   const firstId = messages[0]?.id;
 
@@ -104,30 +110,38 @@ export function Thread({
   );
 
   return (
-    <Box sx={{ height: '100%', overflowY: 'auto', p: 2 }}>
-      <Stack spacing={2.5}>
-        {messages.map((m) =>
-          m.role === 'user' ? (
-            <Box key={m.id} sx={{ display: 'flex', justifyContent: 'flex-end' }}>
-              <Box
-                sx={{
-                  maxWidth: '78%',
-                  px: 1.5,
-                  py: 1,
-                  border: 1,
-                  borderColor: 'vellum.bubbleMeLine',
-                  borderRadius: (t) => `${t.palette.vellum.radiusBubble}px`,
-                }}
-              >
-                <Content text={m.text} frontend={frontend} />
+    /* 🔴 外面這一層不捲 —— 「回到最新」要浮在捲動區之上，放進去會跟著內容捲走。 */
+    <Box sx={{ position: 'relative', height: '100%' }}>
+      <Box
+        ref={stick.ref}
+        onScroll={stick.onScroll}
+        sx={{ height: '100%', overflowY: 'auto', p: 2 }}
+      >
+        <Stack spacing={2.5}>
+          {messages.map((m) =>
+            m.role === 'user' ? (
+              <Box key={m.id} sx={{ display: 'flex', justifyContent: 'flex-end' }}>
+                <Box
+                  sx={{
+                    maxWidth: '78%',
+                    px: 1.5,
+                    py: 1,
+                    border: 1,
+                    borderColor: 'vellum.bubbleMeLine',
+                    borderRadius: (t) => `${t.palette.vellum.radiusBubble}px`,
+                  }}
+                >
+                  <Content text={m.text} frontend={frontend} />
+                </Box>
               </Box>
-            </Box>
-          ) : (
-            theirs(m.id, m.text, m)
-          ),
-        )}
-        {streaming !== null ? waiting : null}
-      </Stack>
+            ) : (
+              theirs(m.id, m.text, m)
+            ),
+          )}
+          {streaming !== null ? waiting : null}
+        </Stack>
+      </Box>
+      {stick.stuck ? null : <ScrollToLatest onClick={stick.toBottom} />}
     </Box>
   );
 }
