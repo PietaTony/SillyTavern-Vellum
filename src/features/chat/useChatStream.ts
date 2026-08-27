@@ -16,6 +16,14 @@ import type { Message } from './model';
 export function useChatStream(chatId: string, fromServer: Message[] | undefined) {
   const [local, setLocal] = useState<Message[] | null>(null);
   const [streaming, setStreaming] = useState<string | null>(null);
+  /**
+   * 🔴 **模型正在思考，但一個字都還沒吐**（Peter 2026-08-27）。
+   * 推理模型會先送一大段 thinking 才開始寫正文 —— 那段期間畫面上什麼都不動，
+   * 看起來就是當掉了。這個旗標讓畫面說得出「它在想」而不是「它壞了」。
+   * ⚠️ **不存 thinking 的內容**：後端刻意把它與正文分開（混進去會變成角色的台詞），
+   * 我們只需要「有沒有在想」這一個位元。
+   */
+  const [thinking, setThinking] = useState(false);
   const [failure, setFailure] = useState<string | null>(null);
   const abortRef = useRef<AbortController | null>(null);
 
@@ -38,16 +46,23 @@ export function useChatStream(chatId: string, fromServer: Message[] | undefined)
     const ac = new AbortController();
     abortRef.current = ac;
     let acc = '';
+    setThinking(false);
     await streamGenerate(
       chatId,
       (e) => {
         if (e.type === 'delta') {
+          // 🔴 正文一開始吐就不再說「思考中」——它已經在寫了。
+          setThinking(false);
           acc += e.text;
           setStreaming(acc);
+        } else if (e.type === 'thinking') {
+          setThinking(true);
         } else if (e.type === 'done') {
+          setThinking(false);
           setLocal((prev) => [...(prev ?? []), e.message]);
           setStreaming(null);
         } else {
+          setThinking(false);
           setStreaming(null);
           setFailure(e.message);
         }
@@ -59,5 +74,5 @@ export function useChatStream(chatId: string, fromServer: Message[] | undefined)
   /** 丟掉樂觀暫存，改讀伺服器那份。**切候選成功之後一定要叫它**（見檔頭 B1）。 */
   const reset = () => setLocal(null);
 
-  return { messages, streaming, failure, setFailure, send, reset };
+  return { messages, streaming, thinking, failure, setFailure, send, reset };
 }
