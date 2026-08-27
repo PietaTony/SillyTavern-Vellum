@@ -16,6 +16,7 @@ import {
   fetchWorldPresets,
   GlobalWorldIntro,
   GlobalWorldList,
+  UnofficialWarning,
 } from '@/features/worldbook';
 import { Screen } from '@/shared/ui/Screen';
 import { pushToast } from '@/shared/ui/toastStore';
@@ -79,6 +80,8 @@ function WorldsPage() {
       footer={<TabBar active="wi" />}
     >
       <Stack spacing={2} sx={{ p: 2 }}>
+        {/* 🔴 警告在說明之上 —— 先講「先別用」，再講「怎麼用」。 */}
+        <UnofficialWarning />
         <GlobalWorldIntro />
 
         {q.isPending ? <CircularProgress size={24} /> : null}

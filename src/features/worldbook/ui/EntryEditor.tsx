@@ -17,8 +17,9 @@ import { EntryStatusRow } from './EntryStatusRow';
  * 🔴 **`depth`／`role` 條件顯示**：只有 `position` 選「插進對話裡」才出現。
  * 永遠顯示是製造噪音 —— 那兩個欄位在其他位置根本沒有意義。
  *
- * 🔴 **這裡沒有「儲存」鈕**：改一個欄位就送一次。世界書條目沒有「草稿」這個狀態，
- * 而且清單那一頁的開關本來就是即時的 —— 兩邊行為不一致會讓人不知道哪個算數。
+ * 🔴 **這一支只負責「改了什麼」，不負責「什麼時候存」**（Peter 2026-08-27 改版）。
+ * `onChange` 送出去的是**還沒存的草稿**，儲存鈕在外層的頂欄右側
+ * （`useEntryDraft` ＋ `EntrySaveButton`）—— 兩個入口共用同一份。
  */
 export function EntryEditor({
   value,
