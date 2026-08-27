@@ -53,7 +53,7 @@ beforeEach(() => {
 describe('SwipeBar', () => {
   it('點計數器會打開候選清單層，而且三個候選都在裡面', () => {
     render(<Thread messages={[three]} streaming={null} name="某" onSwipe={() => {}} />);
-    fireEvent.click(screen.getByLabelText('全部 3 個候選'));
+    fireEvent.click(screen.getByLabelText('全部 3 個候選（訊息下方）'));
     // 沒給 characterId ⇒ 沒有開場白資料可對 ⇒ 標題要誠實說「候選」，不是「開場」
     expect(screen.getByText('切換候選')).toBeTruthy();
     for (const t of ['甲', '乙', '丙']) expect(screen.getByText(t)).toBeTruthy();
@@ -63,16 +63,35 @@ describe('SwipeBar', () => {
     render(<Thread messages={[three]} streaming={null} name="某" onSwipe={() => {}} />);
     expect(screen.queryByText('切換候選')).toBeNull();
     // 尺沒壞的證明：同一支選擇器打開後找得到（上一條測試已示範）
-    expect(screen.getByLabelText('全部 3 個候選')).toBeTruthy();
+    expect(screen.getByLabelText('全部 3 個候選（訊息下方）')).toBeTruthy();
   });
 
   it('在清單裡點一則會送出那一則的 index，並把層關掉', () => {
     const onSwipe = vi.fn();
     render(<Thread messages={[three]} streaming={null} name="某" onSwipe={onSwipe} />);
-    fireEvent.click(screen.getByLabelText('全部 3 個候選'));
+    fireEvent.click(screen.getByLabelText('全部 3 個候選（訊息下方）'));
     fireEvent.click(screen.getByText('丙'));
     expect(onSwipe).toHaveBeenCalledWith('m1', 2);
     expect(screen.queryByText('切換候選')).toBeNull();
+  });
+
+  /**
+   * 🔴 **上下各一條，兩條都要能切**（Peter 2026-08-27：「最上方置中跟最下方置中，
+   * 兩個地方都要有」）。上面那一條是為了開場白那種一整頁的長訊息 ——
+   * 只有下面一條時要一路捲到底才切得動。
+   */
+  it('上下各一條，上面那一條也真的送得出切換', () => {
+    const onSwipe = vi.fn();
+    render(<Thread messages={[three]} streaming={null} name="某" onSwipe={onSwipe} />);
+    fireEvent.click(screen.getByLabelText('下一個候選（訊息上方）'));
+    expect(onSwipe).toHaveBeenCalledWith('m1', 2);
+  });
+
+  it('🔴 兩條共用同一個候選清單層 —— 上面那顆計數器打開的是同一份', () => {
+    render(<Thread messages={[three]} streaming={null} name="某" onSwipe={() => {}} />);
+    fireEvent.click(screen.getByLabelText('全部 3 個候選（訊息上方）'));
+    // 兩顆各掛一份的話這裡會找到兩個「切換候選」標題
+    expect(screen.getAllByText('切換候選')).toHaveLength(1);
   });
 
   it('箭頭到頭會繞回去（開場白在 ST 也是 loop，不是停住）', () => {
@@ -85,7 +104,7 @@ describe('SwipeBar', () => {
         onSwipe={onSwipe}
       />,
     );
-    fireEvent.click(screen.getByLabelText('上一個候選'));
+    fireEvent.click(screen.getByLabelText('上一個候選（訊息下方）'));
     expect(onSwipe).toHaveBeenCalledWith('m1', 2);
   });
 });
@@ -103,7 +122,7 @@ describe('候選清單層只對第一則套開場白資料', () => {
     render(
       <Thread messages={[three]} streaming={null} name="某" characterId="c1" onSwipe={() => {}} />,
     );
-    fireEvent.click(screen.getByLabelText('全部 3 個候選'));
+    fireEvent.click(screen.getByLabelText('全部 3 個候選（訊息下方）'));
     expect(await screen.findByText('切換開場')).toBeTruthy();
     expect(screen.getByText('原本的開場')).toBeTruthy();
     expect(screen.getAllByText('會開啟 7 條世界書設定')).toHaveLength(3);
@@ -119,7 +138,7 @@ describe('候選清單層只對第一則套開場白資料', () => {
         onSwipe={() => {}}
       />,
     );
-    fireEvent.click(screen.getByLabelText('全部 3 個候選'));
+    fireEvent.click(screen.getByLabelText('全部 3 個候選（訊息下方）'));
     expect(await screen.findByText('切換候選')).toBeTruthy();
     expect(screen.queryByText('原本的開場')).toBeNull();
     expect(screen.queryByText('會開啟 7 條世界書設定')).toBeNull();
@@ -159,7 +178,7 @@ describe('鍵盤 ← →（M12 G5，照 ST RossAscends-mods.js:1107-1136）', ()
   it('🔴 有層開著時不生效（層裡自己會處理左右鍵）', () => {
     const onSwipe = vi.fn();
     render(<Thread messages={[three]} streaming={null} name="某" onSwipe={onSwipe} />);
-    fireEvent.click(screen.getByLabelText('全部 3 個候選'));
+    fireEvent.click(screen.getByLabelText('全部 3 個候選（訊息下方）'));
     fireEvent.keyDown(window, { key: 'ArrowRight' });
     expect(onSwipe).not.toHaveBeenCalled();
   });
