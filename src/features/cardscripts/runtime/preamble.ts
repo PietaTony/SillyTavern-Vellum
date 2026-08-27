@@ -36,6 +36,7 @@ export const VENDOR_HOSTS = [...new Set(VENDOR.map((u) => new URL(u).host))];
  * ⚠️ **不要在這裡放產品邏輯。** 這一段是「橋」：把 API 名字擺到 iframe 的全域範圍，
  * 每一支都轉成一則 `postMessage` 丟給主頁去做。真正的實作在主頁的 `bridge.ts`。
  */
+import { GLOBALS_SHIM } from './globals';
 import { VARS_SHIM } from './vars';
 
 export const PREAMBLE = /* js */ `
@@ -113,19 +114,8 @@ export const PREAMBLE = /* js */ `
     },
   });
 
-  /* 腳本之間互相等待用的登記處。沙箱下各 iframe 獨立，登記在自己身上就好。 */
-  var globals = {};
-  window.initializeGlobal = function (name, value) { globals[name] = value; window[name] = value; };
-  window.waitGlobalInitialized = function (name) {
-    return new Promise(function (resolve) {
-      var tick = function () {
-        var v = globals[name] !== undefined ? globals[name] : window[name];
-        if (v !== undefined) { resolve(v); return; }
-        setTimeout(tick, 50);
-      };
-      tick();
-    });
-  };
+  /* 登記處 ＋ 等待（🔴 有逾時，理由見 globals.ts 檔頭）。 */
+  ${GLOBALS_SHIM}
   /* 卡片常把整段包在 errorCatched 裡；沒有它就整支不跑。 */
   window.errorCatched = function (fn) {
     return function () {

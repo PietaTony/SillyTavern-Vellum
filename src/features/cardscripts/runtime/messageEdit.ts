@@ -1,8 +1,12 @@
 /**
  * 卡片想動訊息時該發生什麼（2026-08-27，敵意驗收後改寫）。
  *
- * 🔴 **我們不開放改訊息文字**（竄改對話紀錄，後端也沒有對應端點，只有切候選的 swipe）。
- * 這一支管的是**失敗的方式**：從「假裝成功還順便空轉」變成「說得出是誰、說的是實話」。
+ * 🔴 **2026-08-27 起開放改訊息文字。** 擋它的理由一直是「後端沒有對應端點」，
+ * 而 `PATCH /api/chats/:id/messages/:messageId` 已於 v0.2.12 上線 ⇒ 理由消失了。
+ * ⚠️ 連帶要改的是**文案**：原本那兩句「Vellum 不開放改寫對話紀錄」現在會是**謊話**，
+ * 而留著一句過期的拒絕比沒有訊息更糟 —— 它會讓下一個人以為這是刻意的policy。
+ *
+ * 這一支管的仍然是**失敗的方式**：說得出是誰、說的是實話。
  *
  * 🔴 **三條敵意驗收抓到的，逐條記在這裡，不要改回去**：
  * ① **文案說謊**：上一版對 `setChatMessage('文字', 1, {swipe_id:1})` 說「這次沒有任何變更」，
@@ -23,21 +27,34 @@ export type MessageUpdate = { message_id?: number; swipe_id?: number; message?: 
  * 這一筆想改文字嗎。
  * 🔴 **判準是「有沒有給」不是「是不是字串」**：上一版只認 `typeof === 'string'`，
  * 於是 `setChatMessage({text:'x'}, 1)` 這種**照樣被靜默丟掉**。
+ * 現在「有給但不是字串」會走 `bad-text` 出聲，不再是靜默 no-op。
  */
 export const wantsTextEdit = (u: MessageUpdate | undefined): boolean => u?.message !== undefined;
+
+/**
+ * 取出真的可以送出去的那段文字；拿不到回 `undefined`。
+ * 🔴 後端要求非空（`z.string().min(1)`），所以只有空白的也算拿不到 ——
+ * **在這裡擋掉才說得出原因**，送出去只會拿到一句 400。
+ */
+export const textOf = (u: MessageUpdate | undefined): string | undefined => {
+  if (typeof u?.message !== 'string') return undefined;
+  const t = u.message.trim();
+  return t === '' ? undefined : t;
+};
 
 /** 這一筆真的做得到事嗎（＝有指定要切到第幾個候選）。 */
 export const isActionable = (u: MessageUpdate | undefined): boolean =>
   typeof u?.swipe_id === 'number';
 
-/** 擋下的四種情形。每一種的說法不一樣 —— 講錯就是說謊。 */
+/**
+ * 擋下的三種情形。每一種的說法不一樣 —— 講錯就是說謊。
+ * ⚠️ 少掉的 `text-only`／`text-with-swipe` 是刻意的：那兩種現在**會成功**。
+ */
 export type Blocked =
-  /** 只想改文字，什麼都沒發生。 */
-  | { kind: 'text-only' }
-  /** 想改文字，但同時也切了候選 —— **候選真的切了**，不可以說「沒有任何變更」。 */
-  | { kind: 'text-with-swipe' }
   /** 指到的那一則不存在。 */
   | { kind: 'no-target'; total: number }
+  /** 說要改文字，但給的不是一段可用的文字（物件、空白、只有空格）。 */
+  | { kind: 'bad-text' }
   /** 既沒要改文字、也沒指定候選 —— 這通常是呼叫端的 bug。 */
   | { kind: 'nothing' };
 
@@ -45,10 +62,8 @@ const SAID = new Set<string>();
 
 const wordsFor = (b: Blocked): string => {
   switch (b.kind) {
-    case 'text-only':
-      return 'Vellum 不開放改寫對話紀錄，這次沒有任何變更。（切換候選 swipe 仍然可以）';
-    case 'text-with-swipe':
-      return 'Vellum 不開放改寫對話紀錄 —— 文字沒有變，這次只切換了候選。';
+    case 'bad-text':
+      return '但給的內容不是一段文字（或只有空白），這次沒有任何變更。';
     case 'no-target':
       return `這段對話只有 ${b.total} 則訊息，找不到那一則，這次沒有任何變更。`;
     default:
@@ -56,8 +71,7 @@ const wordsFor = (b: Blocked): string => {
   }
 };
 
-const verbFor = (b: Blocked): string =>
-  b.kind === 'nothing' || b.kind === 'no-target' ? '動' : '改';
+const verbFor = (b: Blocked): string => (b.kind === 'bad-text' ? '改' : '動');
 
 /**
  * 說出「哪一段對話、哪一支、哪一則、發生了什麼」。
@@ -89,14 +103,17 @@ export function makeApplyUpdates(deps: {
   chatId: string;
   messages: () => { id: string }[];
   swipe: (messageId: string, index: number) => Promise<unknown>;
+  /** 改一則訊息的文字。🔴 後端會連 `swipes[swipeIndex]` 一起寫回（見 `server/lib/messageEdit.ts`）。 */
+  edit: (messageId: string, text: string) => Promise<unknown>;
 }): {
-  applyUpdates: (updates: unknown) => Promise<void>;
+  /** `fn` ＝ 使用者實際叫的那一支名字；出事時要說得出來（預設 `setChatMessages`）。 */
+  applyUpdates: (updates: unknown, fn?: string) => Promise<void>;
   reportBlocked: (fn: string, messageId: number, b: Blocked) => void;
 } {
   const reportBlocked = (fn: string, messageId: number, b: Blocked): void =>
     say(deps.chatId, fn, messageId, b);
 
-  const applyUpdates = async (updates: unknown): Promise<void> => {
+  const applyUpdates = async (updates: unknown, fn = 'setChatMessages'): Promise<void> => {
     const list = (Array.isArray(updates) ? updates : [updates]) as MessageUpdate[];
     const msgs = deps.messages();
     for (const u of list) {
@@ -104,16 +121,23 @@ export function makeApplyUpdates(deps: {
       const id = u?.message_id ?? 0;
       const target = msgs[id];
       const texting = wantsTextEdit(u);
+      const text = textOf(u);
       if (!target) {
-        reportBlocked('setChatMessages', id, { kind: 'no-target', total: msgs.length });
+        reportBlocked(fn, id, { kind: 'no-target', total: msgs.length });
         continue;
       }
-      if (!isActionable(u)) {
-        reportBlocked('setChatMessages', id, { kind: texting ? 'text-only' : 'nothing' });
+      if (texting && text === undefined) {
+        reportBlocked(fn, id, { kind: 'bad-text' });
         continue;
       }
-      if (texting) reportBlocked('setChatMessages', id, { kind: 'text-with-swipe' });
-      await deps.swipe(target.id, u.swipe_id as number);
+      if (!texting && !isActionable(u)) {
+        reportBlocked(fn, id, { kind: 'nothing' });
+        continue;
+      }
+      // 🔴 **先切候選再改文字**：後端寫的是「目前站著的那一則候選」，
+      // 反過來的話字會寫進切換前的那一則，然後被切換蓋掉。
+      if (isActionable(u)) await deps.swipe(target.id, u.swipe_id as number);
+      if (text !== undefined) await deps.edit(target.id, text);
     }
   };
   return { applyUpdates, reportBlocked };

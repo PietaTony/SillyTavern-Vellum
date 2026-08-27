@@ -48,20 +48,21 @@ function ChatPage() {
 
   useCardEvents(chatId, messages); // 發事件給卡片腳本；判準與時機在 `useCardEvents`
 
-  // 🔴 卡片自己的程式與變數（M13 第二、三期）。**必須在所有早退之前呼叫**（hooks 規則）。
-  const cards = useChatCards({
-    chatId,
-    chat: q.data,
-    messages: () => messages,
-    swipe: (messageId, index) => swipe.mutateAsync({ messageId, index }),
-  });
-
-  // 長按一則訊息能做的四件事。🔴 改／刪的端點還沒有，404 會翻成 tips（見 `messageActions`）。
   const actions = messageActions({
     chatId,
     refetch: async () => (await q.refetch()).data?.messages ?? [],
     reset,
     regenerate,
+  });
+
+  // 🔴 卡片程式與變數（M13）。**必須在所有早退之前呼叫**（hooks 規則）。`edit` 直接接
+  //    長按選單那一支 —— **改訊息只留一條路**，不然卡片改的與人改的遲早分岔。
+  const cards = useChatCards({
+    chatId,
+    chat: q.data,
+    messages: () => messages,
+    swipe: (messageId, index) => swipe.mutateAsync({ messageId, index }),
+    edit: actions.onEdit,
   });
 
   if (q.isPending) return <ChatLoading />;

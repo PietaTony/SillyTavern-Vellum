@@ -31,6 +31,12 @@ export type BridgeDeps = {
    */
   swipe: (messageId: string, index: number) => Promise<unknown>;
   /**
+   * 改一則訊息的文字（2026-08-27 起開放）。
+   * 🔴 **後端會連 `swipes[swipeIndex]` 一起寫回**（`server/lib/messageEdit.ts`）——
+   * 只改 `text` 的話，切走再切回來改動就沒了。這裡不必自己處理候選。
+   */
+  edit: (messageId: string, text: string) => Promise<unknown>;
+  /**
    * 🔴 存變數（淺層合併）。卡片是**同步**寫的，所以 iframe 那端先打自己的快取、
    * 再非同步呼叫這支存檔 —— 回傳值沒有人在等（見 `runtime/vars.ts`）。
    * 🔴 **`scope` 決定存到哪裡**（三個端點各一）。在此之前四種範圍全存進同一份對話變數。
@@ -59,7 +65,7 @@ const shaped = (m: Message, i: number) => ({
 
 export function buildBridge(deps: BridgeDeps): Record<string, unknown> {
   // 卡片想動訊息時該發生什麼 —— 判準與文案全在 `messageEdit.ts`。
-  const { applyUpdates, reportBlocked } = makeApplyUpdates(deps);
+  const { applyUpdates } = makeApplyUpdates(deps);
   const api: Record<string, unknown> = {
     getChatMessages(range?: unknown) {
       const all = deps.messages().map(shaped);
@@ -86,23 +92,20 @@ export function buildBridge(deps: BridgeDeps): Record<string, unknown> {
     },
     setChatMessages: applyUpdates,
     /**
-     * 🔴 **只想改文字的那一路，連 `applyUpdates` 都不要進。**
-     * 進去只會多繞一圈再什麼都不做。
-     * ⚠️ **不要把 `message` 往下傳** —— 傳了會讓同一次呼叫在
-     * `setChatMessages` 名下再講一次（同一件事兩則訊息、而且署名錯人）。
+     * 🔴 **改文字現在真的會改**（2026-08-27）。上一版在這裡自己判一次再拒絕，
+     * 而那份判斷與 `applyUpdates` 是兩份 —— 兩份判準遲早分岔。
+     * ⇒ 現在只做一件事：**把參數翻譯成 `applyUpdates` 的形狀**，判準只有一份。
+     * ⚠️ 署名仍然是 `setChatMessage`：出事時要說得出使用者叫的是哪一支。
      */
     setChatMessage(content: unknown, id: number, opts?: { swipe_id?: number }) {
-      const swiping = typeof opts?.swipe_id === 'number';
-      const texting = content !== undefined;
-      if (!swiping) {
-        reportBlocked('setChatMessage', id, {
-          kind: texting ? 'text-only' : 'nothing',
-        });
-        return undefined;
-      }
-      // 🔴 有切到候選就**不可以**說「沒有任何變更」——那句話會是假的。
-      if (texting) reportBlocked('setChatMessage', id, { kind: 'text-with-swipe' });
-      return applyUpdates({ message_id: id, swipe_id: opts?.swipe_id });
+      return applyUpdates(
+        {
+          message_id: id,
+          ...(content === undefined ? {} : { message: content }),
+          ...(typeof opts?.swipe_id === 'number' ? { swipe_id: opts.swipe_id } : {}),
+        },
+        'setChatMessage',
+      );
     },
     /**
      * 🔴 **`getLorebookEntries`／`setLorebookEntries`／`updateWorldbookWith` 刻意不在這裡。**
