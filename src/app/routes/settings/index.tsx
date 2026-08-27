@@ -1,4 +1,5 @@
 import ChevronRightIcon from '@mui/icons-material/ChevronRight';
+import DevicesOutlinedIcon from '@mui/icons-material/DevicesOutlined';
 import InfoOutlinedIcon from '@mui/icons-material/InfoOutlined';
 import PaletteOutlinedIcon from '@mui/icons-material/PaletteOutlined';
 import SmartToyOutlinedIcon from '@mui/icons-material/SmartToyOutlined';
@@ -38,6 +39,16 @@ function SettingsPage() {
             <InfoOutlinedIcon />
           </ListItemIcon>
           <ListItemText primary="關於與更新" secondary="版本、release notes、檢查更新" />
+          <ChevronRightIcon color="disabled" />
+        </ListItemButton>
+
+        <Divider component="li" />
+
+        <ListItemButton onClick={() => void nav({ to: '/settings/network' })}>
+          <ListItemIcon>
+            <DevicesOutlinedIcon />
+          </ListItemIcon>
+          <ListItemText primary="其他裝置" secondary="用手機或平板連進來（Tailscale）" />
           <ChevronRightIcon color="disabled" />
         </ListItemButton>
 

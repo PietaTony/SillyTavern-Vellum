@@ -4,6 +4,7 @@ import { currentVersion } from './adapters/version.ts';
 import { describeData } from './adapters/storage.ts';
 import { seedBackgrounds } from './adapters/backgroundSeed.ts';
 import { openBrowser } from './adapters/openBrowser.ts';
+import { bindHost } from './adapters/network.ts';
 import { app } from './app.ts';
 
 
@@ -15,11 +16,21 @@ const isProd = process.env['NODE_ENV'] === 'production';
 if (isProd && distExists()) mountStatic(app);
 
 const port = Number(process.env['PORT'] ?? 8520);
-// 🔴 **只綁 127.0.0.1。** `@hono/node-server` 預設綁所有介面 —— 開了 Tailscale 之後
-// 後端就直接躺在 tailnet 上（實測 http://100.x.x.x:8520/api/version 回 200）。
-// 手機是透過 Vite 的 /api proxy 進來的，proxy 從 Mac 這一端連本機，所以綁本機就夠。
-// 要讓後端自己對外，設 HOST 環境變數，那是刻意的動作而不是預設。
-const hostname = process.env['HOST'] ?? '127.0.0.1';
+/**
+ * 🔴 **預設只綁 `127.0.0.1`，那是安全設計不是保守** —— Vellum 沒有登入機制，
+ * 任何連得到那個 port 的人都等於是你（讀得到全部對話、用得到你的金鑰花錢）。
+ *
+ * 要讓其他裝置連進來有兩條路，**優先序是刻意的**：
+ *   ① `HOST` 環境變數 —— 命令列／CI 那條，蓋得過設定
+ *   ② 設定裡的「允許其他裝置連線」開關 —— 桌面版唯一走得通的那條
+ *      （雙擊啟動的 app 沒有辦法帶環境變數進去）
+ * ⚠️ **綁 `0.0.0.0` 不等於「只有 Tailscale 連得到」**：同一個 wifi 上的人也連得到。
+ *
+ * 🔴 **算完要寫回 `VELLUM_BOUND_HOST`** —— `/api/network` 要據此告訴畫面
+ * 「你改的設定還沒生效」。少了它，開關會宣稱已開啟而外面其實連不進來。
+ */
+const hostname = await bindHost();
+process.env['VELLUM_BOUND_HOST'] = hostname;
 serve({ fetch: app.fetch, port, hostname }, (info) => {
   const where = isProd && distExists() ? '整個 app' : '只有 API（前端請開 http://localhost:5173）';
   console.log(`[vellum] v${currentVersion()}  http://${hostname}:${info.port}  —— ${where}`);
@@ -34,7 +45,8 @@ serve({ fetch: app.fetch, port, hostname }, (info) => {
     })
     .catch((e: unknown) => console.error('[vellum] 內建背景複製失敗：', e));
   if (hostname === '127.0.0.1')
-    console.log('[vellum] 只有這台電腦連得到。要讓手機／平板連進來：HOST=0.0.0.0 pnpm start');
+    console.log('[vellum] 只有這台電腦連得到。要讓手機／平板連進來：設定 →「允許其他裝置連線」');
+  else console.log(`[vellum] ⚠️ 綁在 ${hostname} —— 同一個網路上的人都連得到，而 Vellum 沒有密碼`);
   // 🔴 **在 listen 成功之後才開**，而且預設關閉（`VELLUM_OPEN=1`）。理由見 `openBrowser.ts`。
   if (openBrowser(`http://${hostname}:${info.port}`))
     console.log('[vellum] 已幫你打開瀏覽器。要停止請關掉這個視窗。');

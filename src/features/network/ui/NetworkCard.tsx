@@ -1,0 +1,96 @@
+import Alert from '@mui/material/Alert';
+import Paper from '@mui/material/Paper';
+import Stack from '@mui/material/Stack';
+import Switch from '@mui/material/Switch';
+import Typography from '@mui/material/Typography';
+import type { NetworkState } from '../api';
+
+/**
+ * 「允許其他裝置連線」（Peter 2026-08-27：想用 Tailscale ＋ 手機瀏覽器玩）。
+ *
+ * 🔴 **這顆開關會把你的全部對話與 API 金鑰放到網路上**，所以文案有三件事不能省：
+ *   ① **它不是「只開放給 Tailscale」** —— 綁 `0.0.0.0` 之後同一個 wifi 的人也連得到
+ *   ② **Vellum 沒有登入機制** —— 連得到的人就等於是你
+ *   ③ **要重啟才生效** —— port 已經綁上去了，中途換介面做不到
+ *
+ * 🔴 **「設定值」與「實際綁的」要分開顯示。** 只顯示設定值的話，
+ * 改完還沒重啟時畫面會說「已開啟」而外面其實連不進來 —— 那是一顆說謊的開關。
+ */
+export function NetworkCard({
+  state,
+  onToggle,
+  busy,
+}: {
+  state: NetworkState | undefined;
+  onToggle: (next: boolean) => void;
+  busy: boolean;
+}) {
+  const enabled = state?.enabled ?? false;
+  const live = state !== undefined && state.bound !== '127.0.0.1';
+  const pending = state !== undefined && enabled !== live;
+
+  return (
+    <Paper variant="outlined" sx={{ p: 2 }}>
+      <Stack spacing={1.5}>
+        <Stack direction="row" sx={{ alignItems: 'center', gap: 1 }}>
+          <Stack sx={{ flex: 1, minWidth: 0 }}>
+            <Typography variant="subtitle2">允許其他裝置連線</Typography>
+            <Typography variant="body2" color="text.secondary">
+              用手機或平板的瀏覽器打開 Vellum（建議搭配 Tailscale）。
+            </Typography>
+          </Stack>
+          <Switch
+            checked={enabled}
+            disabled={busy || state === undefined || state.forcedByEnv}
+            onChange={(e) => onToggle(e.target.checked)}
+            slotProps={{ input: { 'aria-label': '允許其他裝置連線' } }}
+          />
+        </Stack>
+
+        {/* 🔴 環境變數蓋過設定時，要說得出「這顆開關現在管不到」。 */}
+        {state?.forcedByEnv ? (
+          <Alert severity="info">
+            這台機器用 <code>HOST</code> 環境變數指定了要綁哪裡，<b>這顆開關暫時沒有作用</b>。
+            目前綁在 <code>{state.bound}</code>。
+          </Alert>
+        ) : null}
+
+        {/* 🔴 改完還沒重啟 —— 不可以讓畫面看起來已經生效。 */}
+        {pending ? (
+          <Alert severity="warning">
+            <b>要重新啟動 Vellum 才會生效。</b>
+            目前實際上{live ? '仍然開放中' : '只有這台電腦連得到'}。
+          </Alert>
+        ) : null}
+
+        {/* 🔴 這一段不能省：使用者以為自己只開給了 Tailscale。 */}
+        <Alert severity={live ? 'warning' : 'info'}>
+          <b>Vellum 沒有登入機制</b> —— 連得到的人可以讀你全部的對話、用你的 API 金鑰花錢。
+          <br />
+          而且打開之後<b>不只 Tailscale</b>：<b>同一個 wifi 上的人也連得到</b>
+          （室友、訪客、被入侵的裝置）。在公共 wifi 上請不要打開。
+        </Alert>
+
+        {live && state.urls.length > 0 ? (
+          <Stack spacing={0.5}>
+            <Typography variant="body2">在手機的瀏覽器打這個網址：</Typography>
+            {state.urls.map((u) => (
+              <Typography key={u.url} variant="body2" sx={{ fontFamily: 'vellum.fontMono' }}>
+                {u.url}
+                <Typography component="span" variant="caption" color="text.secondary">
+                  {u.kind === 'tailscale' ? '　← Tailscale（只有你的裝置）' : '　← 區域網路'}
+                </Typography>
+              </Typography>
+            ))}
+          </Stack>
+        ) : null}
+
+        {live && state.urls.length === 0 ? (
+          <Alert severity="warning">
+            已經開放，但找不到任何對外的網路位址 —— 這台機器可能沒有連上網路或 Tailscale。
+          </Alert>
+        ) : null}
+      </Stack>
+    </Paper>
+  );
+}
