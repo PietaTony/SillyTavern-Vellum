@@ -1,6 +1,7 @@
 import Box from '@mui/material/Box';
 import { useCallback, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
+import { clipFrom } from '../runtime/clip';
 import { registerFrame } from '../runtime/frames';
 import type { CardVarScopes } from '../runtime/scopes';
 import { buildSrcDoc, type FrameMode, wrap } from '../runtime/srcdoc';
@@ -31,6 +32,7 @@ import { buildSrcDoc, type FrameMode, wrap } from '../runtime/srcdoc';
 export function ScriptFrame({
   code,
   name,
+  owner,
   allow,
   mode = 'hidden',
   preWrapped = false,
@@ -38,6 +40,7 @@ export function ScriptFrame({
 }: {
   code: string;
   name: string;
+  /** 屬於哪一則訊息（GAP-121）。overlay 無歸屬 ⇒ 省略。 */ owner?: string | undefined;
   /** 🔴 使用者同意過的外連網域。空陣列 ＝ 完全斷網（連我們的 vendor 都不給）。 */
   allow: string[];
   mode?: FrameMode;
@@ -80,24 +83,21 @@ export function ScriptFrame({
        *    「小卡的所有按鈕都超難按」—— 那是非同步來回，切換永遠慢一步。
        * 空字串 ＝ 這個 frame 目前什麼都沒畫 ⇒ `inset(100%)` 全部裁掉。
        */
-      if (mode === 'overlay' && d.__vellumBox !== undefined) {
-        const p = d.__vellumBox.split(',').map(Number);
-        const [l, t, r, b2] = p;
-        ref.current.style.clipPath =
-          p.length === 4 &&
-          r !== undefined &&
-          b2 !== undefined &&
-          l !== undefined &&
-          t !== undefined
-            ? `inset(${t}px ${window.innerWidth - r}px ${window.innerHeight - b2}px ${l}px)`
-            : 'inset(100%)';
-      }
+      if (mode === 'overlay' && d.__vellumBox !== undefined)
+        ref.current.style.clipPath = clipFrom(d.__vellumBox);
     };
     window.addEventListener('message', onMsg);
     return () => window.removeEventListener('message', onMsg);
   }, [name, mode]);
 
-  const srcDoc = buildSrcDoc({ body: preWrapped ? code : wrap(code), name, mode, allow, vars });
+  const srcDoc = buildSrcDoc({
+    body: preWrapped ? code : wrap(code),
+    name,
+    mode,
+    allow,
+    vars,
+    owner,
+  });
 
   const sx = {
     hidden: { display: 'none', width: 0, height: 0, border: 0 },

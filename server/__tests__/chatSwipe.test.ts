@@ -3,6 +3,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Character } from '../lib/character.ts';
+import { stripLoreTags } from '../lib/loreTags.ts';
 import type { Chat } from '../services/chatModel.ts';
 
 /**
@@ -27,6 +28,16 @@ async function app() {
 }
 
 const GREET = ['<!-- lore: 1 -->開場甲', '<!-- lore: 2 -->開場乙', '<!-- lore: 3 -->開場丙'];
+/**
+ * 🔴 **這才是產品真的寫進檔案的形狀**：`POST /api/chats` 存的是
+ * `greetings.map(stripLoreTags)`（`chats.ts:70`）—— `<!-- lore -->` 是給引擎看的，
+ * 不端到畫面上。
+ *
+ * ⚠️ **在此之前這份 fixture 用的是生的 `GREET`**，於是每一條都綠、真實路徑從來沒被走過
+ *（UI 線 2026-08-27 實測抓到）。fixture 與寫入端形狀不一致 ＝ 假綠燈，
+ * 而且是最難發現的那種：測試在測一個不存在的世界。
+ */
+const SWIPES = GREET.map(stripLoreTags);
 
 const CH: Character = {
   id: 'char1',
@@ -92,18 +103,18 @@ afterEach(() => {
 
 describe('PATCH /api/chats/:id/messages/:messageId/swipe', () => {
   it('切換會改 swipeIndex 與 text，而且**真的寫回檔案**', async () => {
-    const r = await swipe(chatWith(GREET), 'm0', 2);
+    const r = await swipe(chatWith(SWIPES), 'm0', 2);
     expect(r.status).toBe(200);
     expect(r.body.swipeIndex).toBe(2);
-    expect(r.body.text).toBe(GREET[2]);
+    expect(r.body.text).toBe(SWIPES[2]);
     const file = await saved();
     expect(file?.messages[0]?.swipeIndex).toBe(2);
-    expect(file?.messages[0]?.text).toBe(GREET[2]);
+    expect(file?.messages[0]?.text).toBe(SWIPES[2]);
   });
 
   it('index 超出範圍要夾住，不是 500 也不是寫進一個不存在的候選', async () => {
-    expect((await swipe(chatWith(GREET), 'm0', 99)).body.swipeIndex).toBe(2);
-    expect((await swipe(chatWith(GREET), 'm0', -5)).body.swipeIndex).toBe(0);
+    expect((await swipe(chatWith(SWIPES), 'm0', 99)).body.swipeIndex).toBe(2);
+    expect((await swipe(chatWith(SWIPES), 'm0', -5)).body.swipeIndex).toBe(0);
   });
 
   it('找不到訊息 / 訊息沒有候選 → 404', async () => {
@@ -114,7 +125,7 @@ describe('PATCH /api/chats/:id/messages/:messageId/swipe', () => {
 
   it('index 不是數字 → 400（呼叫端送錯東西，不是我們壞了）', async () => {
     const a = await app();
-    await seed(chatWith(GREET));
+    await seed(chatWith(SWIPES));
     const res = await a.request('/api/chats/chat1/messages/m0/swipe', {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
@@ -124,7 +135,7 @@ describe('PATCH /api/chats/:id/messages/:messageId/swipe', () => {
   });
 
   it('內容對得上的開場白 → 世界書要重算（B3 的觸發點）', async () => {
-    const r = await swipe(chatWith(GREET), 'm0', 1);
+    const r = await swipe(chatWith(SWIPES), 'm0', 1);
     expect(r.body.lore).toMatchObject({ include: ['2'] });
   });
 

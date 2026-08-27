@@ -24,14 +24,25 @@ import { FrontendNotice } from './FrontendNotice';
  */
 
 /** 一段前端區塊要畫成什麼。沒給就走引導卡（不執行、不印原始碼）。 */
-export type FrontendRenderer = (part: { code: string; index: number }) => ReactNode;
+/**
+ * 🔴 **`messageId` 是給 `getCurrentMessageId()` 用的**（GAP-121）。
+ * `index` 是**訊息內第幾個區塊**，不是第幾則訊息 —— 兩個都要，而且不能互相代替。
+ */
+export type FrontendRenderer = (part: {
+  code: string;
+  index: number;
+  messageId: string;
+}) => ReactNode;
 
 export function MessageContent({
   text,
   frontend,
+  messageId = '',
 }: {
   text: string;
   frontend?: FrontendRenderer | undefined;
+  /** 這段內容屬於哪一則訊息。串流中的暫存內容沒有 id ⇒ 空字串。 */
+  messageId?: string;
 }) {
   // 訊息很長（實測那張卡的開場白上萬字），每次 render 都重跑 markdown 會卡。
   const parts = useMemo(
@@ -69,7 +80,9 @@ export function MessageContent({
           // 候選的順序就是它的身分，這裡同理：段落在訊息裡的位置就是它的 key。
           // biome-ignore lint/suspicious/noArrayIndexKey: 段落沒有別的主鍵，而且順序就是身分
           <Box key={`f${i}`}>
-            {frontend?.({ code: p.code, index: i }) ?? <FrontendNotice bytes={p.code.length} />}
+            {frontend?.({ code: p.code, index: i, messageId }) ?? (
+              <FrontendNotice bytes={p.code.length} />
+            )}
           </Box>
         ) : (
           // biome-ignore lint/suspicious/noArrayIndexKey: 同上

@@ -68,12 +68,25 @@ export const wrap = (code: string): string =>
  * 🔴 **`<` 一定要跳脫**：值裡只要出現 `</script>` 就會把我們這段提早結束，
  * 後面整份 HTML 全被當成腳本內容 —— 而那些值來自網路上的角色卡。
  */
+/**
+ * 把一個值種進 `<script>`。
+ *
+ * 🔴 **`JSON.stringify` 不夠**：它不會跳脫 `</script>`，而那會**提早關掉標籤** ——
+ * 值裡只要出現一次，後面全部變成 HTML。⇒ `<` 一律轉成 `\u003c`。
+ *
+ * 🔴 **抽成一支的理由是它被漏過**（2026-08-27）：`seedVars` 有這道跳脫，
+ * 後來加的 `__vellumOwner` 沒有 —— 同一個判準只套用了一半，
+ * 而且是測試抓到的，不是人看出來的。**能共用就不要各寫一份。**
+ */
+export const seedGlobal = (name: string, value: unknown): string =>
+  `<script>window.${name}=${JSON.stringify(value).replace(/</g, '\\u003c')}</script>`;
+
 export const seedVars = (vars: CardVarScopes | undefined): string =>
-  `<script>window.__vellumVars=${JSON.stringify({
+  seedGlobal('__vellumVars', {
     global: vars?.global ?? {},
     character: vars?.character ?? {},
     chat: vars?.chat ?? {},
-  }).replace(/</g, '\\u003c')}</script>`;
+  });
 
 export function buildSrcDoc(opts: {
   /** 已經包好的 body 內容（一份 document、或一串 `<script>`）。 */
@@ -83,6 +96,13 @@ export function buildSrcDoc(opts: {
   allow: string[];
   /** 三種範圍各一份。🔴 只在建立時種一次，之後由 iframe 自己的快取接手。 */
   vars?: CardVarScopes | undefined;
+  /**
+   * 🔴 **這個 frame 屬於哪一則訊息**（GAP-121）。`getCurrentMessageId()` 要靠它。
+   * ⚠️ **不能從 `name` 推**：那是 `card-<characterId>-<區塊序號>`，
+   * 裡面沒有訊息 id，而區塊序號是「訊息內第幾塊」不是「第幾則訊息」。
+   * 空字串 ＝ 不屬於任何一則（例如 overlay 桌寵）⇒ 那時退回「最後一則」。
+   */
+  owner?: string | undefined;
 }): string {
   const vendors = VENDOR.map((u) => `<script src="${u}"></script>`).join('');
   // overlay 要看得到底下的 app ⇒ 背景必須是透明的，不能是 iframe 預設的白色。
@@ -92,7 +112,10 @@ export function buildSrcDoc(opts: {
     // 🔴 CSP 的 <meta> 必須排在所有 <script> 之前，否則對它們不生效。
     `<meta http-equiv="Content-Security-Policy" content="${policyOf(opts.allow)}">` +
     `<style>html,body{margin:0;background:${bg}}</style>` +
-    `${vendors}${seedVars(opts.vars)}<script>${PREAMBLE}</script></head>` +
+    `${vendors}${seedVars(opts.vars)}` +
+    // 🔴 要排在 PREAMBLE 之前 —— preamble 的 `call()` 每一次都要讀得到它。
+    seedGlobal('__vellumOwner', opts.owner ?? '') +
+    `<script>${PREAMBLE}</script></head>` +
     `<body>${opts.body}${helper(opts.mode, opts.name)}</body></html>`
   );
 }

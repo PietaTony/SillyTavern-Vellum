@@ -16,11 +16,14 @@ export function useChatCards({
   chat,
   messages,
   swipe,
+  edit,
 }: {
   chatId: string;
   chat: Chat | undefined;
   messages: () => Message[];
   swipe: (messageId: string, index: number) => Promise<unknown>;
+  /** 改一則訊息的文字。🔴 與長按選單共用同一支，不另外接一條路。 */
+  edit: (messageId: string, text: string) => Promise<unknown>;
 }): CardScriptsView {
   const characterId = chat?.characterId ?? '';
   // 卡片變數的四種範圍 —— 種什麼進去、寫到哪裡（見 `useCardVars`）。
@@ -31,6 +34,7 @@ export function useChatCards({
     characterId,
     messages,
     swipe,
+    edit,
     // 🔴 卡片腳本的狀態（桌寵尺寸就存在這裡）。存檔不重讀對話 ——
     // 重讀會讓 srcdoc 變、iframe 整個重生，桌寵每存一次就閃一次。
     // 範圍決定存到哪一支端點，理由見 `useCardVars`。

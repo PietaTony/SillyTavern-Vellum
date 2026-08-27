@@ -47,15 +47,24 @@ mac:
   # 🔴 **兩種架構都要出**（Peter 2026-08-27：「windows-exe／intel mac／arm mac 都發」）。
   #    只出 arm64 的話，Intel Mac 使用者下載到一個**永遠打不開**的 dmg ——
   #    而那個症狀會被誤認成 GAP-100 那個「檔案已損毀」，他會以為是檔案壞了。
+  # 🔴 **只出 zip，不出 dmg**（Peter 2026-08-27：「我只想要 release 出現三個檔案」）。
+  #    判準不是「哪個好用」，是**哪個檔自動更新非用不可**：
+  #    `latest-mac.yml` 的 `path:` 指向的是 **zip**（實測 v0.2.12 的 feed 檔），
+  #    dmg 只是給人下載的第二份 ⇒ 留 zip 才可能剛好三個，留 dmg 就會變成四個 mac 檔。
+  #    ⚠️ 代價：解壓得到的是 `Vellum.app`，使用者要自己拖進「應用程式」——
+  #    dmg 會幫他引導那一步。下載說明裡已補上這句。
   target:
-    - target: dmg
-      arch: [arm64, x64]
     - target: zip
       arch: [arm64, x64]
 win:
+  # 🔴 **檔名不可以有空白。** GitHub 會把資產名裡的空白換成點（`Vellum.Setup.0.2.12.exe`），
+  #    而 electron-builder 寫進 `latest.yml` 的是連字號（`Vellum-Setup-0.2.12.exe`）⇒
+  #    **兩邊對不上，自動更新下載當場 404**（2026-08-27 實測那個網址真的是 404）。
+  #    ⚠️ 這個 bug 只壞在「下載」那一段，「查得到新版」照常 ⇒ 使用者看到的是
+  #    「一直提示有新版，但更新永遠不會完成」。名字裡沒有空白，GitHub 就不會改寫。
+  artifactName: ${productName}-Setup-${version}.${ext}
   target:
     - nsis
-    - portable
 linux:
   target:
     - AppImage

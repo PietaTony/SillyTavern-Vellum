@@ -51,6 +51,18 @@ export function linesFromGreetings(greetings: string[]): WiLine[] {
 }
 
 /**
+ * 把「一則開場白帶的標籤」包成一條線，好讓它跟線路切換器走**同一個 `exclusiveOff`**。
+ *
+ * 🔴 存在的理由是 GAP-120：切開場白原本只做加法（標籤說開什麼就開什麼），
+ * 而線路切換器早就在做切換 ⇒ **同一件事、兩個入口、兩種語意**，
+ * 而且分岔的那一邊（切開場）在畫面上完全看不出來。
+ * `greetingLore.ts` 的檔頭早就寫著「兩個入口必須是同一個引擎」——當時只共用了一半。
+ */
+export function lineOfTags(tags: { include: string[]; exclude: string[] }): WiLine {
+  return { key: keyOf(tags.include, tags.exclude), titles: [], ...tags };
+}
+
+/**
  * 切到某一條線時，**要一起關掉的別條線專屬條目**。
  *
  * 🔴 **為什麼「切線」不能只做加法。** 卡片作者的 `<!-- lore -->` 標籤本身是加法的，
@@ -71,6 +83,33 @@ export function exclusiveOff(target: WiLine, all: WiLine[]): string[] {
     for (const uid of l.include) if (!keep.has(uid)) off.add(uid);
   }
   return [...off].sort();
+}
+
+/**
+ * 切到某一條線時，**要一起開回來的、只被別條線壓著的條目**。
+ *
+ * 🔴 **這是 `exclusiveOff` 的對稱另一半，少了它「切換」就不可逆。**
+ * 實測（標的卡，2026-08-27）：第三條線寫 `exclude: 1`，而條目 1 出廠是開著的。
+ * 切到第三條線 ⇒ 1 被關掉；切回第一條線 ⇒ **1 還是關著**，因為第一條線沒點名它。
+ * ⇒ 走一圈 A → B → A 回不到 A 原本的狀態，而畫面上看不出少了什麼。
+ *
+ * 判準與 `exclusiveOff` 同一句話反過來講：
+ * **`exclude` 的意思是「在這條線上要壓住它」，不是「永久關掉它」** ——
+ * 離開那條線，壓制就該解除。
+ *
+ * 🔴 **這條線自己 exclude 的不開**（它現在正壓著）、
+ * **這條線 include 的不用管**（本來就會開）、
+ * **沒有被任何線點名的一律不動**（那是使用者自己調的）——三道護欄與 `exclusiveOff` 一致。
+ */
+export function exclusiveOn(target: WiLine, all: WiLine[]): string[] {
+  const suppressed = new Set(target.exclude);
+  const on = new Set<string>();
+  for (const l of all) {
+    if (l.key === target.key) continue;
+    for (const uid of l.exclude) if (!suppressed.has(uid)) on.add(uid);
+  }
+  for (const uid of target.include) on.delete(uid);
+  return [...on].sort();
 }
 
 /**

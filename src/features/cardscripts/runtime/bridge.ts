@@ -31,11 +31,21 @@ export type BridgeDeps = {
    */
   swipe: (messageId: string, index: number) => Promise<unknown>;
   /**
+   * 改一則訊息的文字（2026-08-27 起開放）。
+   * 🔴 **後端會連 `swipes[swipeIndex]` 一起寫回**（`server/lib/messageEdit.ts`）——
+   * 只改 `text` 的話，切走再切回來改動就沒了。這裡不必自己處理候選。
+   */
+  edit: (messageId: string, text: string) => Promise<unknown>;
+  /**
    * 🔴 存變數（淺層合併）。卡片是**同步**寫的，所以 iframe 那端先打自己的快取、
    * 再非同步呼叫這支存檔 —— 回傳值沒有人在等（見 `runtime/vars.ts`）。
    * 🔴 **`scope` 決定存到哪裡**（三個端點各一）。在此之前四種範圍全存進同一份對話變數。
    */
-  saveVariables: (patch: Record<string, unknown>, scope: CardVarScope) => Promise<unknown>;
+  saveVariables: (
+    vars: Record<string, unknown>,
+    scope: CardVarScope,
+    mode?: 'merge' | 'replace',
+  ) => Promise<unknown>;
   /** 建立 iframe 時要種進去的三份變數（見 `useCardScripts` 的 `vars`）。 */
   initialVars?: CardVarScopes | undefined;
 };
@@ -59,7 +69,7 @@ const shaped = (m: Message, i: number) => ({
 
 export function buildBridge(deps: BridgeDeps): Record<string, unknown> {
   // 卡片想動訊息時該發生什麼 —— 判準與文案全在 `messageEdit.ts`。
-  const { applyUpdates, reportBlocked } = makeApplyUpdates(deps);
+  const { applyUpdates } = makeApplyUpdates(deps);
   const api: Record<string, unknown> = {
     getChatMessages(range?: unknown) {
       const all = deps.messages().map(shaped);
@@ -68,7 +78,17 @@ export function buildBridge(deps: BridgeDeps): Record<string, unknown> {
       return all;
     },
     getLastMessageId: () => Math.max(0, deps.messages().length - 1),
-    getCurrentMessageId: () => Math.max(0, deps.messages().length - 1),
+    /**
+     * 🔴 **「呼叫它的那一則」，不是「最後一則」**（GAP-121）。兩支回同一個值的話，
+     * 舊訊息裡的卡片區塊會印成最新那一則的號碼（標的卡拿它算樓層號 `page.NNN`）。
+     * ⚠️ `owner` 由 `host.ts` 代填 —— **只有那一層知道是哪個 frame 在問**。
+     * 🔴 找不到就退回最後一則，不丟例外：卡片拿它算頁碼，炸掉整張卡就不見了。
+     */
+    getCurrentMessageId: (owner?: unknown) => {
+      const list = deps.messages();
+      const i = typeof owner === 'string' && owner ? list.findIndex((m) => m.id === owner) : -1;
+      return i >= 0 ? i : Math.max(0, list.length - 1);
+    },
     /**
      * ⚠️ 這兩支**幾乎不會被呼叫**：iframe 那端已經用同步快取蓋掉了（`runtime/vars.ts`）。
      * 留著是為了「萬一有卡片走 TavernHelper.getVariables()」時不會掉進「沒實作」那條。
@@ -84,29 +104,39 @@ export function buildBridge(deps: BridgeDeps): Record<string, unknown> {
         ? deps.saveVariables(patch as Record<string, unknown>, scopeOf(opts))
         : undefined;
     },
+    /** 🔴 **整包覆寫**（GAP-123）。與 `setVariables` 分兩支：「刪得掉」與「刪不掉」是兩種語意。 */
+    replaceVariables(next: unknown, opts?: unknown) {
+      return next !== null && typeof next === 'object'
+        ? deps.saveVariables(next as Record<string, unknown>, scopeOf(opts), 'replace')
+        : undefined;
+    },
     setChatMessages: applyUpdates,
     /**
-     * 🔴 **只想改文字的那一路，連 `applyUpdates` 都不要進。**
-     * 進去只會多繞一圈再什麼都不做。
-     * ⚠️ **不要把 `message` 往下傳** —— 傳了會讓同一次呼叫在
-     * `setChatMessages` 名下再講一次（同一件事兩則訊息、而且署名錯人）。
+     * 🔴 **改文字現在真的會改**（2026-08-27）。上一版在這裡自己判一次再拒絕，
+     * 而那份判斷與 `applyUpdates` 是兩份 —— 兩份判準遲早分岔。
+     * ⇒ 現在只做一件事：**把參數翻譯成 `applyUpdates` 的形狀**，判準只有一份。
+     * ⚠️ 署名仍然是 `setChatMessage`：出事時要說得出使用者叫的是哪一支。
      */
     setChatMessage(content: unknown, id: number, opts?: { swipe_id?: number }) {
-      const swiping = typeof opts?.swipe_id === 'number';
-      const texting = content !== undefined;
-      if (!swiping) {
-        reportBlocked('setChatMessage', id, {
-          kind: texting ? 'text-only' : 'nothing',
-        });
-        return undefined;
-      }
-      // 🔴 有切到候選就**不可以**說「沒有任何變更」——那句話會是假的。
-      if (texting) reportBlocked('setChatMessage', id, { kind: 'text-with-swipe' });
-      return applyUpdates({ message_id: id, swipe_id: opts?.swipe_id });
+      return applyUpdates(
+        {
+          message_id: id,
+          ...(content === undefined ? {} : { message: content }),
+          ...(typeof opts?.swipe_id === 'number' ? { swipe_id: opts.swipe_id } : {}),
+        },
+        'setChatMessage',
+      );
     },
-    getLorebookEntries: () => [],
-    setLorebookEntries: () => undefined,
-    updateWorldbookWith: () => undefined,
+    /**
+     * 🔴 **`getLorebookEntries`／`setLorebookEntries`／`updateWorldbookWith` 刻意不在這裡。**
+     * 它們原本是 `() => []` 與 `() => undefined` —— 有實作的樣子、什麼都不做、而且**安靜**。
+     * 那比沒實作更糟：卡片會以為世界書是空的、以為自己寫進去了
+     *（UI 線 2026-08-27 盤點）。
+     * ⇒ 拿掉之後自動落到 `host.ts` 的既有路徑：**console.warn 說得出是哪一支**，
+     *   而且回 `{ error }` ⇒ iframe 那端 `p.reject(new Error(...))`，卡片會知道失敗。
+     * ⚠️ **不要好心把空實作加回來。** 要嘛真的接世界書（`worlds/<id>.json` 那條路），
+     *   要嘛就讓它出聲。實掃 4 張卡：目前 0 次呼叫，所以現在讓它出聲的代價是零。
+     */
     generate() {
       // 見檔頭：不靜默失敗，也不偷偷花錢。
       throw new Error('Vellum 尚未開放卡片腳本自行呼叫生成（會計費）');

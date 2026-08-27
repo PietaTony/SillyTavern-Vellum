@@ -18,11 +18,14 @@ export function CardFrontend({
   characterId,
   code,
   index,
+  messageId,
 }: {
   cards: CardScriptsView;
   characterId: string;
   code: string;
   index: number;
+  /** 🔴 這一塊屬於哪一則訊息 —— `getCurrentMessageId()` 靠它（GAP-121）。 */
+  messageId: string;
 }) {
   if (!cards.enabled) return <FrontendNotice bytes={code.length} onEnable={cards.ask} />;
   return (
@@ -32,6 +35,7 @@ export function CardFrontend({
       allow={cards.allow}
       vars={cards.vars}
       name={`card-${characterId}-${index}`}
+      owner={messageId}
     />
   );
 }

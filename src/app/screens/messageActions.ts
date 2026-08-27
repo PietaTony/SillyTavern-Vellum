@@ -57,3 +57,22 @@ export function messageActions({
     },
   };
 }
+
+/**
+ * 對話頁的接線版：把 react-query 那幾支接進 `messageActions`。
+ *
+ * 🔴 **抽出來是為了 `gate:file-size`** —— `chat/$chatId.tsx` 卡在 150 行，
+ * 而這四行是純接線（哪個 refetch、哪個 reset），跟「這一頁長什麼樣」無關。
+ */
+export const chatMessageActions = (
+  chatId: string,
+  refetchChat: () => Promise<{ data?: { messages?: Message[] } | undefined }>,
+  reset: () => void,
+  regenerate: (base: Message[]) => void,
+): MessageActions =>
+  messageActions({
+    chatId,
+    refetch: async () => (await refetchChat()).data?.messages ?? [],
+    reset,
+    regenerate,
+  });

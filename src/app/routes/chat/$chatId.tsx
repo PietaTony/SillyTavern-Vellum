@@ -6,7 +6,7 @@ import { CardFrontend } from '@/app/screens/CardFrontend';
 import { ChatFailure } from '@/app/screens/ChatFailure';
 import { ChatMenu } from '@/app/screens/ChatMenu';
 import { ChatLoading, ChatUnavailable } from '@/app/screens/ChatUnavailable';
-import { messageActions } from '@/app/screens/messageActions';
+import { chatMessageActions } from '@/app/screens/messageActions';
 import { useBack } from '@/app/screens/useBack';
 import { useChatBackgroundOverride } from '@/app/screens/useChatBackgroundOverride';
 import { useChatCards } from '@/app/screens/useChatCards';
@@ -41,7 +41,7 @@ function ChatPage() {
   const [showChar, setShowChar] = useState(false);
   // ☰ →「換開場」開的候選目錄（M12 第三批）。同一個元件，第三個入口。
   const [showGreetings, setShowGreetings] = useState(false);
-  // 🔴 生成完要重讀：卡片的狀態欄靠這一輪的變數更新（理由見 `useChatStream` 的 `onDone`）。
+  // 🔴 生成完要重讀（理由見 `useChatStream` 的 `onDone`）。
   const { messages, streaming, thinking, failure, setFailure, send, regenerate, reset } =
     useChatStream(chatId, q.data?.messages, () => q.refetch());
 
@@ -49,20 +49,16 @@ function ChatPage() {
 
   useCardEvents(chatId, messages); // 發事件給卡片腳本；判準與時機在 `useCardEvents`
 
-  // 🔴 卡片自己的程式與變數（M13 第二、三期）。**必須在所有早退之前呼叫**（hooks 規則）。
+  const actions = chatMessageActions(chatId, () => q.refetch(), reset, regenerate);
+
+  // 🔴 卡片程式與變數（M13）。**必須在所有早退之前呼叫**（hooks 規則）。`edit` 直接接
+  //    長按選單那一支 —— **改訊息只留一條路**，不然卡片改的與人改的遲早分岔。
   const cards = useChatCards({
     chatId,
     chat: q.data,
     messages: () => messages,
     swipe: (messageId, index) => swipe.mutateAsync({ messageId, index }),
-  });
-
-  // 長按一則訊息能做的四件事。🔴 改／刪的端點還沒有，404 會翻成 tips（見 `messageActions`）。
-  const actions = messageActions({
-    chatId,
-    refetch: async () => (await q.refetch()).data?.messages ?? [],
-    reset,
-    regenerate,
+    edit: actions.onEdit,
   });
 
   if (q.isPending) return <ChatLoading />;

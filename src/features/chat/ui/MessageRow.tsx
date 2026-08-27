@@ -63,7 +63,7 @@ export function MessageRow({
       {...press}
       sx={{ '@media (pointer: coarse)': { userSelect: 'none', WebkitTouchCallout: 'none' } }}
     >
-      <MessageContent text={message.text} frontend={frontend} />
+      <MessageContent text={message.text} frontend={frontend} messageId={message.id} />
     </Box>
   );
 
