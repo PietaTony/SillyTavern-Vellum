@@ -4,10 +4,13 @@ import Button from '@mui/material/Button';
 import Divider from '@mui/material/Divider';
 import Stack from '@mui/material/Stack';
 import Typography from '@mui/material/Typography';
+import { useMutation } from '@tanstack/react-query';
 import { useState } from 'react';
+import { draftFromImage } from '@/features/characters';
 import { WorldPicker } from '@/features/worldbook';
-import { readImageScaled } from '@/shared/lib/image';
+import { readImageScaled, toDataUrl } from '@/shared/lib/image';
 import { DraftField } from '@/shared/ui/DraftField';
+import { pushToast } from '@/shared/ui/toastStore';
 import type { PersonaDraft } from '../api';
 
 /**
@@ -38,6 +41,26 @@ export function PersonaEditor({
 }) {
   const [busy, setBusy] = useState(false);
   const set = (k: keyof PersonaDraft) => (next: string) => onChange({ ...value, [k]: next });
+
+  /**
+   * 🔴 **與「加入好友」同一支端點、同一顆按鈕的措辭**（Peter 2026-08-27：「這邊也要有
+   * 圖片自動生成文字」）。同一件事在兩個入口不可以長得不一樣，也不該各接一條路。
+   *
+   * 🔴 **只取 `name` 與 `description`** —— 回來的 `firstMessage` 是「角色開口的第一句話」，
+   * persona 沒有那個欄位。丟掉它，不要硬塞進自我介紹。
+   *
+   * ⚠️ **已知的不對味**：後端那句 prompt 寫的是「看這張**角色**圖…描述寫外貌與性格」
+   * （`server/adapters/gemini.ts`），所以生出來的自我介紹會像第三人稱的角色簡介，
+   * 而這一格要的是「你是誰」。欄位可以直接改所以不擋人，但要真的對味
+   * 得請主執行線加一句 persona 版的 prompt（那支是他們的地盤）。
+   * 🔴 失敗走 tips 不佔版面 —— 下一步是「換一張圖再按一次」，橫幅擋在中間反而礙事。
+   */
+  const gen = useMutation({
+    // 🔴 **先轉成 data URL** —— 存著的頭像可能是一個路徑，直接送過去會被擋。
+    mutationFn: async (src: string) => draftFromImage(await toDataUrl(src)),
+    onError: (e: Error) => pushToast({ severity: 'warning', text: `生成失敗：${e.message}` }),
+    onSuccess: (r) => onChange({ ...value, name: r.name, description: r.description }),
+  });
 
   return (
     <Stack spacing={2}>
@@ -71,6 +94,16 @@ export function PersonaEditor({
           placeholder="對方會這樣稱呼你"
         />
       </Stack>
+
+      <Button
+        variant="outlined"
+        size="small"
+        loading={gen.isPending}
+        disabled={!value.avatar || busy}
+        onClick={() => value.avatar && gen.mutate(value.avatar)}
+      >
+        透過圖片自動生成內容
+      </Button>
 
       {renamed ? (
         <Alert severity="info">
