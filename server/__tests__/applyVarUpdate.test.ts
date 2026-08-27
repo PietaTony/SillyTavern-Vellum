@@ -91,3 +91,33 @@ describe('套用一輪更新', () => {
     expect(parseUpdateBlock('只有正文，沒有區塊').ops).toEqual([]);
   });
 });
+
+/**
+ * 🔴 **值要寫進 `stat_data`，不是頂層。** 這是 2026-08-27 靠 Peter 的手機截圖才看出來的：
+ * 面板上「時期」有值、安全感／面具／親密度是三個 `—`。那個不對稱就是指紋 ——
+ * 卡片讀的是 `getAllVariables().stat_data`（桌寵的 `readState()`），
+ * 值放頂層它一個都讀不到，**而且畫面上沒有任何錯誤**。
+ */
+import { stageOf } from '../lib/mvuStage.ts';
+
+describe('stat_data 的形狀', () => {
+  it('🔴 `階段` 要一起存 —— MVU 存的是 schema transform 之後的物件', () => {
+    expect(stageOf({ 時期: '成年', 安全感: 17, 面具: 82, 親密度: 23 })).toBe('接近');
+    expect(stageOf({ 時期: '成年', 安全感: 30, 面具: 60, 親密度: 45 })).toBe('動搖');
+    expect(stageOf({ 時期: '成年', 安全感: 40, 面具: 40, 親密度: 70 })).toBe('確認');
+  });
+
+  it('🔴 三條線各有各的階段 —— 卡片自己的 fallback 只算成年線，那條路會算錯', () => {
+    expect(stageOf({ 時期: '學生', 安全感: 5, 面具: 70, 親密度: 5 })).toBe('同學');
+    expect(stageOf({ 時期: '學生', 安全感: 20, 面具: 70, 親密度: 35 })).toBe('曖昧');
+    expect(stageOf({ 時期: '學生', 安全感: 0, 面具: 40, 親密度: 65 })).toBe('分歧');
+    expect(stageOf({ 時期: '童年', 安全感: 10, 面具: 80, 親密度: 0 })).toBe('警戒');
+    expect(stageOf({ 時期: '童年', 安全感: 30, 面具: 70, 親密度: 0 })).toBe('習慣');
+    expect(stageOf({ 時期: '童年', 安全感: 50, 面具: 50, 親密度: 60 })).toBe('依附');
+  });
+
+  it('沒有值也要給得出一個階段，不可以是 undefined', () => {
+    expect(stageOf({})).toBe('接近');
+    expect(stageOf({ 時期: '成年', 安全感: '壞掉的', 面具: null, 親密度: undefined })).toBe('接近');
+  });
+});

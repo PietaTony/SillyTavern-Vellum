@@ -12,6 +12,12 @@
  * 補那兩個外部依賴等於把產品的核心狀態押在別人的 CDN 上，斷網或對方改版就沒有狀態。
  * ⇒ Peter 2026-08-27 裁定：我們自己算。前端那邊由 `runtime/mvuShim.ts` 扮演 `Mvu` 的介面。
  *
+ * 🔴 **值要寫進 `stat_data`，不是頂層**（2026-08-27 實機才看出來）。
+ * 卡片讀的是 `getAllVariables().stat_data`（桌寵的 `readState()` 就是這樣寫的）——
+ * 那是 MVU 的慣例。我們扮演 MVU 就得**寫在 MVU 會寫的地方**：
+ * 值放頂層的話卡片一個都讀不到，而畫面上是三個 `—`，沒有任何錯誤。
+ * ⚠️ Peter 手機截圖上「時期」有值、三個數字是 `—`，那個不對稱正是這條的指紋。
+ *
  * 🔴 **失敗一律不擋生成。** 這一段是在訊息已經存下來之後跑的 —— 解析壞掉、卡片沒有變數、
  * schema 推不出來，都只是「這一輪沒有數值變化」，不可以讓使用者的回覆消失。
  */
@@ -21,6 +27,7 @@ import { deriveConfig } from '../lib/deriveConfig.ts';
 import { applyWithConstraints, type Change } from '../lib/varApply.ts';
 import { initialState, type State, type VarSchema } from '../lib/vars.ts';
 import { parseUpdateBlock, proposalsFrom } from '../lib/varUpdate.ts';
+import { stageOf } from '../lib/mvuStage.ts';
 
 /**
  * 卡片的變數宣告 ＋ **引擎層的約束**。
@@ -30,8 +37,7 @@ import { parseUpdateBlock, proposalsFrom } from '../lib/varUpdate.ts';
  * ⇒ 夾持要在套用前發生（`varApply.ts` 檔頭的同一條）。
  * ⚠️ 開場前兩樓豁免：開場白本來就會一次把數值設到位。
  *
- * ⚠️ `scripts/verify-vars.ts` 目前有一份**一模一樣的手寫版**（它比這支早存在）。
- * 兩份會漂，該讓它改吃這一支 —— 已記在 TASKS.md。
+ * ⚠️ `scripts/verify-vars.ts` 有一份一模一樣的手寫版，該改吃這支（已記在 TASKS.md）。
  */
 export function schemaOf(cardJson: unknown): VarSchema | null {
   const { config } = deriveConfig(cardJson);
@@ -49,6 +55,9 @@ export function schemaOf(cardJson: unknown): VarSchema | null {
     })),
   };
 }
+
+/** 🔴 MVU 把資料存在這個鍵底下 —— 卡片就是照這個鍵讀的（見檔頭）。 */
+export const STAT_KEY = 'stat_data';
 
 export type VarUpdate = { state: State; changes: Change[]; rejected: string[] };
 
@@ -76,9 +85,12 @@ export async function applyVarUpdate(
    * `delta` 是相對的 —— 底下沒有基準的話第一輪就永遠算不出來。
    * ⚠️ 只補「這個 schema 宣告過的」，卡片自己存的其他東西（桌寵的位置…）原封不動。
    */
-  const base: State = { ...initialState(schema), ...pickDeclared(schema, current) };
+  const stat = (current[STAT_KEY] ?? {}) as Record<string, unknown>;
+  const base: State = { ...initialState(schema), ...pickDeclared(schema, stat) };
   const r = applyWithConstraints(base, proposalsFrom(parsed.ops, base), schema, { 樓層: turn });
-  return { state: r.state, changes: r.changes, rejected: r.rejected.map((x) => x.name) };
+  // 🔴 `階段` 是那張卡的 schema 自己 transform 出來的 —— MVU 會存，我們也要存（見 `mvuStage`）。
+  const state: State = { ...r.state, 階段: stageOf(r.state) };
+  return { state, changes: r.changes, rejected: r.rejected.map((x) => x.name) };
 }
 
 const pickDeclared = (schema: VarSchema, from: Record<string, unknown>): State => {
@@ -110,7 +122,8 @@ export async function varsAfter(
         `[vellum] 變數：${moved.join('、') || '（無變化）'}` +
           (v.rejected.length > 0 ? `｜拒絕 ${v.rejected.join('、')}` : ''),
       );
-    return { ...before, ...v.state };
+    // 🔴 併進 `stat_data`，不要動卡片自己存在頂層的東西（桌寵的位置就在那裡）。
+    return { ...before, [STAT_KEY]: { ...((before[STAT_KEY] ?? {}) as object), ...v.state } };
   } catch (e) {
     console.error('[vellum] 變數更新失敗（不影響這一則回覆）：', e);
     return before;
