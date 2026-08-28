@@ -13,9 +13,14 @@ You own **H1 · Chat Core**. `AGENTS.md` holds the rules this file does not repe
 - `src/features/chat/**`
 - `src/app/routes/chat/$chatId.tsx` `src/app/routes/chat-list.tsx`
 - `src/app/screens/` — `ChatMenu.tsx` `messageActions.ts` `ChatFailure.tsx` `ChatUnavailable.tsx` `useChatBackgroundOverride.ts`
+  `ChatMenuItems.tsx` `ChatMenuLayers.tsx` `ChatMenuLayer.ts` 🔴 E1 跨層票（2026-08-28）
+  新增：`ChatMenu.tsx` 頂到 `gate:file-size` 上限，選單列表與五個 overlay layer 分別
+  搬出去；`ChatMenuLayer.ts` 是純型別，避免三支之間循環相依（`gate:boundaries` A2）。
 
 **Back end**
 - `server/routes/` — `chats.ts` `chatMessages.ts` `chatImport.ts` `generate.ts`
+  `companionSettings.ts` 🔴 E1 跨層票（2026-08-28）新增：桌寵開關，`.route()` 借掛在
+  `chatMessages.ts` 的 `/api/chats` 前綴下（`app.ts` 這輪鎖外，不能開新前綴）。
 - `server/lib/` — `chatFile.ts` `greetings.ts` `messageEdit.ts`
 - `server/services/` — `chatModel.ts` `renderChat.ts` `buildTurn.ts` `greetingLore.ts`
   `landOpening.ts` `seedGreetingVars.ts`

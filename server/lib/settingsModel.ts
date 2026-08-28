@@ -126,6 +126,15 @@ export type Settings = {
    *    是檔案不是設定，刪掉設定不會動到圖。
    */
   background?: { name?: string | undefined; fitting?: Fitting | undefined } | undefined;
+  /**
+   * **桌寵開關**（E1，Peter 2026-08-28）。實機真的在跑的桌寵是卡片自己的背景腳本
+   * （`CardBackground.tsx` 的 overlay frame），不是 `server/lib/companion.ts` 那支
+   * 沒接路由的孤兒引擎。關掉 ⇒ 前端讓那個 frame 根本不建（同「沒同意」那條路），
+   * 不是 CSS 藏起來、背後還在跑（見 `useCardScripts.ts`）。
+   * 對既有資料的影響：舊 `settings.json` 讀進來是 `undefined` ⇒ 視為開啟，行為不變。
+   * 誰讀誰寫：`server/routes/companionSettings.ts`。可逆：刪掉這鍵即回退。
+   */
+  companionEnabled?: boolean | undefined;
 };
 
 /**
