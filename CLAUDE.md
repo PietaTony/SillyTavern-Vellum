@@ -111,7 +111,9 @@ Mark the ticket handled; locked paths go back to their owners.
 - 🔴 **`pnpm verify` is the only receipt.** No CI runs it for you before you push.
 - 🔴 **`package.json` changed → run `pnpm install` before `pnpm verify`**, or the gates
   measure the old dependency tree and go green while CI goes red.
-- 🔴 **Pushing `staging` publishes a public Release.** There is one path and there must not be a second.
+- 🔴 **Merging a PR into `main` publishes a public Release; pushing `staging` no longer does**
+  (Peter 2026-08-28: dispatch reviews the PR into `staging`, Peter reviews `staging → main`
+  himself — that merge *is* the release button). There is one path and there must not be a second.
 - 🔴 **A push touching only `.md` does not trigger CD** (`paths-ignore` in `cd.yml`) —
   including the release-notes file the gate demands you update.
 - **Files are capped at 150 lines** (`gate:file-size`). Extract a file; **never delete
