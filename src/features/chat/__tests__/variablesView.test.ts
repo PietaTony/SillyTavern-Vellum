@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { variableRows } from '../variablesView';
+import { schemaRows, variableRows } from '../variablesView';
 
 describe('variableRows', () => {
   it('沒有變數就回空陣列', () => {
@@ -29,5 +29,40 @@ describe('variableRows', () => {
       { label: 'stat_data.a', value: 'null' },
       { label: 'stat_data.b', value: '（無）' },
     ]);
+  });
+});
+
+describe('schemaRows', () => {
+  it('null／undefined（沒有宣告，正常空狀態）回空陣列', () => {
+    expect(schemaRows(null)).toEqual([]);
+    expect(schemaRows(undefined)).toEqual([]);
+  });
+
+  it('空 variables 陣列回空陣列', () => {
+    expect(schemaRows({ variables: [], derived: [], constraints: [] })).toEqual([]);
+  });
+
+  it('每個變數攤成一行：名字／型別／初始值／是否唯讀', () => {
+    const rows = schemaRows({
+      variables: [
+        { name: '時期', type: 'string', initial: '成年', readonly: true },
+        { name: '安全感', type: 'number', initial: 15 },
+      ],
+      derived: [],
+      constraints: [],
+    });
+    expect(rows).toEqual([
+      { label: '時期', type: 'string', initial: '成年', readonly: true },
+      { label: '安全感', type: 'number', initial: '15', readonly: false },
+    ]);
+  });
+
+  it('不管 constraints 有沒有內容都不出現在輸出裡 —— 那是引擎寫死的規則，不是卡片宣告', () => {
+    const rows = schemaRows({
+      variables: [{ name: '安全感', type: 'number', initial: 15 }],
+      derived: [],
+      constraints: [{ var: '安全感', maxDeltaPerTurn: 3, clamp: [0, 100], exemptWhen: '樓層 < 2' }],
+    });
+    expect(rows).toEqual([{ label: '安全感', type: 'number', initial: '15', readonly: false }]);
   });
 });
