@@ -21,6 +21,16 @@ git 歷史保留了完整的來源鏈（第一個 commit 是 SillyTavern 作者 
 
 ---
 
+## 給 agent／新協作者
+
+1. [`ARCHITECTURE.md`](ARCHITECTURE.md) — 專案地圖與閱讀順序（**先讀**）
+2. [`AGENTS.md`](AGENTS.md) — 哪個檔案誰能改
+3. [`.claude/agents/<domain>.md`](.claude/agents/) — 該領域 GAP；或搜 [`docs/generated/gap-index.md`](docs/generated/gap-index.md)
+4. `pnpm verify` — 唯一收據；改完貼真實輸出
+5. 深度規格／ticket — agents home 的 `plans/`、`INBOX/`（路徑見 ARCHITECTURE.md §5）
+
+---
+
 ## 安裝
 
 Windows／macOS 步驟一樣。**不需要 Docker**，也不需要裝 pnpm 或 git。
