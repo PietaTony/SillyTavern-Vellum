@@ -27,6 +27,10 @@ directories:
 # 🔴 打包完對整個 bundle 做 ad-hoc 簽章 —— 理由與實測數據在該檔檔頭。
 # 少了它，使用者看到的是「檔案已損毀」而不是「未識別的開發者」，而且**沒有放行按鈕**。
 afterPack: ./scripts/after-pack.cjs
+# 🔴 x64 zip 改名成帶 `intel` 字樣**不是**用這裡的 hook 做——實測 `afterAllArtifactBuild`
+# 跑的時候 `latest-mac.yml` 還沒寫出來（理由與實測在 scripts/rename-mac-intel-zip.cjs
+# 檔頭）。改名是 `package.json` 的 `app:build` 在整個 electron-builder CLI 跑完之後
+# 才串接的獨立步驟。
 # 🔴 只放 runtime 真的要的東西。`node_modules` 不進去 —— 相依已經全 bundle 進
 #    `dist-server/index.mjs`（同 zip 那條路，理由見 scripts/package-zip.ts）。
 files:
@@ -46,6 +50,41 @@ mac:
   #    2026-08-27 實測，它撈到了一張**公司的** `Apple Distribution` 憑證並拿去簽。
   #    這是個人 side project，不可以用公司的身分簽章（見 AGENTS.md 的絕不可做）。
   #    要簽章是另一次刻意的決定（給別人下載才需要，US$99/年）。
+  #
+  # 🔴 **2026-08-28：Peter 已決定付費申請 Apple Developer Program 做簽章＋公證**——
+  #    這一行還沒改，因為憑證還沒申請下來。等憑證到手，要改的**不是**單純刪掉這一行：
+  #
+  #    1. 用 `security find-identity -v -p codesigning` 印出憑證清單，把那張
+  #       `Developer ID Application: <全名> (<TEAMID>)` 的**完整字串**原封不動貼進
+  #       `identity:`。⚠️ **不可以只留姓名片段或整個刪掉這一行**——
+  #       `app-builder-lib/out/codeSign/macCodeSign.js` 實測過：`identity` 是對
+  #       `security find-identity` 每一行做**子字串比對**，而找不到「Developer ID
+  #       Application:」型別的憑證時，它的 fallback 邏輯（同檔案 `_findIdentity`）
+  #       會掃「任何不是蘋果已知字首的憑證」，而 `Apple Distribution:` 字首**不在**那份
+  #       排除清單裡（`appleCertificatePrefixes` 只列了四個 Developer ID／3rd Party
+  #       Mac Developer 字首）——這就是上面那次「撈到公司憑證」事故的實際成因。
+  #    2. ⚠️ **`CSC_IDENTITY_AUTO_DISCOVERY=false`（`cd.yml` 已經在設）不能當防線。**
+  #       2026-08-28 讀原始碼實測：這個版本（`electron-builder@26.15.3`）裡它只影響
+  #       找不到憑證時的**警告文字**（`macCodeSign.js` 的 `reportError`），完全沒有出現在
+  #       `macPackager.js`／`MacTargetHelper.js` 真正呼叫 `findIdentity` 的路徑上——
+  #       換句話說，只設這個環境變數、卻把 `identity:` 留空或刪掉，一樣會落入上面那個
+  #       「掃到公司憑證」的洞，這個變數擋不住。**只有明確寫死 `identity:` 字串才擋得住。**
+  #    3. `hardenedRuntime`（預設 `true`）與 entitlements 不用另外處理——
+  #       electron-builder 內建的 `templates/entitlements.mac.plist` 已經包含
+  #       Electron 在 hardened runtime 下需要的三個 entitlement（allow-jit／
+  #       allow-unsigned-executable-memory／disable-library-validation），
+  #       這個專案沒有 `build/entitlements.mac.plist` 覆蓋它，會自動套用內建版本。
+  #    4. 公證怎麼觸發：`mac.notarize`（預設開啟，不用寫）在 `identity` 是真實憑證
+  #       **且**下列三組環境變數其中一組存在時自動跑：
+  #       ① `APPLE_API_KEY`／`APPLE_API_KEY_ID`／`APPLE_API_ISSUER`（App Store Connect
+  #       API key——CI 建議這組，不用存 Apple ID 密碼、不會被要求二階段驗證）
+  #       ② `APPLE_ID`／`APPLE_APP_SPECIFIC_PASSWORD`／`APPLE_TEAM_ID`
+  #       ③ `APPLE_KEYCHAIN`／`APPLE_KEYCHAIN_PROFILE`（只適合本機，CI 沒有長駐鑰匙圈）
+  #       CI 另外還需要 `CSC_LINK`（憑證 .p12 的 base64）＋ `CSC_KEY_PASSWORD`
+  #       （匯出密碼）——這組跟上面的公證憑據是**兩件不同的事**：`CSC_LINK` 是「把憑證
+  #       裝進 CI 的暫時鑰匙圈」，`APPLE_*` 是「公證服務登入用」。**兩種都要有** CI 才簽得出來。
+  #    ⚠️ 這四點是查證，不是已經接上——`GH_TOKEN`／`CSC_LINK`／`APPLE_*` 這些 secrets
+  #    要等 Peter 決定要用哪組公證憑據之後才會加進 `cd.yml`，不在這次改動範圍。
   identity: null
   # 🔴 **兩種架構都要出**（Peter 2026-08-27：「windows-exe／intel mac／arm mac 都發」）。
   #    只出 arm64 的話，Intel Mac 使用者下載到一個**永遠打不開**的 dmg ——
