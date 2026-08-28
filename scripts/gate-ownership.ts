@@ -148,9 +148,29 @@
  * 兩者都不是刁鑽的邊界案例，是這支檔案本來就該擋、卻沒擋住的日常形狀。改這支
  * 檔案的人下一次也不該假設「現有案例都綠 = 沒有下一個洞」。
  *
+ * 2026-08-28 補洞（第六輪，範圍限定 A3）：複驗判「部分成立」，B1/B2/B3/B4/D1/D2
+ * 全過，只留一個洞——**C2 那把「第二把尺」自己也只查一級**。用真實
+ * `buildTargets()` 輸出證明：`server/providers/formats/`（二級目錄，5 檔）與
+ * `src/app/routes/settings/providers/`（三級目錄）整個從 `targets` 消失時，舊版
+ * `subdirCoverage()` 兩個都放行——因為它只問「`server/providers/` 這個**一級**
+ * 子目錄底下還有沒有任何標的」，`server/providers/registry.ts` 等同層檔案還在，
+ * 就被掩護過去，完全沒問 `formats/` 這個路徑自己有沒有標的。C2 那一輪的檔頭原本
+ * 就在講「子目錄整個消失」，卻只把這句話兌現到第一層，同一種盲區只是被推到下一
+ * 層。改法、以及為什麼還是不會跟 `walk()` 一起壞，見 `collectSubdirCounts()` 與
+ * `subdirCoverage()` 自己的檔頭（往上找 A3 這個標籤）。
+ *
+ * 順便修了同一段程式碼裡的另一個舊坑：`independentSubdirFileCount()`（現已改名為
+ * `collectSubdirCounts()`）原本的 `try/catch` 把任何 `readdirSync` 失敗都吞成
+ * `entries = []` → `count = 0` → 跟「這個目錄真的是空的」長得一模一樣，靜默通過。
+ * 用 `chmod 000` 實測過：今天不會變成靜默綠燈，只因為 `walk()`（沒有 try/catch）
+ * 會先在同一個掃描根撞到同一個錯誤整個當機——那是執行順序的巧合，不是設計，未來
+ * 任何把 `walk()` 包一層 try/catch「加固」的合理重構都會把這裡從「當機」降級成
+ * 「靜默通過」。現在讀取失敗會記進 `failedDirs`、讓這一輪 FAIL，不會被當成 0。
+ *
  * 自證：pnpm exec tsx scripts/gate-ownership.ts --selftest
  */
 import {
+  chmodSync,
   existsSync,
   mkdirSync,
   mkdtempSync,
@@ -681,53 +701,130 @@ export function coverageFloor(targets: string[]): {
  * 判斷邏輯，尤其是「這個目錄該不該跳過」這一段——這正是歷史上真正壞過的地方。
  *
  * 判準刻意放得很寬（只問「有沒有」，不比對絕對數字）：對 `server/`／`src/app/`
- * 底下**每一個一級子目錄**，獨立算一次「這個子目錄底下遞迴有沒有 `.ts`/`.tsx`
- * 檔（排除 `__tests__/`）」；只要算出來 >0，就必須在 `targets` 裡至少出現一個
- * 以 `<root>/<子目錄>/` 開頭的標的。兩把尺排除 `__tests__/` 的寫法不同（這把用
- * 路徑片段比對、`walk()` 用目錄名整棵跳過），細微的檔案數落差是預期的，所以不
- * 比對絕對數字，只比對「至少一個」——粒度是「整個子目錄消失」，不是「差一兩個
- * 檔」，比對太精確只會在兩把尺各自排除方式的正常落差裡製造假警報。
+ * 底下**每一個目錄節點**（不只一級，見下方 A3），獨立算一次「這個目錄底下遞迴有
+ * 沒有 `.ts`/`.tsx` 檔（排除 `__tests__/`）」；只要算出來 >0，就必須在 `targets`
+ * 裡至少出現一個以這個目錄的完整路徑開頭的標的。兩把尺排除 `__tests__/` 的寫法
+ * 不同（這把用路徑片段比對、`walk()` 用目錄名整棵跳過），細微的檔案數落差是預期
+ * 的，所以不比對絕對數字，只比對「至少一個」——粒度是「整個目錄消失」，不是「差
+ * 一兩個檔」，比對太精確只會在兩把尺各自排除方式的正常落差裡製造假警報。
+ *
+ * 🔴 A3（第六輪，複驗打穿）：上面這段判準原本只對**一級**子目錄做——`server/`
+ * 底下的 `providers`、`lib`、`routes` 這種第一層。這救不了巢狀更深的洞：
+ * `server/providers/formats/*`（真實存在的二級目錄）整個從 `targets` 消失時，
+ * 一級尺量的是「`server/providers/` 底下**還有沒有任何**標的」——`server/
+ * providers/registry.ts` 等其他檔案還在，一級尺看到「還有」就放行，完全不問
+ * `formats/` 這個路徑本身有沒有標的。`src/app/routes/settings/providers/*`
+ * 同理，被 `settings/about.tsx` 等同層檔案掩護過去。兩個都是複驗用真實
+ * `buildTargets()` 輸出打穿的，不是假設情境。
+ *
+ * 改法：`collectSubdirCounts()` 手動遞迴走訪整棵樹，對**每一個**目錄節點（第一
+ * 層、第二層、第三層……）都獨立重複同一套「有沒有檔案 → 有沒有對應標的」檢查，
+ * 不再只停在第一層。`server/providers/formats/` 現在是它自己的一個節點，不會被
+ * `server/providers/` 這個祖先節點底下的其他檔案掩護過去。
+ *
+ * 為什麼還是不會跟 `walk()` 一起壞：「往下鑽一層」那段（`readdirSync(parentDir)`
+ * 逐層手寫遞迴）確實跟 `walk()` 同類型的手寫遞迴，但每一個節點「有沒有檔案」的
+ * 判斷仍然呼叫 Node **內建**的 `readdirSync(p, { recursive: true })`（跟 C2 那
+ * 一輪同一招），完全不複製 `walk()` 的 `SKIP` 判斷。就算「往下鑽」那段被改壞
+ * （例如漏掉某個目錄名的遞迴），後果是「少驗那一層」，不是「跟 `walk()` 一樣整批
+ * 標的憑空消失卻沒人發現」——下面 `--selftest` 用臨時巢狀 fixture 斷言遞迴真的
+ * 鑽得到三層深來擋這一段自己的迴歸。
+ *
+ * fs 讀取失敗（例如 `chmod 000`）：舊版的 `try/catch` 把任何 `readdirSync` 失敗
+ * 都吞成 `entries = []` → `count = 0` → `if (count === 0) continue` 直接跳過，
+ * 跟「這個目錄真的是空的」長得一模一樣，靜默通過。今天不會變成靜默綠燈，只因為
+ * `walk()`（沒有 try/catch）會先在同一個掃描根撞到同一個錯誤整個當機——那是執行
+ * 順序的巧合，不是設計；未來任何把 `walk()` 包一層 try/catch「加固」的合理重構，
+ * 都會意外把這裡從「當機」降級成「靜默通過」。改成：讀取失敗記進 `failedDirs`，
+ * 訊息誠實印出「N 個子目錄讀取失敗，視為未驗證」，且**視為未驗證要讓這輪 FAIL**
+ * ——讀不到就是不能保證沒有孤兒，不能算過關，寧可誤報也不要吞成 0。
  */
-function independentSubdirFileCount(dir: string, ext: RegExp): Map<string, number> {
-  const counts = new Map<string, number>();
-  if (!existsSync(dir)) return counts;
-  for (const child of readdirSync(dir)) {
-    if (child === TEST_DIR_NAME) continue; // X4：這兩支掃描根底下的 __tests__ 本就不算數
-    const childPath = join(dir, child);
-    if (!statSync(childPath).isDirectory()) continue;
-    let entries: string[] = [];
+function collectSubdirCounts(
+  parentDir: string,
+  ext: RegExp,
+  counts: Map<string, number>,
+  failedDirs: string[],
+): void {
+  let children: string[];
+  try {
+    children = readdirSync(parentDir);
+  } catch {
+    failedDirs.push(relative(ROOT, parentDir));
+    return;
+  }
+  for (const n of children) {
+    if (n === TEST_DIR_NAME) continue; // X4：這兩支掃描根底下的 __tests__ 本就不算數
+    const p = join(parentDir, n);
+    let isDir: boolean;
     try {
-      entries = readdirSync(childPath, { recursive: true }) as string[];
+      isDir = statSync(p).isDirectory();
     } catch {
-      entries = [];
+      failedDirs.push(relative(ROOT, p));
+      continue;
     }
+    if (!isDir) continue;
+
+    let entries: string[] | null = null;
+    try {
+      entries = readdirSync(p, { recursive: true }) as string[];
+    } catch {
+      failedDirs.push(relative(ROOT, p));
+    }
+    if (entries === null) continue; // 讀不到就不往下鑽——鑽下去只會用同一個原因再失敗一次
+
     let count = 0;
     for (const e of entries) {
       if (e.split(/[\\/]/).includes(TEST_DIR_NAME)) continue;
       if (!ext.test(e)) continue;
-      const full = join(childPath, e);
-      if (existsSync(full) && statSync(full).isFile()) count++;
+      const full = join(p, e);
+      try {
+        if (statSync(full).isFile()) count++;
+      } catch {
+        // 列舉之後、stat 之前檔案消失——競態，不是本輪要抓的錯，略過即可
+      }
     }
-    counts.set(child, count);
+    counts.set(relative(ROOT, p), count);
+
+    // A3 核心：往下鑽一層，對每一個更深的目錄節點重複同一套獨立檢查，不是只查
+    // parentDir 的直接子目錄。
+    collectSubdirCounts(p, ext, counts, failedDirs);
   }
-  return counts;
 }
 
 export function subdirCoverage(
   dir: string,
-  prefix: string,
   targets: string[],
-): { ok: boolean; missing: string[]; checked: number } {
+): {
+  ok: boolean;
+  missing: string[];
+  checked: number;
+  failedDirs: string[];
+  maxDepthChecked: number;
+} {
   const TS_EXT = /\.tsx?$/;
-  const counts = independentSubdirFileCount(join(ROOT, dir), TS_EXT);
+  const root = join(ROOT, dir);
+  const counts = new Map<string, number>();
+  const failedDirs: string[] = [];
+  if (existsSync(root)) collectSubdirCounts(root, TS_EXT, counts, failedDirs);
+
   const missing: string[] = [];
-  for (const [child, count] of counts) {
+  let maxDepthChecked = 0;
+  for (const [relDir, count] of counts) {
+    const depth = relDir.slice(dir.length + 1).split('/').length;
+    if (depth > maxDepthChecked) maxDepthChecked = depth;
     if (count === 0) continue;
-    const has = targets.some((t) => t.startsWith(`${prefix}${child}/`));
-    if (!has) missing.push(child);
+    const has = targets.some((t) => t.startsWith(`${relDir}/`));
+    if (!has) missing.push(relDir);
   }
   missing.sort();
-  return { ok: missing.length === 0, missing, checked: counts.size };
+  failedDirs.sort();
+  return {
+    ok: missing.length === 0 && failedDirs.length === 0,
+    missing,
+    checked: counts.size,
+    failedDirs,
+    maxDepthChecked,
+  };
 }
 
 export function decide(
@@ -791,18 +888,29 @@ function run(): void {
     process.exit(1);
   }
 
-  // C2：第二把尺，跟上面的 coverageFloor 不共用程式碼——見 `subdirCoverage` 檔頭。
-  const subServer = subdirCoverage('server', 'server/', targets);
-  const subApp = subdirCoverage('src/app', 'src/app/', targets);
+  // C2＋A3：第二把尺，跟上面的 coverageFloor 不共用程式碼——見 `subdirCoverage` 檔頭。
+  // A3：現在對每一層巢狀目錄都獨立檢查，不再只查一級。
+  const subServer = subdirCoverage('server', targets);
+  const subApp = subdirCoverage('src/app', targets);
   if (!subServer.ok || !subApp.ok) {
-    console.error('gate:ownership FAIL — 有一整個子目錄從掃描標的裡消失了（第二把尺抓到）：');
-    if (!subServer.ok)
+    console.error('gate:ownership FAIL — 有目錄（不限第一層）從掃描標的裡消失了（第二把尺抓到）：');
+    if (subServer.missing.length)
       console.error(
-        `    server/ 底下這些子目錄有 .ts 檔卻沒有任何標的：${subServer.missing.join(', ')}`,
+        `    server/ 底下這些目錄有 .ts 檔卻沒有任何標的：${subServer.missing.join(', ')}`,
       );
-    if (!subApp.ok)
+    if (subApp.missing.length)
       console.error(
-        `    src/app/ 底下這些子目錄有 .ts 檔卻沒有任何標的：${subApp.missing.join(', ')}`,
+        `    src/app/ 底下這些目錄有 .ts 檔卻沒有任何標的：${subApp.missing.join(', ')}`,
+      );
+    if (subServer.failedDirs.length)
+      console.error(
+        `    server/ 底下 ${subServer.failedDirs.length} 個目錄讀取失敗，視為未驗證：` +
+          subServer.failedDirs.join(', '),
+      );
+    if (subApp.failedDirs.length)
+      console.error(
+        `    src/app/ 底下 ${subApp.failedDirs.length} 個目錄讀取失敗，視為未驗證：` +
+          subApp.failedDirs.join(', '),
       );
     process.exit(1);
   }
@@ -824,7 +932,9 @@ function run(): void {
     `gate:ownership PASS — 掃了 ${targets.length} 個標的，無孤兒、無重複、涵蓋率健康` +
       `（server/ 深 ${floor.server.deep} 檔／鑽 ${floor.server.maxDepth} 層、` +
       `src/app/ 深 ${floor.app.deep} 檔／鑽 ${floor.app.maxDepth} 層，` +
-      `子目錄涵蓋（第二把尺）server/ ${subServer.checked} 個、src/app/ ${subApp.checked} 個都對得上）` +
+      `子目錄涵蓋（第二把尺，逐層遞迴、不只一級）server/ ${subServer.checked} 個節點／` +
+      `最深 ${subServer.maxDepthChecked} 層、src/app/ ${subApp.checked} 個節點／` +
+      `最深 ${subApp.maxDepthChecked} 層都對得上）` +
       `（另外排除 server/ 與 src/app/ 底下（含巢狀）共 ${excludedTests} 個 __tests__ 檔——` +
       `X4 沒有機制守，這一輪刻意排除；不含 src/features/**（目錄粒度，本就不遞迴）` +
       `與 src/shared/**（X1，本就不掃）底下的 __tests__）`,
@@ -1175,22 +1285,108 @@ function runSelftest(): void {
   const floorCountOnlyBroken = coverageFloor(countOnlyBrokenTargets);
 
   // C2：第二把尺——健康的真實標的兩個根都要過。
-  const subServerHealthy = subdirCoverage('server', 'server/', built.targets);
-  const subAppHealthy = subdirCoverage('src/app', 'src/app/', built.targets);
+  const subServerHealthy = subdirCoverage('server', built.targets);
+  const subAppHealthy = subdirCoverage('src/app', built.targets);
 
   // C2：複驗實測的三個真實案例——整個子目錄從 targets 消失，coverageFloor（舊尺）
   // 全部誤放行，這把新尺要抓到。用真實 built.targets 過濾掉該子目錄，不是造假資料。
   const targetsNoLib = built.targets.filter((t) => !t.startsWith('server/lib/'));
-  const subServerNoLib = subdirCoverage('server', 'server/', targetsNoLib);
+  const subServerNoLib = subdirCoverage('server', targetsNoLib);
   const floorNoLib = coverageFloor(targetsNoLib); // 對照：舊尺對這個突變沒有免疫力
 
   const targetsNoRoutes = built.targets.filter((t) => !t.startsWith('server/routes/'));
-  const subServerNoRoutes = subdirCoverage('server', 'server/', targetsNoRoutes);
+  const subServerNoRoutes = subdirCoverage('server', targetsNoRoutes);
   const floorNoRoutes = coverageFloor(targetsNoRoutes);
 
   const targetsNoScreens = built.targets.filter((t) => !t.startsWith('src/app/screens/'));
-  const subAppNoScreens = subdirCoverage('src/app', 'src/app/', targetsNoScreens);
+  const subAppNoScreens = subdirCoverage('src/app', targetsNoScreens);
   const floorNoScreens = coverageFloor(targetsNoScreens);
+
+  // 🔴 A3（第六輪）：複驗打穿的正是「只查一級」——上面 NoLib／NoRoutes／NoScreens
+  // 三組砍掉的都是**一級**子目錄整個消失，一級尺本來就抓得到（那是 C2 那輪的成果，
+  // 不是這輪要補的洞）。這輪要補的是**二級以下**的子目錄消失、但同一個一級目錄
+  // 底下還有其他檔案撐著——一級尺會被那些檔案掩護過去，必須逐層查才抓得到。
+  // 用複驗指名的三個真實巢狀目錄，一個都不是造出來的 fixture：
+  //   `server/providers/formats/`（server/providers/ 底下還有 registry.ts 等撐著）
+  //   `src/app/routes/settings/providers/`（settings/ 底下還有 about.tsx 等撐著）
+  //   `src/app/routes/worlds/$worldId/`（worlds/ 底下還有 index.tsx 等撐著）
+  const targetsNoFormats = built.targets.filter((t) => !t.startsWith('server/providers/formats/'));
+  const subServerNoFormats = subdirCoverage('server', targetsNoFormats);
+  const floorNoFormats = coverageFloor(targetsNoFormats); // 對照：舊一級尺一樣被掩護過去
+
+  const targetsNoSettingsProviders = built.targets.filter(
+    (t) => !t.startsWith('src/app/routes/settings/providers/'),
+  );
+  const subAppNoSettingsProviders = subdirCoverage('src/app', targetsNoSettingsProviders);
+  const floorNoSettingsProviders = coverageFloor(targetsNoSettingsProviders);
+
+  const targetsNoWorldId = built.targets.filter(
+    (t) => !t.startsWith('src/app/routes/worlds/$worldId/'),
+  );
+  const subAppNoWorldId = subdirCoverage('src/app', targetsNoWorldId);
+  const floorNoWorldId = coverageFloor(targetsNoWorldId);
+
+  // A3：多層遞迴本身要有自己的 fixture 迴歸——不能只靠真實 repo 結構（那會隨編輯
+  // 漂移）。造一棵 root/level1/level2/level3 的臨時樹，只讓 targets 缺 level2 這
+  // 一層（level1 頂層還有別的檔撐著、level3 也還在，模擬「中間層被跳過」這個最
+  // 貼近複驗打穿案例的形狀），斷言：(a) level2 節點本身被獨立記錄且抓到缺失，
+  // (b) level1 節點因為還有別的檔案而不受影響。
+  function testMultiLevelSubdirCoverage(): { deepCaught: boolean; shallowUnaffected: boolean } {
+    const fixtureRoot = mkdtempSync(join(tmpdir(), 'gate-ownership-subdir-'));
+    const relBase = relative(ROOT, fixtureRoot).split(/[\\/]/).join('/');
+    try {
+      mkdirSync(join(fixtureRoot, 'level1/level2/level3'), { recursive: true });
+      writeFileSync(join(fixtureRoot, 'level1/sibling.ts'), '');
+      writeFileSync(join(fixtureRoot, 'level1/level2/mid.ts'), '');
+      writeFileSync(join(fixtureRoot, 'level1/level2/level3/deep.ts'), '');
+
+      // targets 只缺 level2（及其底下的 level3）——level1 的其他檔案仍在，模擬
+      // 一級尺會被掩護過去的那個形狀。
+      const fakeTargets = [`${relBase}/level1/sibling.ts`];
+      const result = subdirCoverage(relBase, fakeTargets);
+      return {
+        deepCaught: result.missing.includes(`${relBase}/level1/level2`),
+        shallowUnaffected: !result.missing.includes(`${relBase}/level1`),
+      };
+    } finally {
+      rmSync(fixtureRoot, { recursive: true, force: true });
+    }
+  }
+  const multiLevel = testMultiLevelSubdirCoverage();
+
+  // A3：讀取失敗要誠實顯示、不能被當成 0（過去坑）——用 `chmod 000` 造一個真的讀
+  // 不到的目錄，斷言它被記進 `failedDirs` 且 `ok === false`，不是被吞成 0 悄悄放行。
+  // 測完把權限改回來，finally 保證即使斷言失敗也會恢復。
+  // 🔴 用 `root/mid/locked`（不是 `root/locked`）刻意隔開兩條會各自偵測到失敗的
+  // 路徑，突變測試才真的只打中「算檔案數那段」：如果直接鎖 `root` 的**直接子目錄**，
+  // 拿掉「讀失敗就不要往下鑽」那道 `continue` 之後，程式碼還是會嘗試遞迴進那個
+  // 目錄本身，而遞迴用的 `readdirSync(parentDir)`（沒有 recursive 選項）對同一個
+  // 被鎖的目錄一樣會丟同一種錯，被另一個 catch 接住、繼續誠實回報——兩條路徑對
+  // 同一層意外形成了保險，反而讓「拿掉 continue」這個突變測不出來（實測過，見下面
+  // 的突變測試表）。`mid` 這一層本身沒有被鎖、`readdirSync(mid)`（不遞迴）讀得到，
+  // 只有「遞迴列舉 `mid` 底下所有檔案」（`readdirSync(mid, {recursive:true})`，
+  // 算檔案數那段唯一在用的呼叫）會因為 `mid/locked` 讀不到而整個丟錯——這才是只有
+  // 「算檔案數」那個 catch 會擋到、遞迴那個 catch 擋不到的形狀。
+  function testUnreadableDirHonest(): { midRecorded: boolean; notOk: boolean } {
+    const fixtureRoot = mkdtempSync(join(tmpdir(), 'gate-ownership-perm-'));
+    const relBase = relative(ROOT, fixtureRoot).split(/[\\/]/).join('/');
+    const midDir = join(fixtureRoot, 'mid');
+    const lockedDir = join(midDir, 'locked');
+    try {
+      mkdirSync(lockedDir, { recursive: true });
+      writeFileSync(join(lockedDir, 'x.ts'), '');
+      chmodSync(lockedDir, 0o000);
+      const result = subdirCoverage(relBase, []); // targets 全空，不管有沒有讀到都該缺標的
+      return {
+        midRecorded: result.failedDirs.includes(`${relBase}/mid`),
+        notOk: result.ok === false,
+      };
+    } finally {
+      chmodSync(lockedDir, 0o755);
+      rmSync(fixtureRoot, { recursive: true, force: true });
+    }
+  }
+  const unreadable = testUnreadableDirHonest();
 
   // B3：複驗的原句型——`providers.md:21` 本尊，🔴 在句子中間、整行本身又是 bullet。
   // 用真實 loadAgentClaims() 的結果確認 gemini.ts 依然正確歸 providers（不要為了修
@@ -1272,7 +1468,7 @@ function runSelftest(): void {
     ['C2：健康的真實標的，第二把尺 src/app/ 過關', subAppHealthy.ok],
     [
       'C2：整個 server/lib/（48 檔）從 targets 消失 → 第二把尺抓到',
-      !subServerNoLib.ok && subServerNoLib.missing.includes('lib'),
+      !subServerNoLib.ok && subServerNoLib.missing.includes('server/lib'),
     ],
     [
       'C2：對照組——舊尺（coverageFloor）對「整個跳過 server/lib/」沒有免疫力（複驗實測的現象）',
@@ -1280,14 +1476,47 @@ function runSelftest(): void {
     ],
     [
       'C2：整個 server/routes/（20 檔）從 targets 消失 → 第二把尺抓到',
-      !subServerNoRoutes.ok && subServerNoRoutes.missing.includes('routes'),
+      !subServerNoRoutes.ok && subServerNoRoutes.missing.includes('server/routes'),
     ],
     ['C2：對照組——舊尺對「整個跳過 server/routes/」一樣沒有免疫力', floorNoRoutes.ok],
     [
       'C2：整個 src/app/screens/（19 檔）從 targets 消失 → 第二把尺抓到',
-      !subAppNoScreens.ok && subAppNoScreens.missing.includes('screens'),
+      !subAppNoScreens.ok && subAppNoScreens.missing.includes('src/app/screens'),
     ],
     ['C2：對照組——舊尺對「整個跳過 src/app/screens/」一樣沒有免疫力', floorNoScreens.ok],
+    [
+      'A3：真實二級目錄 server/providers/formats/ 從 targets 消失 → 逐層尺抓到（一級尺被同層檔案掩護過去）',
+      !subServerNoFormats.ok && subServerNoFormats.missing.includes('server/providers/formats'),
+    ],
+    [
+      'A3：對照組——舊尺（coverageFloor）對這個突變只是**運氣好**才抓到：' +
+        'server/ 的 maxDepth 剛好只靠這 5 個檔（深度 3）撐著，檔頭自己承認的薄邊際，' +
+        '不是設計上就擋得住（下面兩組同型突變證明它其實擋不住）',
+      !floorNoFormats.ok,
+    ],
+    [
+      'A3：真實三級目錄 src/app/routes/settings/providers/ 從 targets 消失 → 逐層尺抓到',
+      !subAppNoSettingsProviders.ok &&
+        subAppNoSettingsProviders.missing.includes('src/app/routes/settings/providers'),
+    ],
+    [
+      'A3：對照組——舊尺對這個突變完全沒抓到（settings/about.tsx 等同層檔案撐住，' +
+        'maxDepth 也還有 worlds/$worldId/ 撐著不受影響）——複驗打穿的正是這一格',
+      floorNoSettingsProviders.ok,
+    ],
+    [
+      'A3：真實三級目錄 src/app/routes/worlds/$worldId/ 從 targets 消失 → 逐層尺抓到',
+      !subAppNoWorldId.ok && subAppNoWorldId.missing.includes('src/app/routes/worlds/$worldId'),
+    ],
+    ['A3：對照組——舊尺對這個突變一樣完全沒抓到（worlds/index.tsx 等撐住）', floorNoWorldId.ok],
+    [
+      'A3：臨時 fixture——中間層（level2）被跳過要抓到，第一層（level1）不能被誤傷',
+      multiLevel.deepCaught && multiLevel.shallowUnaffected,
+    ],
+    [
+      'A3：目錄讀取失敗（chmod 000）要誠實記進 failedDirs 並讓這輪 FAIL，不能被吞成 0 靜默通過',
+      unreadable.midRecorded && unreadable.notOk,
+    ],
     ['B3：providers.md:21 現況照樣 PASS——沒有為了修 B3 把合法寫法擋掉', providersGeminiOk],
     [
       'B3：🔴 在句子中間、整行本身是 bullet——之後提到的別人檔名不該被靜默誤認領（複驗打穿的洞）',
@@ -1355,10 +1584,10 @@ function runSelftest(): void {
       ? `selftest FAIL（${bad.length} 條，共 ${cases.length} 條）`
       : `selftest PASS（${cases.length} 條：十二個坑、walk() 遞迴、buildTargets() 六個掃描根、` +
           `三條解析路徑共用的說明段跳過（5-1／5-2）、__tests__ 計數（5-3）、` +
-          `涵蓋率下限（A2，含頂層成長免疫）、子目錄整個消失的第二把尺（C2）、` +
-          `🔴 行中觸發與純檔名續行的說明段結束條件（B3／B1）、` +
+          `涵蓋率下限（A2，含頂層成長免疫）、子目錄消失的第二把尺（C2 一級＋A3 逐層遞迴、` +
+          `含 fs 讀取失敗誠實回報）、🔴 行中觸發與純檔名續行的說明段結束條件（B3／B1）、` +
           `**except** 一組括號多檔背書（第五輪坑 D）都擋得住——` +
-          `46＋條全綠只證明這些已知形狀被擋住，不證明沒有第 N+1 種）`,
+          `66＋條全綠只證明這些已知形狀被擋住，不證明沒有第 N+1 種）`,
   );
   process.exit(bad.length ? 1 : 0);
 }
