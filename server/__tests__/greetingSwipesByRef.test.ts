@@ -295,3 +295,85 @@ describe('🔴 舊檔相容：加這個欄位之前落的檔，結構完全沒�
     expect(swiped.text).toBe('舊資料的第二則');
   });
 });
+
+/**
+ * 🔴 **同一個坑、第三條路徑——編輯**（獨立驗收線 2026-08-28 追出完整流程抓到）：
+ * `— / 3` 那個狀態（9→3、原 `swipeIndex: 4`）下按編輯，材質化第一版把 `swipeIndex`
+ * 用 `...rest` 原封抄過去（還是懸空的 4），`editMessage()` 的 `currentSwipe()` 會夾回
+ * 合法範圍（2），使用者的新文字就寫進「第 2 則」的候選格子——**永久蓋掉一則他從沒
+ * 選過的候選**。這支釘住修好之後的行為：不准蓋掉任何一則原有候選。
+ */
+describe('🔴 「— / 3」狀態下編輯：不准覆蓋任何一則使用者沒選過的候選', () => {
+  it('9→3、原 swipeIndex 4，編輯之後三則原候選一個字都沒被蓋掉', async () => {
+    const a = await app();
+    await seedChar();
+    const created = await (
+      await a.request('/api/chats', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ characterId: CH.id, greetingIndex: 4 }),
+      })
+    ).json();
+    const msgId = created.messages[0].id;
+
+    // 角色卡的問候語被砍到只剩 3 則——這則訊息現在站在一個不存在的位置上。
+    const { writeJson, readJson } = await import('../adapters/storage.ts');
+    await writeJson(`characters/${CH.id}.json`, { ...CH, greetings: NINE.slice(0, 3) });
+
+    const before = await readJson<Chat | null>(`chats/${created.id}.json`, null);
+    console.log('編輯前 chat json：', JSON.stringify(before?.messages[0]));
+
+    const edited = await (
+      await a.request(`/api/chats/${created.id}/messages/${msgId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text: '使用者在「— / 3」狀態下打的字' }),
+      })
+    ).json();
+
+    const after = await readJson<Chat | null>(`chats/${created.id}.json`, null);
+    console.log('編輯後 chat json：', JSON.stringify(after?.messages[0]));
+
+    // 🔴 驗收核心：三則原有候選一個字都不准被蓋掉。
+    expect(after?.messages[0]?.swipes).toEqual([
+      '第 0 則開場白，足夠長一點',
+      '第 1 則開場白，足夠長一點',
+      '第 2 則開場白，足夠長一點',
+    ]);
+    // text 真的改了（編輯本身要生效）。
+    expect(after?.messages[0]?.text).toBe('使用者在「— / 3」狀態下打的字');
+    expect(edited.text).toBe('使用者在「— / 3」狀態下打的字');
+    // swipeIndex 誠實維持「不知道」，不是被夾成 2（那正是會蓋掉候選的錯誤路徑的癥狀）。
+    expect(after?.messages[0]?.swipeIndex).toBeNull();
+    expect(edited.swipeIndex).toBeNull();
+  });
+
+  /** 正常情況（index 在範圍內）完全不變——回歸釘，理由見 messageEdit.ts 檔頭。 */
+  it('index 在範圍內：編輯照樣同步寫回 swipes[swipeIndex]（既有行為不能被這次改動動到）', async () => {
+    const a = await app();
+    await seedChar();
+    const created = await (
+      await a.request('/api/chats', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ characterId: CH.id, greetingIndex: 2 }),
+      })
+    ).json();
+    const msgId = created.messages[0].id;
+
+    const edited = await (
+      await a.request(`/api/chats/${created.id}/messages/${msgId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text: '正常編輯' }),
+      })
+    ).json();
+    expect(edited.swipeIndex).toBe(2);
+
+    const { readJson } = await import('../adapters/storage.ts');
+    const after = await readJson<Chat | null>(`chats/${created.id}.json`, null);
+    expect(after?.messages[0]?.swipes?.[2]).toBe('正常編輯');
+    expect(after?.messages[0]?.swipes).toHaveLength(9);
+    expect(after?.messages[0]?.swipeIndex).toBe(2);
+  });
+});

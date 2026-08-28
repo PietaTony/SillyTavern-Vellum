@@ -122,11 +122,14 @@ export function withResolvedSwipes<T extends { swipes?: string[] | undefined; sw
     if (!m.greetingSwipes) return m;
     const swipes = resolveSwipes(m, greetings, strip);
     if (!swipes?.length) return m;
-    const requested = m.swipeIndex ?? 0;
-    if (requested < 0 || requested >= swipes.length) return { ...m, swipes, swipeIndex: null } as T;
-    return { ...m, swipes, swipeIndex: requested, text: swipes[requested] ?? m.text };
+    const idx = withinRange(m.swipeIndex ?? 0, swipes.length);
+    if (idx === null) return { ...m, swipes, swipeIndex: null } as T;
+    return { ...m, swipes, swipeIndex: idx, text: swipes[idx] ?? m.text };
   });
 }
+
+/** 🔴 withResolvedSwipes 與材質化（chatMessages.ts）共用這把尺，理由同上，不夾也不猜。 */
+export const withinRange = (requested: number, len: number): number | null => (requested >= 0 && requested < len ? requested : null);
 
 /**
  * `PATCH .../swipe` 用：挑出第 `requestedIndex` 個候選，順便把 index 夾回合法範圍
@@ -136,10 +139,8 @@ export function withResolvedSwipes<T extends { swipes?: string[] | undefined; sw
  * 給整份陣列只會誘使呼叫端手滑把它寫回磁碟（那就是把參照凍回快照，見 `resolveSwipes`）。
  */
 export function pickSwipe(
-  msg: { swipes?: string[] | undefined; swipeIndex?: number | undefined; greetingSwipes?: boolean | undefined },
-  greetings: string[] | undefined,
-  requestedIndex: number,
-  strip: (s: string) => string,
+  msg: { swipes?: string[] | undefined; swipeIndex?: number | null | undefined; greetingSwipes?: boolean | undefined },
+  greetings: string[] | undefined, requestedIndex: number, strip: (s: string) => string,
 ): { index: number; text: string } | null {
   const candidates = resolveSwipes(msg, greetings, strip);
   if (!candidates?.length) return null;

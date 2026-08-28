@@ -20,7 +20,14 @@ export const MessageSchema = z.object({
    * 現拼的 —— 見那個欄位的註解。
    */
   swipes: z.array(z.string()).optional(),
-  swipeIndex: z.number().optional(),
+  /**
+   * 🔴 **`null` 是合法值，不是 bug**（Peter 2026-08-28 裁定，`lib/greetings.ts` 的
+   * `withinRange()` 與 `messageEdit.ts` 的 `currentSwipe()` 是產生／消費它的兩端）。
+   * 意思是「這則訊息有 `swipes`，但目前 `text` 不屬於其中任何一格」——角色卡砍掉了
+   * 使用者當初選的那則問候語，材質化（編輯）時沒有格子可以誠實對應，所以不猜。
+   * 省略／`undefined` 仍然是舊語意「沒有多重候選」，兩者不可以互相取代。
+   */
+  swipeIndex: z.number().nullable().optional(),
   /**
    * 這則訊息的候選是不是「參照」角色卡的開場白，而不是字面存一份快照。
    *
