@@ -9,7 +9,8 @@
 ## 1 · What this is
 
 Vellum — a local, single-user LLM roleplay app. A fork of SillyTavern 1.18.0:
-**the Express back end stays, `public/` is being replaced by a React front end.**
+**the back end is Hono (`server/`), rewritten from SillyTavern's Express stack;
+`public/` is being replaced by a React front end.**
 AGPL-3.0, locked in by the fork. Public releases, so treat everything here as public.
 
 Reply to the user in **Traditional Chinese**; keep code and technical terms in English.

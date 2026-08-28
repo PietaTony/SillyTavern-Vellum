@@ -5,7 +5,7 @@
 > ⚠️ **目前是 Alpha 版本。** 功能還在快速增減，畫面與操作方式**可能在版本之間直接改變**，
 > 不保證每一版都相容。重要的對話與角色卡建議自己另外留一份。
 
-**[SillyTavern](https://github.com/SillyTavern/SillyTavern) 的分支（fork）** —— 後端沿用，前端整個重寫。
+**[SillyTavern](https://github.com/SillyTavern/SillyTavern) 的分支（fork）** —— 後端以 **Hono** 重寫（`server/`，沿用 ST 的 API 與資料語意），前端整個重寫。
 功能一樣，UI／UX 大改。
 
 授權 **AGPL-3.0-or-later**（見 [`LICENSE`](LICENSE)）—— 上游是 AGPL，分支也必須是。
