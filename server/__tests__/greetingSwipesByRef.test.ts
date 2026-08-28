@@ -135,12 +135,14 @@ describe('GET /api/chats/:id —— 讀取時現拼', () => {
   });
 
   /**
-   * 🔴 **獨立驗收線抓到的坑**：角色卡的 `greetings` 變短（9 → 3），存著的
-   * `swipeIndex: 4` 沒有被 GET 這條「被動讀取」路徑夾住 ⇒ 前端 `SwipeBar`
-   * 印出「5 / 3」這種不存在的分數。這裡釘住修好之後的行為，順便證明
-   * GET **沒有副作用**——回應前後磁碟上的檔案 md5 要一致（「只是看，不算數」）。
+   * 🔴 **獨立驗收線抓到的坑，Peter 2026-08-28 又推翻了第一版修法**：角色卡的
+   * `greetings` 變短（9 → 3），存著的 `swipeIndex: 4` 懸空。第一版夾回最後一格、
+   * `text` 也跟著換——但那是用一句使用者從未選過的候選冒充他原本選的那句，
+   * 比顯示壞掉的「5 / 3」更危險。現在改成：`text` 維持原樣（原文「第 5 則」），
+   * `swipeIndex` 回 `null`（畫面要自己誠實標出「不在候選清單裡」，不是這支的責任）。
+   * 順便證明 GET **沒有副作用**——回應前後磁碟上的檔案 md5 要一致（「只是看，不算數」）。
    */
-  it('🔴 9→3 則：swipeIndex 4 讀出來要夾回 [0,2]，text 配對著換，且 GET 不寫回磁碟', async () => {
+  it('🔴 9→3 則：swipeIndex 4 讀出來 text 維持原樣、swipeIndex 回 null，且 GET 不寫回磁碟', async () => {
     const a = await app();
     await seedChar();
     const created = await (
@@ -151,6 +153,7 @@ describe('GET /api/chats/:id —— 讀取時現拼', () => {
       })
     ).json();
     expect(created.messages[0].swipeIndex).toBe(4);
+    const originalText = created.messages[0].text;
 
     // 角色卡的問候語被砍到只剩 3 則（作者精簡開場白）。
     const { writeJson } = await import('../adapters/storage.ts');
@@ -164,8 +167,9 @@ describe('GET /api/chats/:id —— 讀取時現拼', () => {
     const got = await res.json();
     console.log('GET 實際回應（9→3 之後）：', JSON.stringify(got.messages[0]));
     expect(got.messages[0].swipes).toHaveLength(3);
-    expect(got.messages[0].swipeIndex).toBe(2); // 夾回合法範圍的最後一格
-    expect(got.messages[0].text).toBe('第 2 則開場白，足夠長一點'); // text 配對著換
+    expect(got.messages[0].swipeIndex).toBeNull(); // 不猜替代品，誠實說「不知道」
+    expect(got.messages[0].text).toBe(originalText); // 使用者當初真的選的那句，一個字都沒變
+    expect(got.messages[0].text).toBe('第 4 則開場白，足夠長一點'); // 明講：不是「第 2 則」
 
     const md5After = createHash('md5').update(readFileSync(filePath)).digest('hex');
     console.log(`GET 前後檔案 md5：${md5Before} → ${md5After}`);

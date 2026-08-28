@@ -140,6 +140,49 @@ describe('SwipeBar', () => {
 });
 
 /**
+ * 🔴 **`swipeIndex: null`——Peter 2026-08-28 裁定**（`../swipeDisplay` 檔頭有完整理由）：
+ * 角色卡砍掉了使用者當初選的那則問候語，`text` 維持原樣、`swipeIndex` 回 `null`。
+ * 畫面**不准用 `?? 0` 吃掉**、把它畫成「選了第一個」——這支守的就是「有沒有誠實畫出來」。
+ * 🔴 **正常情況（有值）完全不能被這次改動動到**——上面整組 `describe('SwipeBar', …)`
+ * 全部沿用 `swipeIndex: 1`／`0` 的既有 fixture，一個字都沒改，就是那條回歸測試。
+ */
+describe('SwipeBar —— swipeIndex: null（越界，不知道目前站在哪）', () => {
+  const unknown = msg({
+    text: '第 5 則的原文，一個字都沒變',
+    swipes: ['甲', '乙', '丙'],
+    swipeIndex: null,
+  });
+
+  it('🔴 計數器要印「— / 3」，不能印出一個假的名次', () => {
+    render(<Thread messages={[unknown]} streaming={null} name="某" onSwipe={() => {}} />);
+    expect(screen.getAllByText('— / 3').length).toBeGreaterThan(0);
+    expect(screen.queryByText('1 / 3')).toBeNull();
+  });
+
+  it('🔴 內容照樣原封不動地畫出來（不是被換成候選清單裡的某一句）', () => {
+    render(<Thread messages={[unknown]} streaming={null} name="某" onSwipe={() => {}} />);
+    expect(screen.getByText('第 5 則的原文，一個字都沒變')).toBeTruthy();
+  });
+
+  it('候選清單層打開時，沒有任何一項被標成「目前」，而且會顯示「不在清單裡」的提示', () => {
+    render(<Thread messages={[unknown]} streaming={null} name="某" onSwipe={() => {}} />);
+    fireEvent.click(screen.getAllByLabelText(/全部 3 個候選/)[0] as Element);
+    expect(screen.queryByText(/（目前）/)).toBeNull();
+    expect(screen.getByText(/目前顯示的內容不在下面的候選清單裡/)).toBeTruthy();
+  });
+
+  it('這個狀態下按左右切換不會炸，而且會送出一個合法的 index', () => {
+    const onSwipe = vi.fn();
+    render(<Thread messages={[unknown]} streaming={null} name="某" onSwipe={onSwipe} />);
+    fireEvent.keyDown(window, { key: 'ArrowRight' });
+    expect(onSwipe).toHaveBeenCalledTimes(1);
+    const calledWith = onSwipe.mock.calls[0]?.[1] as number;
+    expect(calledWith).toBeGreaterThanOrEqual(0);
+    expect(calledWith).toBeLessThan(3);
+  });
+});
+
+/**
  * 🔴 **B3 回歸**（敵意審查 2026-08-26）：上一版只守「候選數 == 問候語數」，
  * 於是匯入的 ST 對話裡**中段某則**剛好有 3 個候選時，會被套上
  * 「額外問候語 第 N 則」「會開啟 7 條世界書設定」，而且 preview 會**蓋掉真正的候選文字**。

@@ -55,25 +55,28 @@ describe('withResolvedSwipes', () => {
   });
 
   /**
-   * 🔴 **被動讀取這條路徑要夾 swipeIndex——這是獨立驗收線抓到的坑**：
-   * `pickSwipe`（主動切換）早就有 `resolveSwipes.test.ts` 那條「超出範圍要夾住」
-   * 守著，但 GET 現拼時角色卡的 `greetings` 可以在使用者沒做任何事的情況下變短
-   * （作者砍掉幾則問候語），存著的 `swipeIndex` 就懸空了——這條測的是這裡，
-   * 不是同一條「主動切換」測試的重複。
+   * 🔴 **被動讀取這條路徑要處理越界——這是獨立驗收線抓到的坑**：
+   * `pickSwipe`（主動切換）早就有下面「超出範圍要夾住」守著，但 GET 現拼時
+   * 角色卡的 `greetings` 可以在使用者沒做任何事的情況下變短（作者砍掉幾則
+   * 問候語），存著的 `swipeIndex` 就懸空了——這條測的是這裡。
+   *
+   * 🔴 **Peter 2026-08-28 推翻「夾回最後一格、text 跟著換」的第一版做法**：
+   * 那會用一句使用者從未選過的候選冒充他原本選的那句，比顯示壞掉的分數更騙人。
+   * 改成 `text` 維持原樣、`swipeIndex` 回 `null`（見 `withResolvedSwipes` 檔頭）。
    */
-  it('🔴 角色卡的候選變少了（9 → 3），swipeIndex 4 要夾回合法範圍', () => {
+  it('🔴 角色卡的候選變少了（9 → 3），swipeIndex 4：text 維持原樣，swipeIndex 回 null', () => {
     const messages = [{ id: 'm0', greetingSwipes: true as const, swipeIndex: 4, text: '第 5 則' }];
     const out = withResolvedSwipes(messages, ['剝> A', '剝> B', '剝> C'], strip);
-    expect(out[0]).toMatchObject({ swipeIndex: 2, swipes: ['A', 'B', 'C'] });
+    expect(out[0]).toMatchObject({ swipeIndex: null, text: '第 5 則', swipes: ['A', 'B', 'C'] });
   });
 
-  it('⚠️ 夾過的 index 要配對著換 text，不能只改數字（不然計數器與內文不同單位）', () => {
-    const messages = [{ id: 'm0', greetingSwipes: true as const, swipeIndex: 4, text: '第 5 則' }];
-    const out = withResolvedSwipes(messages, ['剝> A', '剝> B', '剝> C'], strip);
-    // swipeIndex 夾到 2，text 就該是 swipes[2]（'C'），不是原本沒被夾過時對應的舊字。
-    expect(out[0]).toMatchObject({ swipeIndex: 2, text: 'C' });
+  it('負的 swipeIndex（手改壞的檔）同樣算越界：text 維持原樣，不是夾到 0', () => {
+    const messages = [{ id: 'm0', greetingSwipes: true as const, swipeIndex: -1, text: '壞掉的' }];
+    const out = withResolvedSwipes(messages, ['剝> A', '剝> B'], strip);
+    expect(out[0]).toMatchObject({ swipeIndex: null, text: '壞掉的' });
   });
 
+  /** 🔴 正常情況（沒有越界）完全不變——別讓「補越界」的修法順手改壞了這條路。 */
   it('沒超出範圍：index 不變，text 一律用現拼的那一格（參照訊息本來就跟著卡片活）', () => {
     const messages = [{ id: 'm0', greetingSwipes: true as const, swipeIndex: 1, text: '舊文字' }];
     const out = withResolvedSwipes(messages, ['剝> A', '剝> B', '剝> C'], strip);
