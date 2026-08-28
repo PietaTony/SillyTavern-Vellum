@@ -2,14 +2,13 @@ import { del, get, patch, post } from '@/shared/lib/http';
 import { type Chat, type Message, parseSse, type StreamEvent } from './model';
 
 /**
- * 桌寵開關（E1）。**全域設定，不分對話** —— 端點借住在 `/api/chats/settings/companion`
- * （理由見 `server/routes/companionSettings.ts` 檔頭），路徑長得像對話底下的東西，
- * 語意其實不是。
+ * 桌寵開關（E1）。**全域設定，不分對話**——`/api/settings/companion`
+ * 是它自己的前綴，不是這段對話的東西（見 `server/routes/companionSettings.ts` 檔頭）。
  */
 export const fetchCompanionEnabled = (): Promise<{ enabled: boolean }> =>
-  get('/api/chats/settings/companion');
+  get('/api/settings/companion');
 export const setCompanionEnabled = (enabled: boolean): Promise<{ enabled: boolean }> =>
-  patch('/api/chats/settings/companion', { enabled });
+  patch('/api/settings/companion', { enabled });
 
 export const fetchChats = (): Promise<Chat[]> => get<Chat[]>('/api/chats');
 export const fetchChat = (id: string): Promise<Chat> => get<Chat>(`/api/chats/${id}`);

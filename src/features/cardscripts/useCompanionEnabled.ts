@@ -16,7 +16,7 @@ import { get } from '@/shared/lib/http';
 export function useCompanionEnabled(): boolean {
   const q = useQuery({
     queryKey: ['companion-enabled'],
-    queryFn: () => get<{ enabled: boolean }>('/api/chats/settings/companion'),
+    queryFn: () => get<{ enabled: boolean }>('/api/settings/companion'),
     staleTime: 30_000,
   });
   return q.data?.enabled ?? true;

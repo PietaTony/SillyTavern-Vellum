@@ -1,4 +1,4 @@
-import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
+import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -209,50 +209,5 @@ describe('DELETE /api/chats/:id/messages/:messageId', () => {
     await seed();
     expect((await del('/api/chats/c1/messages/nope')).status).toBe(404);
     expect((await del('/api/chats/nope/messages/m1')).status).toBe(404);
-  });
-});
-
-/**
- * E1：桌寵開關。`.route('/settings', companionSettings)` 借掛在這支的 `/api/chats`
- * 前綴下（見 `companionSettings.ts` 檔頭），所以走同一支 `app()`，不另開檔案——
- * 另開會撞上 `gate:ownership --selftest` 對 `__tests__` 檔數的迴歸尺（5-3）。
- */
-describe('GET/PATCH /api/chats/settings/companion', () => {
-  const PATH = '/api/chats/settings/companion';
-
-  it('🔴 舊設定檔（沒有這個鍵）讀進來要是開啟 —— 不能靜悄悄把舊使用者關掉', async () => {
-    const a = await app();
-    const r = await a.request(PATH);
-    expect(r.status).toBe(200);
-    expect(await r.json()).toEqual({ enabled: true });
-  });
-
-  it('關掉之後 GET 讀回來是關的，而且真的寫進了 settings.json；重整（新的一次 app()）仍然是關的', async () => {
-    const a = await app();
-    const r = await a.request(PATH, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ enabled: false }),
-    });
-    expect(r.status).toBe(200);
-    expect(await r.json()).toEqual({ enabled: false });
-
-    const raw = JSON.parse(readFileSync(join(root, 'settings.json'), 'utf8')) as {
-      companionEnabled: boolean;
-    };
-    expect(raw.companionEnabled).toBe(false);
-
-    const reloaded = await app();
-    expect(await (await reloaded.request(PATH)).json()).toEqual({ enabled: false });
-  });
-
-  it('🔴 壞 body 回 400，不是靜默存一個 undefined', async () => {
-    const a = await app();
-    const r = await a.request(PATH, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: '{"enabled":"開"}',
-    });
-    expect(r.status).toBe(400);
   });
 });

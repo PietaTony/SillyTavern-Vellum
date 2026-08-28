@@ -3,7 +3,6 @@ import { z } from 'zod';
 import { readJson, writeJson } from '../adapters/storage.ts';
 import { safeId } from '../lib/ids.ts';
 import { deleteFrom, editMessage } from '../lib/messageEdit.ts';
-import { companionSettings } from './companionSettings.ts';
 import type { Chat } from '../services/chatModel.ts';
 
 /**
@@ -13,12 +12,8 @@ import type { Chat } from '../services/chatModel.ts';
  *
  * 🔴 路徑不會跟 `chats.ts` 的 `/:id/messages/:messageId/swipe` 打架：
  * 那條四段、這條三段，Hono 分得出來。
- *
- * 🔴 **`.route('/settings', companionSettings)` 借道掛在這裡**——理由見
- * `companionSettings.ts` 檔頭：`app.ts` 這輪鎖外，不能自己開新前綴。
  */
 export const chatMessages = new Hono()
-  .route('/settings', companionSettings)
   /**
    * 改一則訊息的內容。兩種 role 都能改（ST 也是）。
    * 🔴 有候選的訊息會**同時寫回 `swipes[swipeIndex]`** —— 理由見 `lib/messageEdit.ts`。

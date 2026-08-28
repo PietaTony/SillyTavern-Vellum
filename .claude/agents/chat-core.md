@@ -19,8 +19,9 @@ You own **H1 · Chat Core**. `AGENTS.md` holds the rules this file does not repe
 
 **Back end**
 - `server/routes/` — `chats.ts` `chatMessages.ts` `chatImport.ts` `generate.ts`
-  `companionSettings.ts` 🔴 E1 跨層票（2026-08-28）新增：桌寵開關，`.route()` 借掛在
-  `chatMessages.ts` 的 `/api/chats` 前綴下（`app.ts` 這輪鎖外，不能開新前綴）。
+  `companionSettings.ts` 🔴 E1 跨層票（2026-08-28）新增：桌寵開關（全域設定，
+  `/api/settings/companion`，直接註冊在 `server/app.ts`——2026-08-28 由另一張 X3
+  小票補的登記，第一版曾借掛在 `chatMessages.ts` 的 `/api/chats` 前綴下，已歸位）。
 - `server/lib/` — `chatFile.ts` `greetings.ts` `messageEdit.ts`
 - `server/services/` — `chatModel.ts` `renderChat.ts` `buildTurn.ts` `greetingLore.ts`
   `landOpening.ts` `seedGreetingVars.ts`

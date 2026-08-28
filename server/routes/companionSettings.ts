@@ -3,20 +3,17 @@ import { z } from 'zod';
 import { getCompanionEnabled, setCompanionEnabled } from '../services/settings.ts';
 
 /**
- * E1：桌寵開關（跨層票，Peter 2026-08-28 簽，鎖期間借住 `chat-core`）。
+ * E1：桌寵開關。**全域設定，跟 `network.ts`／`globalWorlds.ts` 同一類**，
+ * 掛在自己的 `/api/settings` 前綴（`server/app.ts` 直接註冊）——不是這段對話的設定。
  *
- * 🔴 **不是自己被 `server/app.ts` 直接註冊。** 這張票明講 `app.ts` 不在鎖裡——
- * 註冊新路由要另開票——所以這支改用 `chatMessages.ts` 已經掛好的 `/api/chats`
- * 前綴，用 `.route('/settings', companionSettings)` 掛進去：對外路徑是
- * `/api/chats/settings/companion`，沒有動 `app.ts` 一行。
- * ⚠️ **語意上這不是「這段對話的設定」**——是全域設定，跟 `network.ts`／
- * `globalWorlds.ts` 同一類。掛在這個前綴下純粹是檔案大小與鎖範圍的權宜之計，
- * 鎖歸還之後如果 X3 要收回 `settingsModel.ts`／`services/settings.ts`，
- * 順手把這支路由挪去獨立前綴不需要動這支檔案本身的邏輯。
+ * 🔴 **這裡曾經借住 `chatMessages.ts` 的 `/api/chats` 前綴**（2026-08-28 第一版，
+ * 當時的票明講 `app.ts` 不在鎖裡）。中控線 2026-08-28 補了一張 X3 小票把它歸位——
+ * 借用只是權宜之計，下一個要找全域設定的人不該被指去 `/api/chats/` 底下找，
+ * 也不該有人照著這個借位再抄一次。
  *
  * 🔴 **真正的桌寵是卡片的背景腳本**（`CardBackground.tsx` 的 overlay frame），
- * 不是 `server/lib/companion.ts` 那支沒接路由的孤兒引擎。這支只負責存讀開關值，
- * 「關掉之後 frame 真的不建」的判斷在前端 `useCardScripts.ts`。
+ * 不是 `server/lib/companion.ts` 那支沒接路由的孤兒引擎（詳見 `TASKS.md`）。
+ * 這支只負責存讀開關值，「關掉之後 frame 真的不建」的判斷在前端 `useCardScripts.ts`。
  */
 export const companionSettings = new Hono()
   .get('/companion', async (c) => c.json({ enabled: await getCompanionEnabled() }))
