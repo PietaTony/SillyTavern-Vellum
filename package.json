@@ -46,7 +46,7 @@
     "package": "tsx scripts/package-zip.ts",
     "gate:no-docker": "tsx scripts/gate-no-docker.ts",
     "app:dev": "pnpm build && electron .",
-    "app:build": "pnpm build && electron-builder --config electron-builder.yml --publish never",
+    "app:build": "pnpm build && electron-builder --config electron-builder.yml --publish never && node scripts/rename-mac-intel-zip.cjs",
     "build:electron": "esbuild electron/updater.cjs --bundle --platform=node --format=cjs --target=node20 --external:electron --outfile=electron/updater.bundle.cjs",
     "gate:preamble": "tsx scripts/gate-preamble.ts",
     "notices": "tsx scripts/notices.ts",
