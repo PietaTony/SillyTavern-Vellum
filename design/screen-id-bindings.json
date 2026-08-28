@@ -1,0 +1,117 @@
+{
+  "_readme": "GAP-124 狀態判準正本。每個 catalog id 一列；stateRule 供 feature owner 實作與 dispatch 對帳。規範：design/GAP-124-spec.md",
+  "protocolVersion": "0",
+  "active": "M2",
+  "fallbackPolicy": "同一 route 無法判定時用該 route 第一個 id（screens.json 順序）",
+  "bindings": [
+    {
+      "id": "First-Run--1",
+      "route": "first-run/provider",
+      "owner": "providers",
+      "implemented": false,
+      "stateRule": "route === first-run/provider"
+    },
+    {
+      "id": "First-Run--3",
+      "route": "first-run/key",
+      "owner": "providers",
+      "implemented": false,
+      "fallbackId": "First-Run--3",
+      "stateRule": "有 search.id；key 欄 !dirty；!keySet；欄位為空或未貼上"
+    },
+    {
+      "id": "First-Run--3a",
+      "route": "first-run/key",
+      "owner": "providers",
+      "implemented": false,
+      "stateRule": "有 search.id；KeyField dirty===true；尚未發生本 session 成功存 key"
+    },
+    {
+      "id": "First-Run--3b",
+      "route": "first-run/key",
+      "owner": "providers",
+      "implemented": false,
+      "stateRule": "有 search.id；dirty；最近一次 testAndSaveKey/testStoredKey 回 ok===false（Phase 1 需 H5 暴露 lastKeyTestFailed 或等價信號）"
+    },
+    {
+      "id": "First-Run--3c",
+      "route": "first-run/key",
+      "owner": "providers",
+      "implemented": false,
+      "stateRule": "有 search.id；row.keySet===true；KeyField !dirty；footer 下一步可點"
+    },
+    {
+      "id": "First-Run--4",
+      "route": "first-run/add-friend",
+      "owner": "characters",
+      "implemented": false,
+      "fallbackId": "First-Run--4",
+      "stateRule": "首次流程加入好友；表單空白；無卡庫 dropdown"
+    },
+    {
+      "id": "First-Run--6",
+      "route": "first-run/add-friend",
+      "owner": "characters",
+      "implemented": false,
+      "stateRule": "首次流程加入好友；卡庫 ExistingCardPicker dropdown 展開"
+    },
+    {
+      "id": "First-Run--7",
+      "route": "first-run/add-friend",
+      "owner": "characters",
+      "implemented": false,
+      "stateRule": "首次流程加入好友；必填欄已填"
+    },
+    {
+      "id": "First-Run--4b",
+      "route": "add-friend",
+      "owner": "characters",
+      "implemented": false,
+      "stateRule": "設定完成後入口；版面同 First-Run--4；back 落點 chat-list"
+    },
+    {
+      "id": "Tab-Friends--undrawn",
+      "route": "friends",
+      "owner": "characters",
+      "implemented": false,
+      "stateRule": "friends tab 根；無 onBack"
+    },
+    {
+      "id": "Friends-And-Cards--1",
+      "route": "chat-list",
+      "owner": "chat-core",
+      "implemented": false,
+      "stateRule": "chat-list tab 根；標題「聊天」"
+    },
+    {
+      "id": "Chat-Thread-Layout--5",
+      "route": "chat/$chatId",
+      "owner": "chat-core",
+      "implemented": false,
+      "fallbackId": "Chat-Thread-Layout--5",
+      "stateRule": "對話串；!busy && !thinking（一般閒置／捲動）"
+    },
+    {
+      "id": "Waiting-And-Thinking--1",
+      "route": "chat/$chatId",
+      "owner": "chat-core",
+      "implemented": false,
+      "stateRule": "對話串；生成中 busy 或 thinking 指示可見"
+    },
+    {
+      "id": "Tab-Settings--undrawn",
+      "route": "settings",
+      "owner": "platform",
+      "implemented": false,
+      "stateRule": "settings tab 根"
+    },
+    {
+      "id": "Settings-About--undrawn",
+      "route": "settings/about",
+      "owner": "platform",
+      "implemented": false,
+      "stateRule": "settings/about 關於與更新"
+    }
+  ],
+  "_deferred": "全螢層（ConsentDialog、GreetingsLayer、PersonaLayer…）尚未登記 catalog —— 實作前先補 screens.json + 本檔。"
+}

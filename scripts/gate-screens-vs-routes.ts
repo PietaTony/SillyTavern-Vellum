@@ -9,9 +9,8 @@
  * 對照正本：design/screens.json（active 欄位指定現在做哪個里程碑）
  * 路由目錄：src/app/routes（TanStack Router 檔案式）
  *
- * 🔴 **GAP-124（未做）**：screens.json 的 id 應以極淡色差水印渲染在畫面上，
- *    供 AI 從高畫質截圖辨識「現在是哪一張設計畫面」（Peter 2026-08-28，點讀筆類比）。
- *    本 gate 目前只驗 route 檔存在，不驗水印。規格見 design/screens.json `_gaps.124`。
+ * 🔴 **GAP-124（spec v0）**：水印規範見 design/GAP-124-spec.md；catalog 完整性由 gate:screen-id 守。
+ *    本 gate 仍只驗 route 檔存在，不驗 screenId 渲染。
  *
  * 自證：node scripts/gate-screens-vs-routes.mjs --selftest
  */
