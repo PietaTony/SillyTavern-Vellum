@@ -51,8 +51,8 @@ see §3. Nothing else may.
 |---|---|---|---|
 | **X1 · UI / theme** | `src/app/theme.ts` `src/app/themeOverrides.ts` `src/app/themeTokens.ts`<br>`src/shared/**` `design/screens.json`<br>`src/app/screens/TabBar.tsx` `src/app/screens/useBack.ts` | It cuts across every feature. Give it to one agent and every other agent waits on that agent. | Its correct form is **a rule, not a territory** — `gate:no-hex` `gate:draft` `gate:toast` `gate:back` already enforce it. Need a new token or a shared component? **Open a task ticket.** |
 | **X2 · Generated** | `src/app/routeTree.gen.ts` | Produced by the TanStack Router CLI. **It is in `.gitignore` — not version-controlled.** | Never hand-edit. If it looks wrong, run `pnpm dev` to regenerate. |
-| **X3 · Assembly line & global settings** | `server/app.ts` `server/index.ts` `server/static.ts`<br>`server/lib/ids.ts` `server/lib/settingsModel.ts`<br>`server/services/settings.ts`<br>`src/app/AppProviders.tsx` `src/app/router.ts` `src/app/queryClient.ts` `src/app/setup.ts` | Four or more domains import these. `app.ts` mounts every route; `settings.ts` is read by H1, H2, H3 and H4. A change here is a change to everyone. | **Open a task ticket.** Registering a new route counts. |
-| **X4 · Shared test directory** | `server/__tests__/` (one flat directory, 48 files) | It is not split per feature, so the directory itself cannot be owned. | **The filename decides the owner**: a test file belongs to whoever owns the module it is named after. `chatFile.test.ts` is H1's. `wiInject.test.ts` is H3's. Adding a test for a module you do not own is still a cross-layer edit. |
+| **X3 · Assembly line & global settings** | `server/app.ts` `server/index.ts` `server/static.ts`<br>`server/lib/ids.ts` `server/lib/settingsModel.ts`<br>`server/services/settings.ts`<br>`src/app/AppProviders.tsx` `src/app/router.ts` `src/app/queryClient.ts` `src/app/setup.ts`<br>`src/main.tsx` | Four or more domains import these. `app.ts` mounts every route; `settings.ts` is read by H1, H2, H3 and H4. A change here is a change to everyone. | **Open a task ticket.** Registering a new route counts. |
+| **X4 · Shared test directories** | `server/__tests__/` `src/app/__tests__/` (flat directories, not split per feature) | Neither is split per feature, so the directory itself cannot be owned. | **The filename decides the owner**: a test file belongs to whoever owns the module it is named after. `chatFile.test.ts` is H1's. `wiInject.test.ts` is H3's. Adding a test for a module you do not own is still a cross-layer edit. 🔴 `gate:ownership` currently excludes both directories from its scan — this rule has no enforcement mechanism yet. Known gap, tracked in backlog. |
 
 ### Not owned by anyone, and deliberately so
 
@@ -77,9 +77,13 @@ After:     <locked paths return to their long-term owners>
 
 | Action | Who |
 |---|---|
-| Open a ticket, set the lock list | the architecture line (coordinator) |
+| Open a ticket, set the lock list | **the dispatch line** (中控) |
 | 🔴 **Approve a cross-domain lock** | **Peter, in his own words** |
-| Release the lock | the architecture line, once "Done when" is met |
+| Release the lock | the dispatch line, once "Done when" is met |
+| Decide *what* is being built and why | the architecture line |
+
+🔴 **Coordinating and specifying are two different lines on purpose.** A coordinator that
+also designs gets busy, and a busy coordinator stops coordinating. See `CLAUDE.md` §2.
 
 🔴 **A coordinator cannot sign a cross-domain lock on Peter's behalf.**
 This has been attempted once and the executing line was right to refuse it.
