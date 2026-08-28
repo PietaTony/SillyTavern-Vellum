@@ -5,7 +5,7 @@
 > ⚠️ **目前是 Alpha 版本。** 功能還在快速增減，畫面與操作方式**可能在版本之間直接改變**，
 > 不保證每一版都相容。重要的對話與角色卡建議自己另外留一份。
 
-**[SillyTavern](https://github.com/SillyTavern/SillyTavern) 的分支（fork）** —— 後端沿用，前端整個重寫。
+**[SillyTavern](https://github.com/SillyTavern/SillyTavern) 的分支（fork）** —— 後端以 **Hono** 重寫（`server/`，沿用 ST 的 API 與資料語意），前端整個重寫。
 功能一樣，UI／UX 大改。
 
 授權 **AGPL-3.0-or-later**（見 [`LICENSE`](LICENSE)）—— 上游是 AGPL，分支也必須是。
@@ -18,6 +18,16 @@ git 歷史保留了完整的來源鏈（第一個 commit 是 SillyTavern 作者 
 > **改過的話請設 `VELLUM_SOURCE_URL` 指到你自己的原始碼位置** ——
 > 不改的話那顆按鈕會把你的使用者帶到我們的 repo，那不是你正在跑的那一版。
 > AGPL **允許收費**，但不允許不給源碼。
+
+---
+
+## 給 agent／新協作者
+
+1. [`ARCHITECTURE.md`](ARCHITECTURE.md) — 專案地圖與閱讀順序（**先讀**）
+2. [`AGENTS.md`](AGENTS.md) — 哪個檔案誰能改
+3. [`.claude/agents/<domain>.md`](.claude/agents/) — 該領域 GAP；或搜 [`docs/generated/gap-index.md`](docs/generated/gap-index.md)
+4. `pnpm verify` — 唯一收據；改完貼真實輸出
+5. 深度規格／ticket — agents home 的 `plans/`、`INBOX/`（路徑見 ARCHITECTURE.md §5）
 
 ---
 

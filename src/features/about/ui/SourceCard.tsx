@@ -32,7 +32,7 @@ export function SourceCard({ info }: { info: AboutInfo | undefined }) {
         </Typography>
 
         <Typography variant="body2" color="text.secondary">
-          它是 <b>SillyTavern</b> 的分支（fork）—— 後端沿用，前端整個重寫。
+          它是 <b>SillyTavern</b> 的分支（fork）—— 後端以 Hono 重寫，前端整個重寫。
         </Typography>
 
         {/* 🔴 「這個站台宣告」不是囉嗦，是我們唯一說得出口的事實。 */}
