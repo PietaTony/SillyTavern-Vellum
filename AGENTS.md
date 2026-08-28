@@ -77,9 +77,13 @@ After:     <locked paths return to their long-term owners>
 
 | Action | Who |
 |---|---|
-| Open a ticket, set the lock list | the architecture line (coordinator) |
+| Open a ticket, set the lock list | **the dispatch line** (中控) |
 | 🔴 **Approve a cross-domain lock** | **Peter, in his own words** |
-| Release the lock | the architecture line, once "Done when" is met |
+| Release the lock | the dispatch line, once "Done when" is met |
+| Decide *what* is being built and why | the architecture line |
+
+🔴 **Coordinating and specifying are two different lines on purpose.** A coordinator that
+also designs gets busy, and a busy coordinator stops coordinating. See `CLAUDE.md` §2.
 
 🔴 **A coordinator cannot sign a cross-domain lock on Peter's behalf.**
 This has been attempted once and the executing line was right to refuse it.
