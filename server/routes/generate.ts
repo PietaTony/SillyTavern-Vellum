@@ -1,10 +1,6 @@
 /**
- * 生成端點。**位元組級不透傳** —— 與 ST 的做法刻意不同。
- *
- * ST 用 `forwardFetchResponse()` 把供應商的 SSE 原樣轉給前端，前端得懂 24 家的事件形狀。
- * 我們在這一層就正規化成自己的事件（`delta` / `done` / `error`），
- * 前端只認一種形狀，換供應商時前端一行都不用改。
- *
+ * 生成端點。**位元組級不透傳**——與 ST（`forwardFetchResponse()` 原樣轉給前端）刻意不同：
+ * 這一層正規化成自己的事件（`delta`／`done`／`error`），前端只認一種形狀，換供應商不用改。
  * 🔴 錯誤原文可能夾帶金鑰片段（SPEC §2）⇒ 送出前一律 redact。
  */
 import { Hono } from 'hono';
@@ -17,16 +13,12 @@ import { byId, isSelectable } from '../providers/registry.ts';
 import type { Chat } from '../services/chatModel.ts';
 import { buildTurn } from '../services/buildTurn.ts';
 import { getActiveProvider, getProviderModel } from '../services/settings.ts';
-import { commitTurn } from '../services/applyVarUpdate.ts';
+import { commitPartialTurn, commitTurn } from '../services/applyVarUpdate.ts';
 
 const Body = z.object({
   chatId: z.string(),
-  /**
-   * 🔴 **provider 是參數**（驗收 A4）。**沒給就讀 `settings.activeProvider`** ——
-   * 在此之前這裡是 `.default('google')`，於是不管使用者設定了誰，對話一律打 Google。
-   * 那是「26 家設定 UI 後面沒有引擎」的實際形狀（2026-08-26 Peter 指出畫面講不清楚
-   * 當前全域是誰 —— 查下去才發現不是講不清楚，是根本沒有那個值）。
-   */
+  // 🔴 provider 是參數，沒給就讀 `settings.activeProvider`（驗收 A4）——在此之前是
+  // `.default('google')`，不管使用者設定誰，對話一律打 Google（2026-08-26 Peter 抓到）。
   provider: z.string().optional(),
   model: z.string().optional(),
   // 🔴 給足預算：3.6-flash 實測 thinking 吃掉 514 tokens 才吐 6 個字（07-gemini-facts §2）
@@ -45,8 +37,7 @@ export const generate = new Hono().post('/', async (c) => {
   // 🔴 三段回退：**這次指定的 → 使用者選好存下來的 → registry 的預設**。
   // 少了中間那段的話，選模型 UI 就是「選了沒作用」——又一個孤兒。
   const model = parsed.data.model ?? (await getProviderModel(cfg.id)) ?? cfg.defaultModel;
-  // 🔴 chatId 會被接進檔案路徑 ⇒ 先過白名單（見 lib/ids.ts）
-  const chatId = safeId(parsed.data.chatId);
+  const chatId = safeId(parsed.data.chatId); // 🔴 會被接進檔案路徑 ⇒ 先過白名單（見 lib/ids.ts）
   if (!chatId) return c.json({ error: '找不到這段對話' }, 404);
 
   const key = await getKey(cfg.id);
@@ -64,12 +55,7 @@ export const generate = new Hono().post('/', async (c) => {
   const upstream = await adapter.open(
     cfg,
     key,
-    {
-      model,
-      system,
-      messages,
-      maxOutputTokens,
-    },
+    { model, system, messages, maxOutputTokens },
     controller.signal,
   );
   if (!upstream.ok || !upstream.body) {
@@ -85,8 +71,7 @@ export const generate = new Hono().post('/', async (c) => {
       let buf = '';
       let full = '';
       let finish: string | undefined;
-      // 🔴 用量可能分兩次到（Anthropic 開頭給 input、結尾給 output）⇒ 累積不覆蓋。
-      let usage: Record<string, number | undefined> = {};
+      let usage: Record<string, number | undefined> = {}; // 🔴 用量可能分兩次到，累積不覆蓋。
       try {
         for (;;) {
           const { done, value } = await reader.read();
@@ -97,18 +82,16 @@ export const generate = new Hono().post('/', async (c) => {
           for (const line of lines) {
             if (!line.startsWith('data: ')) continue;
             const payload = line.slice(6).trim();
-            // 🔴 OpenAI 相容的串流以 `data: [DONE]` 結尾，那不是 JSON。
-            if (payload === '[DONE]') continue;
+            if (payload === '[DONE]') continue; // OpenAI 相容串流的結尾，不是 JSON。
             let parsedChunk: unknown;
             try {
               parsedChunk = JSON.parse(payload);
             } catch {
-              // 壞掉的一行不該讓整條串流死掉 —— 跳過，繼續讀下一行。
-              continue;
+              continue; // 壞掉的一行不該讓整條串流死掉。
             }
             for (const ev of adapter.parse(parsedChunk)) {
               if (ev.type === 'delta') {
-                // 🔴 **thinking 不進正文**：它是思考過程，混進去會變成角色的台詞。
+                // 🔴 thinking 不進正文：它是思考過程，混進去會變成角色的台詞。
                 if (ev.kind === 'text') {
                   full += ev.text;
                   ctrl.enqueue(enc.encode(sse('delta', { text: ev.text })));
@@ -128,14 +111,31 @@ export const generate = new Hono().post('/', async (c) => {
         }
         // 落地：訊息進檔案，順便把這一輪的 `<UpdateVariable>` 套進變數（見 `commitTurn`）。
         const msg = await commitTurn(chatId, chat, full);
-        ctrl.enqueue(
-          enc.encode(sse('done', { message: msg, finishReason: finish ?? 'STOP', usage })),
-        );
+        ctrl.enqueue(enc.encode(sse('done', { message: msg, finishReason: finish ?? 'STOP', usage })));
       } catch (e) {
-        const detail = e instanceof Error ? redact(e.message, [key]) : '串流中斷';
-        ctrl.enqueue(enc.encode(sse('error', { message: detail })));
+        // 🔴 中止（使用者按停止／斷線）跟「真的出錯」是兩件事（跨層票 2026-08-28）：
+        // `controller.signal.aborted` 時把已經吐出來的字落地成半成品，不是丟 `error`。
+        // ⚠️ 半成品不套 `<UpdateVariable>`——中止點不保證停在完整區塊後，見 `commitPartialTurn` 檔頭。
+        if (controller.signal.aborted && full.length > 0) {
+          try {
+            // 客戶端多半已斷線讀不到這個事件，落地才是重點，這裡只是順手嘗試。
+            const msg = await commitPartialTurn(chatId, chat, full);
+            ctrl.enqueue(enc.encode(sse('done', { message: msg, finishReason: 'ABORTED', usage })));
+          } catch (commitErr) {
+            console.error('[vellum] 中止時把半成品落地失敗：', commitErr);
+          }
+        } else if (!controller.signal.aborted) {
+          const detail = e instanceof Error ? redact(e.message, [key]) : '串流中斷';
+          try {
+            ctrl.enqueue(enc.encode(sse('error', { message: detail })));
+          } catch {
+            /* 連線已經沒了，寫不進去不算另一個錯誤 */
+          }
+        }
       } finally {
-        ctrl.close();
+        try {
+          ctrl.close(); // 已經因中止被關掉的話，再關一次會丟例外——不用理它。
+        } catch {}
       }
     },
     cancel() {

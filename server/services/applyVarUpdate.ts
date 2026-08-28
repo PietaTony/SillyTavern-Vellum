@@ -1,25 +1,18 @@
 /**
  * 這一輪的回覆裡如果帶了 `<UpdateVariable>`，把它套進這段對話的變數。
  *
- * 🔴 **這是「引擎接好了、沒有門」的第四次**（2026-08-27）。
- * `lib/varUpdate.ts`（解析）與 `lib/varApply.ts`（夾持後套用）寫好了、測過了、
- * `scripts/verify-vars.ts` 拿真卡跑得起來 —— 但**產品端有零個呼叫點**。
- * 於是使用者的親密度／安全感／面具**從第一天就沒有動過**，而且完全靜默。
+ * 🔴 **「引擎接好了、沒有門」的第四次**（2026-08-27）：`lib/varUpdate.ts`（解析）與
+ * `lib/varApply.ts`（夾持後套用）寫好了、測過了，但**產品端零呼叫點** ⇒ 親密度／
+ * 安全感／面具從第一天就沒動過，而且完全靜默。
  *
- * 🔴 **為什麼不是讓卡片自己算**：卡片本來靠 CDN 上的 MVU 做這件事，而 MVU 假設沙箱裡
- * 有全域 `Vue` 與 `z`(zod) —— 我們沒有 ⇒ 它載進來就炸，從來沒初始化過
- *（實機 stack：`ReferenceError: Vue is not defined at …/MagVarUpdate/artifact/bundle.js`）。
- * 補那兩個外部依賴等於把產品的核心狀態押在別人的 CDN 上，斷網或對方改版就沒有狀態。
- * ⇒ Peter 2026-08-27 裁定：我們自己算。前端那邊由 `runtime/mvuShim.ts` 扮演 `Mvu` 的介面。
+ * 🔴 **不讓卡片自己算**：卡片本來靠 CDN 上的 MVU，但它假設沙箱裡有全域 `Vue`／`z`(zod)——
+ * 我們沒有 ⇒ 一載入就炸（實機：`ReferenceError: Vue is not defined`），而且把核心狀態
+ * 押在別人的 CDN 上。⇒ Peter 2026-08-27 裁定我們自己算；前端由 `runtime/mvuShim.ts`
+ * 扮演 `Mvu` 介面。
  *
- * 🔴 **值要寫進 `stat_data`，不是頂層**（2026-08-27 實機才看出來）。
- * 卡片讀的是 `getAllVariables().stat_data`（桌寵的 `readState()` 就是這樣寫的）——
- * 那是 MVU 的慣例。我們扮演 MVU 就得**寫在 MVU 會寫的地方**：
- * 值放頂層的話卡片一個都讀不到，而畫面上是三個 `—`，沒有任何錯誤。
- * ⚠️ Peter 手機截圖上「時期」有值、三個數字是 `—`，那個不對稱正是這條的指紋。
- *
- * 🔴 **失敗一律不擋生成。** 這一段是在訊息已經存下來之後跑的 —— 解析壞掉、卡片沒有變數、
- * schema 推不出來，都只是「這一輪沒有數值變化」，不可以讓使用者的回覆消失。
+ * 🔴 **值要寫進 `stat_data`，不是頂層**：卡片讀 `getAllVariables().stat_data`（MVU 慣例）。
+ * ⚠️ 放頂層卡片讀不到、畫面顯示三個 `—` 卻沒有任何錯誤（Peter 手機截圖抓到過）。
+ * 🔴 **失敗一律不擋生成**：訊息已經存下來之後才跑這段，解析壞掉只算「沒有數值變化」。
  */
 import { readBin, writeJson } from '../adapters/storage.ts';
 import { readCard } from '../lib/card.ts';
@@ -31,13 +24,10 @@ import { stageOf } from '../lib/mvuStage.ts';
 
 /**
  * 卡片的變數宣告 ＋ **引擎層的約束**。
- *
- * 🔴 約束不是卡片給的，是我們加的：那張卡的世界書自己寫著「單輪超過 ±3 會被夾回」，
- * 但那是**寫給 LLM 看的提示詞** —— 靠它自律總有一天不自律。
- * ⇒ 夾持要在套用前發生（`varApply.ts` 檔頭的同一條）。
- * ⚠️ 開場前兩樓豁免：開場白本來就會一次把數值設到位。
- *
- * ⚠️ `scripts/verify-vars.ts` 有一份一模一樣的手寫版，該改吃這支（已記在 TASKS.md）。
+ * 🔴 約束是我們加的，不是卡片給的：卡片的世界書寫著「單輪超過 ±3 會被夾回」，但那是
+ * **寫給 LLM 看的提示詞**——靠它自律總有一天不自律，夾持要在套用前發生。
+ * ⚠️ 開場前兩樓豁免（開場白本來就會一次把數值設到位）；`scripts/verify-vars.ts`
+ * 有一份一模一樣的手寫版，該改吃這支（已記在 TASKS.md）。
  */
 export function schemaOf(cardJson: unknown): VarSchema | null {
   const { config } = deriveConfig(cardJson);
@@ -58,7 +48,6 @@ export function schemaOf(cardJson: unknown): VarSchema | null {
 
 /** 🔴 MVU 把資料存在這個鍵底下 —— 卡片就是照這個鍵讀的（見檔頭）。 */
 export const STAT_KEY = 'stat_data';
-
 export type VarUpdate = { state: State; changes: Change[]; rejected: string[] };
 
 /**
@@ -80,11 +69,8 @@ export async function applyVarUpdate(
   const schema = schemaOf(card.payloads[card.primary]);
   if (!schema) return null;
 
-  /**
-   * 🔴 **沒有值的時候要從卡片的初始值長出來，不是從空物件。**
-   * `delta` 是相對的 —— 底下沒有基準的話第一輪就永遠算不出來。
-   * ⚠️ 只補「這個 schema 宣告過的」，卡片自己存的其他東西（桌寵的位置…）原封不動。
-   */
+  // 🔴 沒有值時從卡片的初始值長出來，不是空物件——`delta` 是相對的，沒基準就永遠算不出來。
+  // ⚠️ 只補 schema 宣告過的，卡片自己存的其他東西（桌寵的位置…）原封不動。
   const stat = (current[STAT_KEY] ?? {}) as Record<string, unknown>;
   const base: State = { ...initialState(schema), ...pickDeclared(schema, stat) };
   const r = applyWithConstraints(base, proposalsFrom(parsed.ops, base), schema, { 樓層: turn });
@@ -101,10 +87,8 @@ const pickDeclared = (schema: VarSchema, from: Record<string, unknown>): State =
 
 /**
  * 生成端點用的一行版：算出這一輪之後的 `chat.variables`。
- *
- * ⚠️ **一律不擋生成**：訊息這時已經在 `chat.messages` 裡了 —— 解析壞掉、卡片沒有變數、
- * schema 推不出來，都只是「這一輪沒有數值變化」，不可以讓使用者的回覆消失。
- * 🔴 **夾持與丟棄要留痕跡**：「為什麼數值不動」以後就是靠這一行查。
+ * ⚠️ **一律不擋生成**：訊息已經在 `chat.messages` 裡了——解析壞掉只算「沒有數值變化」。
+ * 🔴 夾持與丟棄要留痕跡：「為什麼數值不動」以後就是靠這一行查。
  */
 export async function varsAfter(
   chat: { characterId: string; variables?: Record<string, unknown> | undefined; messages: unknown[] },
@@ -131,10 +115,8 @@ export async function varsAfter(
 }
 
 /**
- * 一輪生成結束時的落地：把回覆存成一則訊息、套用這一輪的變數更新、寫檔。
- *
- * 🔴 **抽到這裡是因為 `generate.ts` 卡在 150 行**，而這三件事本來就是同一個「收尾」——
- * 而且順序是有意義的：訊息先進 `messages`（`樓層` 要算得到它），變數才算得對。
+ * 一輪生成結束時的落地：訊息進 `messages`、套用變數、寫檔。
+ * 🔴 抽到這裡是因為 `generate.ts` 卡在 150 行；順序有意義——訊息先進去，`樓層` 才算得到它。
  */
 export async function commitTurn(
   chatId: string,
@@ -144,6 +126,24 @@ export async function commitTurn(
   const msg = { id: crypto.randomUUID(), role: 'model' as const, text: reply, at: new Date().toISOString() };
   chat.messages.push(msg);
   chat.variables = await varsAfter(chat, reply);
+  await writeJson(`chats/${chatId}.json`, chat);
+  return msg;
+}
+
+/**
+ * 停止生成時的落地：只存字，**不套 `<UpdateVariable>`**（跨層票 H1／H6，2026-08-28；鎖期間歸 H1）
+ * ——中止點不保證停在完整區塊後，半句 JSONPatch 會寫壞變數。`partial:true` 供 `buildTurn.ts` 讀。
+ */
+export async function commitPartialTurn(
+  chatId: string,
+  chat: { messages: unknown[] },
+  partialText: string,
+): Promise<{ id: string; role: 'model'; text: string; at: string; partial: true }> {
+  const msg = {
+    id: crypto.randomUUID(), role: 'model' as const, text: partialText,
+    at: new Date().toISOString(), partial: true as const,
+  };
+  chat.messages.push(msg);
   await writeJson(`chats/${chatId}.json`, chat);
   return msg;
 }

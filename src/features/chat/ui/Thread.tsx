@@ -7,6 +7,7 @@ import { useSwipeKeys } from '../useSwipeKeys';
 import { type FrontendRenderer, MessageContent } from './MessageContent';
 import { MessageRow } from './MessageRow';
 import { ScrollToLatest } from './ScrollToLatest';
+import { StopGenerating } from './StopGenerating';
 import { ThemRow } from './ThemRow';
 import { StreamCaret, Typing } from './Typing';
 
@@ -34,6 +35,7 @@ export function Thread({
   onAvatarClick,
   actions,
   thinking = false,
+  onStop,
 }: {
   messages: Message[];
   streaming: string | null;
@@ -56,6 +58,11 @@ export function Thread({
    * 🔴 只影響那一列等待指示的**措辭**，不影響版面（見 `Typing`）。
    */
   thinking?: boolean;
+  /**
+   * 停止生成（跨層票 H1／H6，2026-08-28）。沒給就不掛那顆鈕——
+   * 一顆按了沒反應的停止鈕比不能按更糟（同一套判準見 `onAvatarClick`）。
+   */
+  onStop?: (() => void) | undefined;
 }) {
   // `←` `→` 切候選（ST 有，M12 G5）。掛在「最後一則有候選的訊息」上，同 ST 的 `.last_mes`。
   useSwipeKeys(messages, onSwipe);
@@ -112,6 +119,7 @@ export function Thread({
         </Stack>
       </Box>
       {stick.stuck ? null : <ScrollToLatest onClick={stick.toBottom} />}
+      {streaming !== null && onStop ? <StopGenerating onClick={onStop} /> : null}
     </Box>
   );
 }

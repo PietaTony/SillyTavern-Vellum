@@ -7,6 +7,12 @@ export type Message = {
   /** 同一則的其他候選（開場白有 9 則）。沒有候選的訊息**不會有這個欄位**。 */
   swipes?: string[];
   swipeIndex?: number;
+  /**
+   * 🔴 **半成品**（跨層票 2026-08-28）。使用者按「停止生成」時已經吐出來的字——
+   * 「半成品＝保留」，但要在資料上分得出來（見 `server/services/chatModel.ts` 同名欄位）。
+   * 沒有值＝完整回覆。
+   */
+  partial?: boolean;
 };
 export type Chat = {
   id: string;

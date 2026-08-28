@@ -1,4 +1,5 @@
 import Box from '@mui/material/Box';
+import Typography from '@mui/material/Typography';
 import type { Message } from '../model';
 import { useLongPress } from '../useLongPress';
 import { type MessageActions, useRowActions } from '../useRowActions';
@@ -64,6 +65,12 @@ export function MessageRow({
       sx={{ '@media (pointer: coarse)': { userSelect: 'none', WebkitTouchCallout: 'none' } }}
     >
       <MessageContent text={message.text} frontend={frontend} messageId={message.id} />
+      {/* 🔴 半成品（跨層票 H1／H6，2026-08-28）——資料上分得出來，畫面也要看得出來。 */}
+      {message.partial ? (
+        <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 0.5 }}>
+          （已中止，未說完）
+        </Typography>
+      ) : null}
     </Box>
   );
 
