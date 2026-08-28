@@ -11,15 +11,10 @@ export {
   streamGenerate,
   swipeMessage,
 } from './api';
+export { type ChatFailureInfo, failureOf } from './failureOf';
 export { byRecency, lastActivityAt, latestChatOf, previewOf, relativeTime } from './list';
-export {
-  type Chat,
-  type ChatFailureInfo,
-  failureOf,
-  type Message,
-  parseSse,
-  type StreamEvent,
-} from './model';
+export { type Chat, type Message, parseSse, type StreamEvent } from './model';
+export { dropUnknownSwipeIndex } from './swipeDisplay';
 export { ChatList, type ChatListItem } from './ui/ChatList';
 export { CompanionLayer } from './ui/CompanionLayer';
 export { Composer } from './ui/Composer';

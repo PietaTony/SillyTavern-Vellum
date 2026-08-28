@@ -1,7 +1,10 @@
 import { Hono } from 'hono';
 import { z } from 'zod';
 import { readJson, writeJson } from '../adapters/storage.ts';
+import type { Character } from '../lib/character.ts';
+import { resolveSwipes, withinRange } from '../lib/greetings.ts';
 import { safeId } from '../lib/ids.ts';
+import { stripLoreTags } from '../lib/loreTags.ts';
 import { deleteFrom, editMessage } from '../lib/messageEdit.ts';
 import type { Chat } from '../services/chatModel.ts';
 
@@ -26,7 +29,35 @@ export const chatMessages = new Hono()
     const chat = await readJson<Chat | null>(`chats/${id}.json`, null);
     if (!chat) return c.json({ error: '找不到這段對話' }, 404);
 
-    const r = editMessage(chat.messages, c.req.param('messageId'), body.data.text);
+    /**
+     * 🔴 **編輯把「參照」凍成「快照」。** 這則訊息若是 `greetingSwipes: true`
+     * （候選現拼自 `ch.greetings`，見 `chatModel.ts`），使用者一旦動手改了文字，
+     * 這份候選就該跟這次編輯綁死——不然角色卡下次再被改，剛剛的編輯會被蓋掉，
+     * 比沒有「參照」這回事還糟。只材質化**正在編輯的那一則**，其餘 greetingSwipes
+     * 訊息維持參照，不要因為改了一則就把整份對話落成快照。
+     *
+     * 🔴 **`swipeIndex` 要重新對過現在的候選數，不能用 `...rest` 原封抄過去**
+     * （獨立驗收線 2026-08-28 抓到）：角色卡的問候語可能在這則訊息建立之後被
+     * 精簡過，磁碟上的 `swipeIndex` 早就懸空了。照抄的話 `editMessage()` 的
+     * `currentSwipe()` 會把它夾回合法範圍、寫進使用者從沒選過的候選格子，
+     * **永久蓋掉原本那則**——跟 `withResolvedSwipes`（GET）用同一把尺
+     * （`withinRange()`），越界就回 `null`，讓 `currentSwipe()` 知道「不要猜」。
+     */
+    const messageId = c.req.param('messageId');
+    const target = chat.messages.find((m) => m.id === messageId);
+    let messages = chat.messages;
+    if (target?.greetingSwipes) {
+      const ch = await readJson<Character | null>(`characters/${chat.characterId}.json`, null);
+      const swipes = resolveSwipes(target, ch?.greetings, stripLoreTags);
+      const swipeIndex = swipes ? withinRange(target.swipeIndex ?? 0, swipes.length) : null;
+      messages = chat.messages.map((m) => {
+        if (m.id !== messageId) return m;
+        const { greetingSwipes: _drop, ...rest } = m;
+        return swipes ? { ...rest, swipes, swipeIndex } : rest;
+      });
+    }
+
+    const r = editMessage(messages, messageId, body.data.text);
     if (!r) return c.json({ error: '找不到這則訊息' }, 404);
     chat.messages = r.messages;
     await writeJson(`chats/${id}.json`, chat);

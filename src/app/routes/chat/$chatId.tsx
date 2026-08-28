@@ -14,6 +14,7 @@ import { ConsentDialog, useCardEvents } from '@/features/cardscripts';
 import { CharacterLayer, fetchCharacter } from '@/features/characters';
 import {
   Composer,
+  dropUnknownSwipeIndex,
   fetchChat,
   SwipePicker,
   Thread,
@@ -47,7 +48,8 @@ function ChatPage() {
 
   const swipe = useSwipeMessage(chatId, () => q.refetch(), reset);
 
-  useCardEvents(chatId, messages); // 發事件給卡片腳本；判準與時機在 `useCardEvents`
+  // 🔴 型別邊界不是動 H6：dropUnknownSwipeIndex 理由見 `features/chat/swipeDisplay.ts`。
+  useCardEvents(chatId, dropUnknownSwipeIndex(messages)); // 發事件給卡片腳本
 
   const actions = chatMessageActions(chatId, () => q.refetch(), reset, regenerate);
 

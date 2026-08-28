@@ -6,7 +6,14 @@ export type Message = {
   at: string;
   /** 同一則的其他候選（開場白有 9 則）。沒有候選的訊息**不會有這個欄位**。 */
   swipes?: string[];
-  swipeIndex?: number;
+  /**
+   * 🔴 **`null` ≠ 省略**（Peter 2026-08-28 裁定，理由同 `server/lib/greetings.ts`
+   * 的 `withResolvedSwipes`）。省略＝沒有多重候選；`null`＝有候選，但角色卡
+   * 砍掉了使用者當初選的那則、`text` 沒變只是找不到它在清單裡的位置了。
+   * ⚠️ `SwipeBar`／`SwipePicker` 不可以用 `?? 0` 接住——那會把「不知道選
+   * 哪個」畫成「選了第一個」，比壞掉的分數更騙人。
+   */
+  swipeIndex?: number | null;
   /**
    * 🔴 **半成品**（跨層票 2026-08-28）。使用者按「停止生成」時已經吐出來的字——
    * 「半成品＝保留」，但要在資料上分得出來（見 `server/services/chatModel.ts` 同名欄位）。
@@ -109,37 +116,4 @@ export function shouldSubmitOnKey(e: {
   if (e.isComposing) return false;
   if (e.keyCode === 229) return false;
   return true;
-}
-
-/** 生成失敗時該顯示什麼。`setupKey` ＝ 後端說「缺金鑰」，畫面要給得出那個出口。 */
-export type ChatFailureInfo = { text: string; setupKey: boolean };
-
-/**
- * 把後端回來的錯誤 **body 原文**翻成人看的一句話（Peter 2026-08-27 實機踩到）。
- *
- * 🔴 **他看到的是一整串 JSON**：`{"error":"尚未設定 Google Gemini 金鑰","action":"setup-…`
- * —— `api.ts` 的 `streamGenerate` 在 `!res.ok` 時直接把 `res.text()` 切 300 字丟出來，
- * 而 `server/routes/generate.ts` 回的是 `c.json({ error, action })`。
- * 「原文照顯示」這條規則是為了**不要把供應商的錯誤訊息改寫掉**，
- * 但它不該連我們自己那層 JSON 外殼一起端上去。
- *
- * 🔴 **`action: 'setup-key'` 要接成真的出口。** 使用者缺的是金鑰，
- * 而這一頁給的鈕是「重新送出上一句」—— 再送一百次也還是同一個錯。
- *
- * ⚠️ **解析不出來就原文照顯示**，不要吞掉。上游（Gemini／OpenAI）的錯誤是純文字或
- * 另一種 JSON 形狀，猜錯格式而丟掉內容，比多幾個括號糟得多。
- */
-export function failureOf(raw: string): ChatFailureInfo {
-  const t = raw.trim();
-  if (!t) return { text: '送不出去', setupKey: false };
-  if (t.startsWith('{')) {
-    try {
-      const o = JSON.parse(t) as { error?: unknown; action?: unknown };
-      if (typeof o.error === 'string' && o.error.trim())
-        return { text: o.error, setupKey: o.action === 'setup-key' };
-    } catch {
-      // 不是完整的 JSON（例如被 slice(300) 切掉尾巴）⇒ 落回原文。
-    }
-  }
-  return { text: t, setupKey: false };
 }

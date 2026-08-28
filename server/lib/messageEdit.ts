@@ -15,10 +15,19 @@ import type { Message } from '../services/chatModel.ts';
  *
  * 🔴 `swipeIndex` 可能超出範圍或不存在（匯入的對話、手改過的檔），
  * 一律夾回合法區間 —— 拿它去索引之前先夾，不要相信檔案裡的值。
+ *
+ * 🔴 **例外：`swipeIndex === null` 不夾，直接當「沒有站著的候選」**（獨立驗收線
+ * 2026-08-28 抓到，Peter 同日裁定）。`null` 現在是材質化那一步（`chatMessages.ts`）
+ * 誠實標出來的「使用者當初選的那則已經不在候選清單裡」——這是明確的訊號，
+ * 不是「檔案壞了、隨便給個數字」那種待夾的髒資料。如果在這裡也夾回一個數字，
+ * 就是把使用者的新文字寫進他從沒選過的候選格子、**永久蓋掉原本那則**，
+ * 比「顯示壞掉的分數」更糟——跟 `greetings.ts` 的 `withinRange()` 是同一個判斷，
+ * 兩邊要給同一個答案。
  */
 export function currentSwipe(m: Message): number | null {
   const n = m.swipes?.length ?? 0;
   if (n === 0) return null;
+  if (m.swipeIndex === null) return null;
   return Math.min(Math.max(m.swipeIndex ?? 0, 0), n - 1);
 }
 

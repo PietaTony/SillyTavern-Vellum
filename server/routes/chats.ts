@@ -1,12 +1,11 @@
 import { Hono } from 'hono';
 import { z } from 'zod';
 import type { Chat, Message } from '../services/chatModel.ts';
-import { greetingForSwipe } from '../lib/greetings.ts';
+import { greetingForSwipe, pickSwipe, withResolvedSwipes } from '../lib/greetings.ts';
 import { safeId } from '../lib/ids.ts';
-import { listJson, readJson, writeJson } from '../adapters/storage.ts';
+import { listJson, readJson, readJson as read, writeJson } from '../adapters/storage.ts';
 import { landOpening } from '../services/landOpening.ts';
 import { stripLoreTags } from '../lib/loreTags.ts';
-import { readJson as read } from '../adapters/storage.ts';
 import type { Character } from '../lib/character.ts';
 import { displayNameOf } from '../lib/displayName.ts';
 import { renderMessages, rulesOf } from '../services/renderChat.ts';
@@ -31,9 +30,10 @@ export const chats = new Hono()
     // 🔴 `{{user}}` 由生效中的 persona 名字驅動；沒有 persona 才回退成「你」。
     const who = await personaForChat(chat);
     const names = { char: chat.characterName, user: displayOf(who.persona) };
+    const expanded = withResolvedSwipes(chat.messages, ch?.greetings, stripLoreTags);
     return c.json({
       ...chat,
-      messages: renderMessages(chat.messages, rulesOf(ch), names),
+      messages: renderMessages(expanded, rulesOf(ch), names),
       // 🔴 **回報是哪一層生效**：使用者改了全域卻沒反應（對話層蓋著），
       // 沒有這個資訊他只會覺得壞了（驗收 C4）。
       persona: who.persona ? { id: who.persona.id, name: who.persona.name, layer: who.layer } : { layer: who.layer },
@@ -68,7 +68,7 @@ export const chats = new Hono()
               // 🔴 `<!-- lore -->` 是給引擎看的，不要端到畫面上（也不會送進 prompt）。
               text: stripLoreTags(opening),
               at: now,
-              ...(greetings.length > 1 ? { swipes: greetings.map(stripLoreTags), swipeIndex: idx } : {}),
+              ...(greetings.length > 1 ? { greetingSwipes: true, swipeIndex: idx } : {}),
             },
           ]
         : [],
@@ -77,7 +77,7 @@ export const chats = new Hono()
     // ④ 選定的那一則決定世界書開哪幾條，**以及這條時間線的起始數值**（見 `landOpening`）。
     const lore = opening ? await landOpening(ch.id, chat, opening) : null;
     await writeJson(`chats/${chat.id}.json`, chat);
-    return c.json({ ...chat, lore }, 201);
+    return c.json({ ...chat, messages: withResolvedSwipes(chat.messages, ch.greetings, stripLoreTags), lore }, 201);
   })
 
   /**
@@ -111,12 +111,12 @@ export const chats = new Hono()
     const chat = await readJson<Chat | null>(`chats/${id}.json`, null);
     if (!chat) return c.json({ error: '找不到這段對話' }, 404);
     const msg = chat.messages.find((m) => m.id === c.req.param('messageId'));
-    if (!msg?.swipes?.length) return c.json({ error: '這則訊息沒有其他候選' }, 404);
-    const idx = Math.min(Math.max(body.data.index, 0), msg.swipes.length - 1);
-    msg.swipeIndex = idx;
-    msg.text = msg.swipes[idx] ?? msg.text;
-
+    if (!msg) return c.json({ error: '找不到這則訊息' }, 404);
     const ch = await read<Character | null>(`characters/${chat.characterId}.json`, null);
+    const picked = pickSwipe(msg, ch?.greetings, body.data.index, stripLoreTags);
+    if (!picked) return c.json({ error: '這則訊息沒有其他候選' }, 404);
+    msg.swipeIndex = picked.index;
+    msg.text = picked.text;
     // 🔴 判準（內容不是位置、尺的兩端同單位）與踩過的坑在 `lib/greetings.ts`。這裡只要記得：
     // **套錯會寫 `worlds/<id>.json`**，之後每次生成的 prompt 都被污染，而畫面上完全看不出來。
     const raw = greetingForSwipe(
@@ -124,15 +124,15 @@ export const chats = new Hono()
         firstMessageId: chat.messages[0]?.id,
         messageId: msg.id,
         greetings: ch?.greetings,
-        index: idx,
-        target: msg.swipes[idx],
+        index: picked.index,
+        target: picked.text,
       },
       stripLoreTags,
     );
     // 🔴 換開場＝換一條時間線：世界書與**起始數值**一起重算，然後才寫檔（`landOpening` 會改 `chat.variables`）。
     const lore = raw ? await landOpening(chat.characterId, chat, raw) : null;
     await writeJson(`chats/${id}.json`, chat);
-    return c.json({ id: msg.id, swipeIndex: idx, text: msg.text, lore });
+    return c.json({ id: msg.id, swipeIndex: picked.index, text: msg.text, lore });
   })
 
   .post('/:id/messages', async (c) => {

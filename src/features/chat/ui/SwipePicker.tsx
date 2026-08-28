@@ -6,6 +6,7 @@ import { useQuery } from '@tanstack/react-query';
 import { fetchGreetings } from '@/features/characters';
 import { FullScreenLayer } from '@/shared/ui/FullScreenLayer';
 import type { Message } from '../model';
+import { isKnownSwipe } from '../swipeDisplay';
 
 /**
  * 候選清單層（swipe picker）。
@@ -41,7 +42,9 @@ export function SwipePicker({
   onPick: (index: number) => void;
 }) {
   const swipes = message.swipes ?? [];
-  const at = message.swipeIndex ?? 0;
+  // 🔴 `null`（語意見 `../swipeDisplay`）不可以當成 0——不然畫面會誤標第一個為「目前」。
+  const at = message.swipeIndex;
+  const known = isKnownSwipe(at);
   const gs = useQuery({
     queryKey: ['greetings', characterId],
     queryFn: () => fetchGreetings(characterId ?? ''),
@@ -71,10 +74,16 @@ export function SwipePicker({
           </Box>
         ) : null}
       </Typography>
+      {/* 🔴 誠實標出「使用者當初選的那句已經不在下面」，不要讓畫面看起來一切正常。 */}
+      {known ? null : (
+        <Typography variant="body2" color="warning.main" sx={{ mb: 2, fontWeight: 600 }}>
+          目前顯示的內容不在下面的候選清單裡（角色卡的問候語已經被改過）。
+        </Typography>
+      )}
       <Stack spacing={1.5}>
         {swipes.map((text, i) => {
           const m = meta?.[i];
-          const current = i === at;
+          const current = known && i === at;
           return (
             <Paper
               // 🔴 **候選的 index 就是它的身分**，不是「順序碰巧長這樣」——
