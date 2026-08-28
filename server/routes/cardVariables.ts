@@ -1,9 +1,11 @@
 import { Hono } from 'hono';
 import { nextVars, VarsBody } from '../lib/varsWrite.ts';
+import { readCard } from '../lib/card.ts';
 import type { Character } from '../lib/character.ts';
 import { safeId } from '../lib/ids.ts';
+import { schemaOf } from '../services/applyVarUpdate.ts';
 import { loadSettings, saveSettings } from '../services/settings.ts';
-import { readJson, writeJson } from '../adapters/storage.ts';
+import { readBin, readJson, writeJson } from '../adapters/storage.ts';
 
 /**
  * 卡片腳本的變數 —— **`global` 與 `character` 兩種範圍**。
@@ -34,6 +36,34 @@ export const cardVariables = new Hono()
       global: (await loadSettings()).variables ?? {},
       character: ch?.variables ?? {},
     });
+  })
+
+  /**
+   * 卡片**宣告**的變數 schema —— D2 變數面板缺的另一半（值在 `.get('/:characterId')`）。
+   * 唯讀，不寫任何東西。
+   *
+   * 🔴 只端 `schemaOf()`（`services/applyVarUpdate.ts`）算得出來的欄位——那是
+   * `scripts/verify-vars.ts` 唯一拿真卡驗過的引擎行為，這裡不加它沒算過的東西。
+   * `schemaOf` 本身只認得**一張特定卡的形狀**（`時期` 讀唯讀、所有數字變數 ±3／0~100
+   * 這兩條是寫死的引擎約束，不是從卡片解析出來的）——別的卡如果沒有 `時期`，
+   * 這條規則自然不生效，不是我在這裡另外加的判斷。
+   *
+   * 🔴 `schema: null` 是唯一的「沒有」——不管原因是「這個角色沒有卡片檔（手動建立的
+   * 角色）」還是「卡片世界書沒有 `[initvar]` 條目」還是「這張 PNG 根本不是角色卡」，
+   * 都收斂成同一個值：**這張卡本來就沒有可端的宣告，不是壞掉**。
+   * 前端要分辨「讀不到」只能靠 HTTP status：非 2xx 才是真的錯誤，2xx + null 一律是「沒宣告」。
+   */
+  .get('/:characterId/schema', async (c) => {
+    const id = safeId(c.req.param('characterId'));
+    const png = id ? await readBin(`characters/${id}.png`).catch(() => null) : null;
+    if (!png) return c.json({ schema: null });
+    try {
+      const card = readCard(png);
+      return c.json({ schema: schemaOf(card.payloads[card.primary]) });
+    } catch {
+      // NotACard：這張 PNG 不是角色卡（或壞掉）——沒有宣告可端，跟「沒有卡片檔」同一種結果。
+      return c.json({ schema: null });
+    }
   })
 
   .patch('/global', async (c) => {
