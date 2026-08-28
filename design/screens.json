@@ -135,7 +135,7 @@
       "status": "deferred",
       "raised": "2026-08-28",
       "raisedBy": "Peter",
-      "backlog": "plans/90-BACKLOG.md（Agent 家正本；此處是程式庫內交叉引用）",
+      "backlog": "plans/90-BACKLOG.md（Agent 家正本）；程式庫內計劃：design/GAP-124-plan.md",
       "symptom": "Peter 丟一張實機截圖給 AI，AI 無法可靠回答「現在是 design/screens.json 的哪一張畫面」（例如 First-Run--3b 金鑰頁·測試失敗）。id 只存在於本檔與程式註解，DOM 裡沒有。",
       "vision": "像點讀筆：在畫面固定角落（待訂）以極淡、與背景幾乎同色但 vision model 讀得到的文字，嵌入 milestones.*.screens[].id。人眼幾乎看不出，1080p+ 截圖上 AI 視覺能穩定讀出。",
       "notThis": "不是 DOM data-* 屬性；不是開發者工具才看得到的 debug overlay；不是把 id 寫在 title 或 aria-label 裡冒充無障礙。",
