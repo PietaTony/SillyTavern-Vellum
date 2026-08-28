@@ -1,27 +1,40 @@
-# 推 `staging` → 閘門綠 → 自動 fast-forward `main` → 自動發 GitHub Release。
+# 推 `main` → 閘門綠 → build 三平台 → 自動發 GitHub Release。
+# main 前進本身**不再由這支 workflow 做**——Peter 在 GitHub UI 上人工合併
+# `staging → main` 的 PR，那一按才是「promote」。這支只在那之後跑，只驗
+# 「這個已經被 Peter 核准前進的 SHA 能不能發」，不再驗、也不再做「該不該前進」。
 #
-# 🔴 **這一支就是「prod」**（Peter 2026-08-27 裁定 ②：全自動 CD，
-#    原話「CICD build 推prod staging 也都推到prod」／「朋友永遠拿得到最新版」）。
+# 🔴 **這一支就是「prod」的發版動作**（Peter 2026-08-28 本人裁定：staging 進哪一版由
+#    中控線審，`staging → main` 由 Peter 本人審 —— **合併那一按就是發版那一按**，
+#    原話「推staging = 自動合main拔除／Staging=> main 給我人工審核／Staging你審／Main我審核」）。
+#    ⚠️ **這是對 2026-08-27 裁定②的收回，不是實作者自行放寬或收緊**：2026-08-27
+#    原本是「推 staging 全自動 CD，朋友永遠拿得到最新版」；2026-08-28 Peter 本人
+#    把它改成「**他按了才拿得到**」——代價是明講過的，見 2026-08-28 那次對話。
 #    `desktop.yml` 與 `release.yml` 已被它吸收並刪除 —— **一件事只留一條路。**
 #
 # 🔴 **`GITHUB_TOKEN` 推出去的 commit 與 tag 不會觸發任何 workflow**（GitHub 的防迴圈機制）。
-#    ⇒ ① 不能靠「CI 打 tag → 另一支 workflow 被觸發」，那條路永遠不會跑，
-#         所以 Release 由本檔的 `release` job **當場開**。
-#      ② 也因為這樣，`promote` 推 `main` **不會**再繞回來觸發自己 —— 無限迴圈不可能發生。
+#    這件事在「推 staging 觸發」的舊設計裡是優點（防 `promote` 推 main 繞回來觸發自己）；
+#    搬到「推 main 觸發」之後，**同一個機制變成故障點**：任何 bot／workflow 用
+#    `GITHUB_TOKEN` 推 main 都**不會**觸發這支、也就不會發版，推上去卻什麼都沒發生。
+#    只有 Peter 在 GitHub UI 上手動合併 PR（以他本人身分產生的 push 事件）才會觸發。
+#    ⇒ **這支 workflow 裡不可以再出現任何用 GITHUB_TOKEN 推 main 的步驟**——
+#      舊版 `promote` job（fast-forward main）已整個移除，main 的前進只能來自
+#      人工合併 PR，沒有第二條路可以繞過 Peter。
 #
-# 🔴 **版號不寫回 repo。** patch 用 `github.run_number`（單調遞增、不與人的 commit 賽跑），
+# 🔴 **版號不寫回 repo。** patch 用 `github.run_number`——它跟著這支 workflow 檔本身
+#    單調遞增，不論由哪個分支的哪種事件觸發，都是同一個計數器，換觸發分支**不會**
+#    讓它跳號或倒退，只會因為 main 前進得比 staging 少而前進得比較慢。
 #    每個 build job 在 build 前把 `package.json` 就地改成該值（不 commit）。
 #    這樣 **Release 的 tag == app 內顯示的版本**，只有一把尺。
 #    `package.json` 裡留的 `0.2.0` 只提供 major.minor。
-#
-# 順序是刻意的：**先 `promote`（main 前進）才 `release`。**
-# main 是「已發佈什麼」的紀錄；main 推不上去就不該有 Release。
 name: cd
 
 on:
   push:
-    branches: [staging]
+    branches: [main]
     # 🔴 只改文件不值得燒三台 runner，也不值得多一個 Release 版本。
+    #    ⚠️ 這代表「只改 RELEASE-NOTES/next.md 的 PR 合進 main」不會發版——這是刻意的：
+    #    staging 累積到要 promote 時通常帶著程式碼一起合，純文件合併沒有東西可發。
+    #    真出現「補寫發版說明」的獨立 PR 而需要發版，改一行程式碼一起帶進去即可。
     paths-ignore: ['**.md', 'plans/**', 'NOTES/**', 'docs/**']
   workflow_dispatch:
 
@@ -31,18 +44,21 @@ concurrency:
   cancel-in-progress: true
 
 permissions:
-  contents: write # 推 main、開 Release、建 tag
+  contents: write # 開 Release、建 tag（main 不再由這支 workflow 推）
 
 jobs:
-  # 🔴 **手動觸發要守分支。** `workflow_dispatch` 可以從任何分支跑，而這支會推 `main`
-  #    並對外發版 —— 這個 repo 有 `upstream-staging`（上游 ST 的鏡像），從那條跑一次
+  # 🔴 **手動觸發要守分支。** `workflow_dispatch` 可以從任何分支跑，而這支會對外發版 ——
+  #    這個 repo 有 `upstream-staging`（上游 ST 的鏡像，clone 下來就在），從那條跑一次
   #    就會把 ST 的 code 當成 Vellum 發出去。守在最前面，後面全部 `needs` 它。
+  #    觸發點從 staging 搬到 main 之後，這條防護**原樣照搬、只是換了要守的分支**——
+  #    不可以因為「main 只有 Peter 能推」就放鬆或拿掉：`workflow_dispatch` 不受
+  #    branch protection 約束，還是能從 `upstream-staging` 手動點來跑。
   guard:
     runs-on: ubuntu-latest
     steps:
       - run: |
-          if [ "${{ github.ref }}" != "refs/heads/staging" ]; then
-            echo "cd 只能從 staging 跑，現在是 ${{ github.ref }}"
+          if [ "${{ github.ref }}" != "refs/heads/main" ]; then
+            echo "cd 只能從 main 跑，現在是 ${{ github.ref }}"
             exit 1
           fi
           echo "分支 OK：${{ github.ref }}"
@@ -224,32 +240,15 @@ jobs:
             dist-app/*-mac.zip
             dist-app/latest-mac.yml
 
-  # 🔴 **fast-forward，不 merge。** `main` 一直是 `staging` 的祖先，
-  #    ff 推不上去代表有人在 main 上直接改過東西 —— 那要人來看，不該用 merge commit 蓋過去。
-  #
-  # 🔴 **用 API 更新 ref，不 checkout 之後 `git push`。** 兩個理由：
-  #   ① `actions/checkout` 預設 `fetch-depth: 1`（淺 clone）⇒ 手上沒有 main→staging 之間
-  #      那些 commit 的物件，`git push` 會被 **`shallow update not allowed`** 擋下。
-  #      改 `fetch-depth: 0` 能修，但那要 clone 一萬多個 commit（這 repo fork 自 ST）。
-  #   ② `PATCH /git/refs` 預設 `force: false` ⇒ **fast-forward 由 GitHub 伺服器端強制**，
-  #      不是靠我們自己記得不要加 `--force`。非 ff 會回 422，job 直接紅。
-  promote:
-    needs: [version, gates, windows-smoke, windows-app, mac-app]
-    runs-on: ubuntu-latest
-    steps:
-      - name: fast-forward main
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          gh api -X PATCH "repos/${{ github.repository }}/git/refs/heads/main" \
-            -f sha='${{ github.sha }}' -F force=false
-          # 讀回作用端的值 —— 「API 回 200」不等於 ref 真的動了
-          AFTER=$(gh api "repos/${{ github.repository }}/git/ref/heads/main" -q .object.sha)
-          [ "$AFTER" = "${{ github.sha }}" ] || { echo "main 還停在 $AFTER"; exit 1; }
-          echo "main → $AFTER"
-
+  # 🔴 **2026-08-28：`promote` job（fast-forward main）整個拿掉。**
+  #    main 的前進不再由這支 workflow 做——Peter 在 GitHub UI 人工合併
+  #    `staging → main` 的 PR 就是「promote」，這支只在 main 已經前進**之後**
+  #    被那次 push 觸發，直接對已經核准的 SHA 跑 build 與發版。
+  #    舊版這裡有一段「用 API 更新 ref、讀回驗證、非 ff 就紅」的討論——那是解決
+  #    「怎麼安全地自動前進 main」這個問題；新設計下 main 怎麼前進已經不是
+  #    這支 workflow 的責任，所以這個問題連同這段程式碼一起消失，不是被繞過。
   release:
-    needs: [version, promote]
+    needs: [version, gates, windows-smoke, windows-app, mac-app]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4 # 🔴 要讀 RELEASE-NOTES/next.md，這個 job 原本沒有 checkout
@@ -317,8 +316,8 @@ jobs:
 
           # 🔴 **擋「忘了改，發出上一版的說明」**（GAP-114，2026-08-27 一小時內發生兩次）。
           #    上面三條擋得住「沒寫」，擋不住「寫了但是上一版的」。
-          #    next.md 是一份共用檔，而現在多條線都能推 staging ——
-          #    推的人不會知道要先改它，所以這不是疏失，是**必然**。
+          #    next.md 是一份共用檔，多條線都可能在合進 staging、甚至合進 main 之前
+          #    忘記改它——合併的人不會知道要先改它，所以這不是疏失，是**必然**。
           #    ⚠️ 比對的是**正文**（分隔線之後），不是整份 body：
           #    下載表格每一版都一樣，拿整份比會永遠相同。
           PREV=$(gh api "repos/${{ github.repository }}/releases/latest" -q .body 2>/dev/null || true)
@@ -343,8 +342,9 @@ jobs:
           #    2026-08-27 run #3 就是這樣紅的：`sed` 只跑 `_download-table.md`，
           #    但 `next.md` 裡也有 `<版本>`，而下面那道斷言掃的是**合併後**的 body
           #    ⇒ **斷言的範圍比替換的範圍大，必然失敗**。
-          #    後果不只是紅：`promote` 排在 `release` 前面且已經成功
-          #    ⇒ `main` 前進了，卻沒有對應的 Release。
+          #    後果不只是紅：main 的前進來自 Peter 已經核准合併的 PR，不是這個 job
+          #    推的 —— 這一步失敗不會讓 main 倒退，但會留下「main 前進了、卻沒有
+          #    對應 Release」的缺口，跟 GAP-113 是同一種不變式斷裂，只是起點換了。
           {
             cat RELEASE-NOTES/_download-table.md
             echo
