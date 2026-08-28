@@ -17,7 +17,6 @@
  */
 
 /**
-/**
  * 🔴 **我們自己不再有任何外連**（2026-08-27）。
  *
  * 卡片用得到的三支第三方全域（lodash／jQuery／js-yaml）**整份內嵌進 srcdoc** ——
@@ -40,12 +39,15 @@ export const VENDOR_HOSTS: string[] = [];
 import { GLOBALS_SHIM } from './globals';
 import { LOG_SHIM } from './logShim';
 import { MVU_SHIM } from './mvuShim';
+import { ST_COMPAT_SHIM } from './stCompat';
 import { VARS_SHIM } from './vars';
 
 export const PREAMBLE = /* js */ `
 (function () {
   /* 🔴 **最先裝**：後面每一段自己的警告也要轉得出去（理由見 logShim.ts）。 */
   ${LOG_SHIM}
+  /* 🔴 排 LOG_SHIM 之後（console.warn 已包好會轉發）、排其他一切之前（理由見 stCompat.ts）。 */
+  ${ST_COMPAT_SHIM}
   var pending = {}, seq = 0;
   addEventListener('message', function (e) {
     var d = e.data;

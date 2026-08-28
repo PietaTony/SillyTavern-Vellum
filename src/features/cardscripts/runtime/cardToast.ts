@@ -16,6 +16,13 @@ import { pushToast } from '@/shared/ui/toastStore';
  * ⇒ 判準不是關鍵字、也不是「開頭幾秒」，是**使用者有沒有動過**：
  *   第一次 `pointerdown`／`keydown` 之前，卡片的提示只寫 console。
  *   這樣「你按了前往此場景 → 已切換至場景 3」還是會出現，自我介紹則不會。
+ *
+ * 🔴 **`source: 'vellum-compat'` 是唯一的例外**（2026-08-28，`stCompat.ts`）：
+ * 這不是卡片在講話，是我們自己偵測到「卡片操作的 DOM 在 Vellum 不存在，
+ * 那部分功能完全不會出現」——套用「角色卡：」前綴會誤導成卡片自己在說這句話，
+ * 而且它**不是**自我介紹式的洗版噪音（不會每次重整都跳、每個 id 只講一次，
+ * 見 `stCompat.ts` 的 `makeStCompatWarn`），所以也不套用「使用者動過沒有」那道
+ * 過濾——使用者一開頁就該知道這個功能不會出現，不必等他先點了什麼別的東西。
  */
 
 let interacted = false;
@@ -34,11 +41,22 @@ const plain = (v: string): string =>
     .replace(/<[^>]*>/g, '')
     .trim();
 
-export function showCardToast(raw: { level?: unknown; text?: unknown; title?: unknown }): void {
+export function showCardToast(raw: {
+  level?: unknown;
+  text?: unknown;
+  title?: unknown;
+  source?: unknown;
+}): void {
   const level = typeof raw.level === 'string' && LEVELS.has(raw.level) ? raw.level : 'info';
   const title = typeof raw.title === 'string' && raw.title !== '' ? `${raw.title}：` : '';
   const text = plain(`${title}${String(raw.text ?? '')}`).slice(0, 160);
   if (text === '') return;
+  // 🔴 Vellum 自己的相容性通知——不是卡片在講話，見檔頭。不套「動過沒有」的過濾，
+  // 也不套「角色卡：」前綴。
+  if (raw.source === 'vellum-compat') {
+    pushToast({ text: `Vellum：${text}`, severity: level as AlertColor });
+    return;
+  }
   if (!interacted) {
     console.info('[卡片腳本] 載入時的自我介紹，沒顯示給使用者：', level, text);
     return;
