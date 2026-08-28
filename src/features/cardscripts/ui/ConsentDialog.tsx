@@ -18,7 +18,12 @@ import { VENDOR_HOSTS } from '../runtime/preamble';
  *   · 讀得到**這一段**對話（介面本來就要靠它畫東西）
  *   · **送得出去**（沙箱擋讀不擋送，驗收單 ⓪）—— 所以我們把外連鎖進白名單
  *   · **讀不到其他角色的對話**（沙箱是獨立來源 ＋ 後端零 CORS，`noCors.test.ts` 釘住）
- *   · **拿不到 API 金鑰**（金鑰在後端，`/api/secrets` 只回布林）
+ *   · **拿不到 API 金鑰**——不再是因為「端點只回布林」：`GET /api/secrets/preview`
+ *     現在回遮罩過的金鑰片段（`secretsPreview.test.ts` 釘住只有 `maskedPreview()` 一支、
+ *     只有這一個端點碰得到）。真正擋住卡片的是 `srcdoc.ts` 的 CSP `connect-src`（白名單
+ *     不含頁面自己的來源）＋ iframe 沒給 `allow-same-origin`，卡片連 `/api/*` 都發不出去。
+ *   · 🔴 **例外：`global` 範圍**（`scopes.ts`）落在 `cardVariables.ts` 的
+ *     `settings.variables`，**全部卡片共用一份**——不算「讀到其他角色的對話」，但文案裡另外講清楚。
  * ⚠️ 不要嚇唬使用者說「會偷金鑰」——那對我們不成立，而假的警告會讓真的警告失效。
  *
  * 🔴 **同意綁「這張卡的這個版本」**（`hash`），不是綁這張卡。卡片更新 ⇒ 指紋變 ⇒ 重問。
@@ -103,11 +108,12 @@ export function ConsentDialog({
               它會拿到什麼
             </Typography>
             <Typography variant="body2">
-              <b>讀得到你和這個角色的這一段對話</b>（介面要靠它畫出選項）， 而且
+              <b>讀得到你和這個角色的這一段對話</b>，而且
               <b>可以把內容送到下面那些網域</b>。
             </Typography>
             <Typography variant="body2" sx={{ mt: 0.5 }}>
-              它<b>讀不到你其他角色的對話</b>，也<b>拿不到你的 API 金鑰</b>（金鑰存在後端）。
+              它<b>讀不到你其他角色的對話</b>，也<b>拿不到你的 API 金鑰</b>。但它讀寫得到一塊
+              <b>所有卡片共用</b>的空間 —— 別張卡寫進去的東西，這張卡看得到，反過來也一樣。
             </Typography>
           </Alert>
 

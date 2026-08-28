@@ -9,6 +9,21 @@
  *
  * ⚠️ 原卡的 `frameSize: 192` 與實測每格 128px 矛盾，**而且渲染時根本沒用到**
  * ——所以我們的格式沒有這個欄位。照抄一個沒人用的矛盾欄位只會傳播錯誤。
+ *
+ * 🔴 **現狀（2026-08-28 稽核）：這支沒有任何路由／畫面在用它。**
+ * `grep -rn "companion" server/routes/ src/` 零命中，唯一的呼叫端是它自己的測試
+ * 與驗收腳本（`scripts/verify-companion.ts`，B8／C1b 的停損線）。**現在實機真的在跑
+ * 的桌寵，跟這支完全無關**——是卡片自己的 `tavern_helper.scripts[6]`（2.06MB），整支
+ * 丟進沙箱 iframe 跑，讀寫的也是它自己的 `stat_data`（見 `TASKS.md` 的桌寵段落）。
+ *
+ * 這不是「原生桌寵引擎的殘骸」——`vellumConfig.ts` 的 `VellumConfig` 型別註解明講
+ * 「之後的階段會往這裡加 loreRules／statusBar／companion」，這支就是那個「之後階段」
+ * 還沒被兌現的那一半：**呈現層原語已經照真卡的形狀移植好、通過 `verify:companion`
+ * 的驗收（資產抽得出、狀態對得到動作、C1b 兩條停損線沒被突破），缺的是路由與畫面**。
+ * ⇒ 這是**還沒接的規格（P7），不是決定放棄的舊路線**——刪掉會弄丟已經做完的移植分析
+ * （哪些欄位是矛盾的、原卡用了哪個禁掉的模式）。要接上去需要：① 一個回傳
+ * `Companion` 設定的路由、② 前端一個實際渲染它的畫面元件——這兩件都不在 H6 的
+ * 既有檔案清單裡，是一次新功能立項，不是這輪稽核的清理範圍。
  */
 import { condition } from './exprEval.ts';
 import type { MacroCtx } from './macro.ts';

@@ -224,9 +224,38 @@ jobs:
       - name: 蓋上本次版號
         shell: bash
         run: node .github/set-version.mjs "${{ needs.version.outputs.version }}"
+      # 🔴 **簽章＋公證兩組 secrets，兩件不同的事（見 electron-builder.yml mac.identity 上方註解）：**
+      #    `CSC_LINK`／`CSC_KEY_PASSWORD` 是「把 .p12 憑證匯進這台 runner 的暫時鑰匙圈」，
+      #    `APPLE_ID`／`APPLE_APP_SPECIFIC_PASSWORD`／`APPLE_TEAM_ID` 是「公證服務登入用」——
+      #    這裡用 Apple ID＋app-specific password 那組，不是 App Store Connect API key 那組
+      #    （兩組擇一即可，Peter 2026-08-28 已經在 GitHub Secrets 設好前者，不要接錯成後者）。
+      # 🔴 **`CSC_IDENTITY_AUTO_DISCOVERY: 'false'` 留著，且與 `CSC_LINK` 匯入互不相干。**
+      #    2026-08-28 讀原始碼實測（`app-builder-lib/out/macPackager.js` 建構子）：
+      #    `codeSigningInfo`（負責把 `CSC_LINK` 匯進暫時鑰匙圈的 `createKeychain` 那段）
+      #    只看 `getCscLink()`／`CSC_LINK` 環境變數，從頭到尾沒有讀過
+      #    `CSC_IDENTITY_AUTO_DISCOVERY`——**兩條路完全不相交，這個旗標擋不住也不會擋到
+      #    `CSC_LINK` 匯入。**而 `mac.identity` 現在是寫死的真實 qualifier（非空字串），
+      #    `macCodeSign.findIdentity()` 對非空 qualifier 直接跳過
+      #    `isAutoDiscoveryCodeSignIdentity()` 那個分支（`out/codeSign/macCodeSign.js`
+      #    的 `findIdentity()`：只有 `isEmptyOrSpaces(identity)` 為真時才會去查這個旗標）
+      #    ——這個旗標現在對簽章路徑本身沒有作用。留著的理由是**第二道防線**：
+      #    如果以後 `mac.identity` 不小心被改回空字串／`null`（regression），
+      #    `CSC_IDENTITY_AUTO_DISCOVERY=false` 會讓 `findIdentity()` 直接回傳 `null`，
+      #    擋掉那個「掃到任何非蘋果已知字首憑證」的危險 fallback（GAP-98 的成因）——
+      #    比起拿掉它、只靠 `identity:` 單一道防線更安全，不是假防線，只是不是主防線。
+      #    ⚠️ **不要把 `WIN_CSC_LINK` 跟這裡的 `CSC_LINK`搞混，也不要把 `CSC_LINK`／
+      #    `CSC_KEY_PASSWORD` 加進 `windows-app` job**：`getCscLink("WIN_CSC_LINK")`
+      #    在 `WIN_CSC_LINK` 沒設時會 fallback 到通用的 `CSC_LINK`（`platformPackager.js`
+      #    的 `getCscLink()` 實測過），這張是 Apple 的 .p12，格式跟用途都不對，
+      #    加進 Windows job 只會讓那邊嘗試匯入一張簽不了 exe 的憑證。
       - run: pnpm app:build
         env:
           CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+          CSC_LINK: ${{ secrets.CSC_LINK }}
+          CSC_KEY_PASSWORD: ${{ secrets.CSC_KEY_PASSWORD }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
       - uses: actions/upload-artifact@v4
         with:
           name: desktop-mac

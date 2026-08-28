@@ -27,6 +27,10 @@ directories:
 # 🔴 打包完對整個 bundle 做 ad-hoc 簽章 —— 理由與實測數據在該檔檔頭。
 # 少了它，使用者看到的是「檔案已損毀」而不是「未識別的開發者」，而且**沒有放行按鈕**。
 afterPack: ./scripts/after-pack.cjs
+# 🔴 x64 zip 改名成帶 `intel` 字樣**不是**用這裡的 hook 做——實測 `afterAllArtifactBuild`
+# 跑的時候 `latest-mac.yml` 還沒寫出來（理由與實測在 scripts/rename-mac-intel-zip.cjs
+# 檔頭）。改名是 `package.json` 的 `app:build` 在整個 electron-builder CLI 跑完之後
+# 才串接的獨立步驟。
 # 🔴 只放 runtime 真的要的東西。`node_modules` 不進去 —— 相依已經全 bundle 進
 #    `dist-server/index.mjs`（同 zip 那條路，理由見 scripts/package-zip.ts）。
 files:
@@ -42,11 +46,70 @@ files:
   - THIRD-PARTY-NOTICES.md
 mac:
   category: public.app-category.productivity
-  # 🔴 **強制不簽章。** 不寫這一行的話 electron-builder 會**自動撈本機鑰匙圈裡的憑證** ——
-  #    2026-08-27 實測，它撈到了一張**公司的** `Apple Distribution` 憑證並拿去簽。
-  #    這是個人 side project，不可以用公司的身分簽章（見 AGENTS.md 的絕不可做）。
-  #    要簽章是另一次刻意的決定（給別人下載才需要，US$99/年）。
-  identity: null
+  # 🔴 **`identity` 必須寫死，不能留空、不能刪掉這一行。**
+  #    不寫的話 electron-builder 會**自動撈本機鑰匙圈裡的憑證**——2026-08-27 實測，它撈到了
+  #    一張**公司的** `Apple Distribution` 憑證並拿去簽。這是個人 side project，不可以用
+  #    公司的身分簽章（見 AGENTS.md 的絕不可做）。公司那張憑證 Peter 說要**永久留著**在
+  #    本機鑰匙圈，所以這個地雷**永久存在**——`identity` 寫死是唯一的擋法，不是一次性清理。
+  #    `app-builder-lib/out/codeSign/macCodeSign.js` 讀原始碼＋實跑證實：找不到指定憑證時
+  #    的 fallback（`_findIdentity` 的「find non-Apple certificate」分支）會掃「任何不是
+  #    蘋果已知字首的憑證」，而 `Apple Distribution:` 字首**不在**排除清單裡
+  #    （`appleCertificatePrefixes` 只列了四個 Developer ID／3rd Party Mac Developer 字首）
+  #    ——這就是那次「撈到公司憑證」事故的實際成因，只要 `identity` 找不到相符的憑證就會
+  #    掉進這個 fallback，跟有沒有寫這一行無關，重點是**寫的值要能命中**。
+  #    ⚠️ **不可以寫完整的 `Developer ID Application: <名字> (<TEAMID>)` 字串**——
+  #    2026-08-28 本機實跑證實：`findIdentity()` 的 `checkPrefix()` 會對照
+  #    `appleCertificatePrefixes` 四個字首，只要 `identity` 開頭就是其中一個就直接丟
+  #    `InvalidConfigurationError`（"Please remove prefix ... — appropriate certificate
+  #    will be chosen automatically"）；build **失敗**，不是簽錯。**只能寫拿掉型別字首後的
+  #    那段**（名字＋括號裡的 Team ID），它會被當成 qualifier 對 `security find-identity`
+  #    每一行做子字串比對，且比對範圍已經被呼叫端鎖定在 `certType = "Developer ID
+  #    Application"` 這個型別的行內（`_findIdentity` 先找同時符合 qualifier 與
+  #    `"Developer ID Application:"` 字首的那一行）——鎖進去之後，上面那個「找不到才會
+  #    掃到公司憑證」的 fallback 分支根本不會被執行，跟公司那張 `Apple Distribution`
+  #    憑證無關，也不用擔心撈到其他 Team ID 的憑證。
+  #    ⚠️ `CSC_IDENTITY_AUTO_DISCOVERY=false`（`cd.yml` 有設）**不是防線**：
+  #    2026-08-28 讀原始碼實測，這個版本（`electron-builder@26.15.3`）裡它只影響找不到
+  #    憑證時的**警告文字**（`macCodeSign.js` 的 `reportError`），不出現在 `macPackager.js`／
+  #    `MacTargetHelper.js` 真正呼叫 `findIdentity` 的路徑上——只設這個變數、`identity` 留空
+  #    一樣會落入上面那個洞。YAML 值裡若含冒號＋空白會被誤判成巢狀 mapping，**加引號保險**
+  #    （2026-08-28 用 js-yaml 對帶完整字首的版本實測過不加引號會直接 parse 失敗；拿掉字首
+  #    後的這個值本身沒有冒號，不加引號其實也能過，但保留引號避免以後誰改回帶字首的版本時
+  #    連 YAML 都解析不了才發現）。
+  #
+  #    🔴 **這張憑證的效期只到 2027-02-01，不是 Developer ID 慣例的 5 年**（會籍到
+  #    2027-08，兩者對不上）。查證結果（2026-08-28）：這張葉憑證是被舊版中繼 CA
+  #    `Developer ID Certification Authority`（G1，`O=Apple Inc.`，序號
+  #    `187AA9A8C296210C`）簽的，而**那張 CA 自己的 `notAfter` 就是
+  #    `Feb 1 22:12:15 2027 GMT`——跟這張葉憑證的 `notAfter` 精確到秒完全相同**
+  #    （用 AKI/SKI 比對過，確認鏈接的是這張 G1 而不是本機鑰匙圈裡也有的 G2，
+  #    G2 的 `notAfter` 是 `Sep 17 2031`）。葉憑證不可能活得比簽發它的 CA 久，
+  #    所以效期被 G1 的餘命封頂，跟會籍的一年期無關。⇒ **Peter 必須在 2027-02-01 前
+  #    重新產生這張憑證**（下一張多半會鏈到 G2，效期才會恢復正常的 5 年）；到期前
+  #    忘記換的症狀是**簽章這一步突然失敗**，不是「發不出去的舊版還能用」——見下一段。
+  #    🔴 已簽章＋已公證（帶 secure timestamp）的舊版**不受這張憑證到期影響**：
+  #    `notarize`／`codesign --timestamp` 預設會把 RFC 3161 時間戳嵌進簽章，Gatekeeper
+  #    驗證的是「簽章當下憑證有效」而不是「現在有效」，所以憑證單純過期不會讓已經發出去
+  #    的版本突然打不開。**會讓舊版一起壞掉的是撤銷（revocation），不是到期**——
+  #    這兩者是兩回事，混在一起會誤判「忘記換憑證」的後果多嚴重。
+  identity: "Chia-Hao Lu (87B8LUAZ2G)"
+  # 🔴 公證：`mac.notarize`（這個 electron-builder 版本內建，預設開啟，不用另外寫
+  #    `afterSign` 或裝 `@electron/notarize`）在 `identity` 是真實憑證**且**下列三組
+  #    環境變數其中一組存在時自動跑：
+  #    ① `APPLE_API_KEY`／`APPLE_API_KEY_ID`／`APPLE_API_ISSUER`（App Store Connect
+  #    API key——CI 建議這組，不用存 Apple ID 密碼、不會被要求二階段驗證）
+  #    ② `APPLE_ID`／`APPLE_APP_SPECIFIC_PASSWORD`／`APPLE_TEAM_ID`
+  #    ③ `APPLE_KEYCHAIN`／`APPLE_KEYCHAIN_PROFILE`（只適合本機，CI 沒有長駐鑰匙圈）
+  #    CI 另外還需要 `CSC_LINK`（憑證 .p12 的 base64）＋ `CSC_KEY_PASSWORD`（匯出密碼）——
+  #    這組跟上面的公證憑據是**兩件不同的事**：`CSC_LINK` 是「把憑證裝進 CI 的暫時鑰匙圈」，
+  #    `APPLE_*` 是「公證服務登入用」。**兩種都要有** CI 才簽得出來、公證得了。
+  #    `hardenedRuntime`（預設 `true`）與 entitlements 不用另外處理——electron-builder
+  #    內建的 `templates/entitlements.mac.plist` 已經包含 Electron 在 hardened runtime
+  #    下需要的三個 entitlement（allow-jit／allow-unsigned-executable-memory／
+  #    disable-library-validation），這個專案沒有 `build/entitlements.mac.plist` 覆蓋它，
+  #    會自動套用內建版本。⚠️ 這幾點是 2026-08-28 讀原始碼＋本機用真憑證 build 驗證過
+  #    「簽出來的 Authority 是這張個人憑證而不是公司那張」，**公證流程本身沒有實測跑完**
+  #    ——需要網路排隊，且 CI 的 `CSC_LINK`／`APPLE_*` secrets 還沒設定，不在這次改動範圍內。
   # 🔴 **兩種架構都要出**（Peter 2026-08-27：「windows-exe／intel mac／arm mac 都發」）。
   #    只出 arm64 的話，Intel Mac 使用者下載到一個**永遠打不開**的 dmg ——
   #    而那個症狀會被誤認成 GAP-100 那個「檔案已損毀」，他會以為是檔案壞了。

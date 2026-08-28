@@ -62,4 +62,21 @@ describe('卡片腳本的提示', () => {
     showCardToast({});
     expect(texts(useToasts)).toEqual([]);
   });
+
+  /**
+   * 🔴 `source: 'vellum-compat'` 是 `stCompat.ts` 的通道（2026-08-28），
+   * 不是卡片自己講的話 —— 兩條規則都要反過來：不套「角色卡：」、不等使用者先動過。
+   */
+  it('🔴 vellum-compat：不等使用者動過就顯示，前綴是「Vellum：」不是「角色卡：」', async () => {
+    const { showCardToast, useToasts } = await fresh();
+    // 刻意不呼叫 markInteracted() —— 這正是要驗的地方。
+    showCardToast({
+      level: 'warning',
+      text: '這張卡想操作 #extensions_settings2——那是 SillyTavern 專屬的介面元件，Vellum 沒有，這部分功能不會出現。',
+      source: 'vellum-compat',
+    });
+    expect(texts(useToasts)).toEqual([
+      'Vellum：這張卡想操作 #extensions_settings2——那是 SillyTavern 專屬的介面元件，Vellum 沒有，這部分功能不會出現。',
+    ]);
+  });
 });
