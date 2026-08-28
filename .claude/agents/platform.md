@@ -25,12 +25,17 @@ the user, starts, updates, and cannot be trivially broken into.
 **Back end**
 - `server/routes/` — `update.ts` `network.ts` `backgrounds.ts` `chatBackground.ts`
 - `server/lib/releaseNotes.ts`
-- `server/adapters/**` **except** `gemini.ts` (H5's)
+- `server/adapters/**` **except** `gemini.ts` (H5's), `audioFiles.ts` (H8's), `extensionFetch.ts` (H9's)
 - `server/http/**` — `bodyLimits.ts` `hostGuard.ts`
 
 **Build & ship**
 - `scripts/**` (every `gate-*.ts` and `verify-*.ts`)
 - `electron/**` `packaging/**` `.github/**` `electron-builder.yml`
+- `vite.config.ts` `vitest.config.ts` `src/test-setup.ts`
+  🔴 The toolchain that builds and tests everyone's code, not a feature. Peter ruled 2026-08-28.
+- `package.json`
+  🔴 Named claim, not covered by any glob. Another layer adding a dependency opens a ticket
+  to P1 rather than editing it directly. Peter ruled 2026-08-28.
 
 **Tests** — `server/__tests__/<module>.test.ts` for any module above.
 

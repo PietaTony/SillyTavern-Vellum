@@ -13,13 +13,154 @@
  *   3. `- \`dir/\` — a.ts` 之後的縮排續行要沿用同一個 dir 前綴
  *   4. `**except** \`x.ts\`` 是排除語句，不是認領——解析前先整句剝掉
  *
- * 涵蓋率閘：掃到 0 個標的一律 FAIL（exit 2）——0 個項目比對必然「沒有違規」，
- * 那是假綠燈，不是乾淨。標的清單是 AGENTS.md 現況實際維護的六個目錄／四種 glob，
- * 不是憑空定義；改了目錄結構要一起改 `TOP_DIRS` 等常數。
+ * 2026-08-28 補洞（第一輪）：一支 fresh-context verifier 做了 23 次突變，判決是
+ * 「無孤兒」只在原本劃定的掃描範圍內成立，範圍外放新檔進去，本閘門 exit 0 靜默
+ * PASS。又加了兩類判斷，改的時候一樣不要繞過去重犯：
+ *   5. `covered()` 原本 own → X → glob **依序查、從不互撞**——一個 agent 在 §1
+ *      具名認領了「AGENTS.md §2 的無主檔」或「別人 glob 底下的既有檔」都會靜默
+ *      PASS。`crossCheckClaims()` 補上這兩種對撞；合法的 `**except**` 具名例外
+ *      不算——例外清單從**未剝除 except 子句的原文**單獨抽取（`extractExceptions`），
+ *      跟被剝過的 `ownedSection()` 是兩條平行的解析路徑，不要合併，合併就會把
+ *      例外本身也剝掉，讓它拿不到自己要放行的那個路徑。
+ *   6. 掃描範圍（`buildTargets`）本身太窄：`listFiles()` 不遞迴、副檔名縮限，
+ *      造成五個位置的孤兒永遠測不到——`server/` 根目錄、`server/lib/` 以下的新子
+ *      目錄、`src/app/` 以下的新子目錄、`src/` 根目錄、`src/app/routes/*.ts`（原本
+ *      只 walk `.tsx`）。現在 `server/` 與 `src/app/` 全部遞迴掃（除了下面第 8 點
+ *      排除的 `__tests__/`），`src/` 根目錄與 repo 根目錄的具名檔另外列。
+ *   7. `src/features/**` 維持**目錄粒度**，不遞迴到檔案層。10 個現存子目錄底下
+ *      約 202 個檔，每一個都已被某個 agent 的 `src/features/<name>/**` glob
+ *      整組認領；遞迴進去對「抓孤兒」買不到任何東西，只會讓標的數暴增。
+ *      四個綠地層（audio/commands/extensions/presets）的 glob 指向的目錄現在
+ *      還不存在，那是刻意的（`AGENTS.md` §1：先宣告檔案再寫它）——`readdirSync`
+ *      只列現存目錄，不存在的目錄不會被當孤兒，也不需要額外的「未使用 glob」
+ *      檢查去豁免它們。
+ *   8. `server/__tests__/` `src/app/__tests__/`（AGENTS.md X4，兩個扁平目錄、
+ *      檔名決定歸屬）完全沒有機制守——這一輪刻意排除，**但排除的檔數要印出來**
+ *      （PASS 訊息裡的「另外排除」那段），不然它會變成下一個看不見的洞。
+ *      X4 的文字本身不影響這支的掃描結果——它的排除規則寫死在 `buildTargets()`
+ *      裡（`SKIP` 這個目錄名集合），不是讀 `AGENTS.md` 解析出來的；兩邊只是
+ *      約定要講同一句話，不是同一份資料來源。
+ *
+ * 2026-08-28 補洞（第二輪）：同一支 verifier 再打了約 20 次，判「部分成立」——
+ * 上一輪修的東西裡有一半**沒被 `--selftest` 真的守到**，是裝飾品。這輪修四個：
+ *   9. 🔴 **`--selftest` 從沒呼叫過 `walk()`／`buildTargets()`。** 把 `walk()`
+ *      的遞迴呼叫整條砍掉，標的數從 171 崩到 29，`--selftest` 跟真跑都照樣 PASS。
+ *      現在 `--selftest` 直接對 `walk()` 跑一棵臨時造的巢狀 fixture（用完即刪），
+ *      斷言遞迴真的鑽得到三層深；另外對 `buildTargets()` 的**六個掃描根各自**
+ *      斷言至少一個標的證明那一段邏輯真的執行了（server/ 與 src/app/ 用「巢狀
+ *      深度」證明遞迴有效，其餘四段用「該類標的存在」證明那行程式碼真的跑了）。
+ *   10. 🔴 **涵蓋率閘只擋 0，不擋「變很少但還不到 0」。** 加了 `coverageFloor()`：
+ *      拿 `server/` 與 `src/app/` 這兩個遞迴掃描根的「深/淺比」當尺——不寫死一個
+ *      會過期的總數常數（新增檔案時深、淺兩邊會一起長，比例不太動；只有 `walk()`
+ *      真的不遞迴了，深的那邊才會塌到跟淺的一樣）。實測現況比例約 12.8（深 154／
+ *      淺 12），門檻定 3 留了大量安全邊界；`walk()` 遞迴被砍掉時比例塌到約 1。
+ *   11. `crossCheckClaims()` 原本只拿 `own`（具名認領）去對撞 X／Xg／別人的
+ *      glob——**glob 對 glob 本身從不對撞任何東西**，而 `src/features/**` 這類
+ *      目錄多半就是靠 glob 宣告，不是具名逐檔，第②類壞法在 glob 層級完全失守。
+ *      補了兩件事：(a) `globs` 原本用 `Map.set()` 累積，兩個 agent 逐字宣告
+ *      同一個 glob 時後寫入的會**靜默覆蓋**前一個，連「兩人都宣告」這件事本身
+ *      都消失——改成跟具名檔同一套 `claim`/`addDup` 機制（`claimGlob`），寫進
+ *      `globDup`；(b) 就算字面不同但前綴重疊（例如某 agent 宣告了 Xg 底下的
+ *      `src/shared/**`，或兩個 agent 一個宣告 `x/**` 一個宣告 `x/y/**`），
+ *      `crossCheckClaims()` 現在兩兩比對所有 glob 前綴，也比對 X／Xg。
+ *   12. `**except** \`x.ts\`` 的例外清單原本只用來「不要誤判成重複」，從不驗證
+ *      那個路徑真的有主——手滑漏寫某個 agent 的具名認領時，那支檔會靜默被排除
+ *      清單掩蓋、改姓給宣告 glob 的那一層，沒有紅燈。加了 `unclaimedExceptions()`：
+ *      每一個例外路徑都要能在 `own` 裡找到真正的認領者，找不到就是孤兒穿著例外
+ *      的外衣，直接 FAIL。順便把 `extractExceptions()` 的擷取正則收緊：舊版是
+ *      「`**except**` 之後這一行所有反引號 `.ts` 檔名全算」，連寫在括號說明文字
+ *      裡順口提到的檔名（`**except** \`a.ts\` (replaces the old \`b.ts\` shim)`
+ *      裡的 `b.ts`）都會被誤收進合法例外——現在要求每個被算進例外的檔名**緊接著
+ *      自己的一組 `(...)`**（既有寫法 `\`a.ts\` (H5's)` 本來就是這個形狀），
+ *      只在括號說明文字裡被提到、後面沒有立刻接自己括號的檔名不算。
+ *
+ * 2026-08-28 補洞（第三輪）：同一支 verifier 再打了約 25 次，判「部分成立」——
+ * 找到兩個新洞（其中兩處其實是同一個病）：
+ *   🔴 **每加一條新的平行解析路徑，都要重新問一次上面這份舊坑清單。** 這支檔第
+ *      一輪就承認過「例外清單跟 `ownedSection()` 是兩條平行路徑，不要合併」，
+ *      但沒有把這句話推廣成規則——結果坑②（🔴 說明段跳過）在具名檔那條路徑修過
+ *      一次之後，同一個坑在 glob 那條路徑、`nobodyOwns()` 那條路徑完全沒補到。
+ *      下面 5-2、5-1 就是這兩個沒補到的坑，補的方式是把「說明段跳過」收成
+ *      `stripNotes()` 一個函式，三條路徑都呼叫它，不再各自維護一份判斷。
+ *   5-2. `parseClaims()` 原本只在具名檔那段逐行呼叫 `nextNoteState`；glob 的擷取
+ *      （`body.matchAll(GLOB_RE)`）是對整段原文跑的，說明段裡順口提到別人的 glob
+ *      做澄清（例如「🔴 not \`x/**\`，that's H9's」）會被誤認領成自己的。現在
+ *      glob 擷取跟具名檔一樣，先過 `stripNotes()`。
+ *   5-1. `nobodyOwns()`（`AGENTS.md` §2）完全沒有說明段的概念——不是漏補
+ *      `stripNotes()`，是它原本對整段 §2 原文（一張 markdown 表格）跑正則，
+ *      不分欄。§2 沒有「🔴 段落」這種結構，有的是「表格欄位」：Why／What to do
+ *      欄本來就會提到別人的檔名做澄清（X4 那一列現在就在用：「\`chatFile.test.ts\`
+ *      is H1's」），跟坑②是同一條律的另一種寫法——「只有結構上指定的宣告位置算數，
+ *      其餘都是解釋文字」，只是具名檔／glob 用「🔴 開頭到下一個 bullet」界定，
+ *      §2 用「表格第幾欄」界定。加了 `pathsColumnOnly()`：只取每一列的第 2 個
+ *      cell（Paths 欄），其餘欄位與表格外的散文（例如「### Not owned by anyone」
+ *      那段）一律不算。
+ *   5-3. PASS 訊息裡「排除 __tests__ N 個檔」的 N 是錯的——舊版只加
+ *      `server/__tests__/` 與 `src/app/__tests__/` 兩個寫死的路徑，漏算了
+ *      `src/app/screens/__tests__/`（同一個目錄名，巢狀在更深的地方；`walk()`
+ *      的 `SKIP` 判斷其實在任何深度都會跳過它，回報用的計數卻只知道兩個固定
+ *      位置）。改成 `countTestFiles()`：遞迴找「目錄名剛好叫 __tests__」，
+ *      不管深度，跟 `walk()` 實際跳過的範圍用同一套判斷方式，數字才不會脫節。
+ *      一個錯的數字比沒有數字更糟——它看起來像已經被量過了。
+ *   A2. `coverageFloor()` 的深/淺比會被**合規的成長**壓垮：往 `server/` 或
+ *      `src/app/` 頂層加檔（合規、常見的成長模式）會讓「淺」那邊漲得比「深」
+ *      快，比例往下掉，跟「遞迴真的斷了」長得一樣，紅燈訊息卻只會講後者，
+ *      把人導去查一個沒壞的地方。換成兩把不受頂層新檔影響的尺（`deep` 絕對數
+ *      下限 ＋ `maxDepth` 遞迴層數下限），細節見 `coverageFloor()` 自己的檔頭。
+ *
+ * 2026-08-28 補洞（第五輪）：同一支 verifier 再打了約 25 次，判「部分成立」——
+ * 找到四個洞，優先序照嚴重度排：
+ *   C2（最高）：`coverageFloor()` 量的是「整個掃描根」的總深度／總鑽層數，粒度
+ *      太粗——**整個子目錄**（`server/lib/` 48 檔、`server/routes/` 20 檔、
+ *      `src/app/screens/` 19 檔）從 `targets` 消失，deep／maxDepth 兩把舊尺全部
+ *      放行，而且這些檔根本沒進 `targets`，孤兒偵測永遠測不到它們——比「floor
+ *      沒抓到」更安靜，連 FAIL 訊息都不會有。補了 `subdirCoverage()`：對每個
+ *      掃描根底下的一級子目錄，用 Node 內建的 `readdirSync(dir, {recursive:true})`
+ *      （不是 `walk()` 那段手寫遞迴）獨立算一次「有沒有 .ts 檔」，跟 `targets`
+ *      對不上就是整個子目錄被跳過了。細節、以及「為什麼這把尺不會跟 `walk()`
+ *      一起壞」見 `subdirCoverage()` 自己的檔頭。
+ *   B3：說明段的判斷原本只認「🔴 在行首」——`providers.md:21` 這種「🔴 在句子
+ *      中間、整行本身又是 bullet」的形狀完全不觸發，🔴 之後的文字被當成正常內容
+ *      解析。今天安全只是巧合（那句說明裡沒帶反引號檔名）；複驗造了同款帶檔名
+ *      的版本餵給真正的 `parseClaims()`，檔名被靜默誤認領——四個洞裡唯一一個
+ *      「閘門維持綠燈但歸屬是錯的」。
+ *   B1：說明段只在「下一個 bullet」出現時才結束——`bullet → 🔴 說明 → 真續行`
+ *      這種形狀裡，真續行不是 bullet，被整段吃掉，沒人認領。這不是這輪的迴歸，
+ *      是 `nextNoteState` 從第一輪就有的重置條件本身的洞，現有八支定義檔剛好都
+ *      是「先列完檔、🔴 說明才放最後」，所以從沒踩過——但這是這個 repo 最自然的
+ *      下一步編輯。
+ *   B3／B1 兩個一起改：`stripNotes()` 現在逐字元找 🔴（不假設在行首、不假設這行
+ *      不是 bullet），🔴 之前的文字照常解析；說明段的結束條件除了「下一個 bullet」
+ *      多加一條「整行只由反引號檔名／逗號／空白組成」（`isPureFileListLine()`）
+ *      ——這才是坑③要接回去的真續行的樣子，跟散文說明句在形狀上不會混淆。
+ *   D：`extractExceptions()` 的 `**except**` 例外清單原本假設「一組括號只幫一個
+ *      緊接著的檔名背書」——`` `a.ts`, `b.ts` (both H5's) `` 這種一組括號幫一串
+ *      逗號分隔檔名背書的寫法下，只有緊接括號的 `b.ts` 進例外清單，`a.ts` 沒有，
+ *      會被 `unclaimedExceptions()`（坑⑫）誤判成孤兒穿例外外衣、悄悄改姓給宣告
+ *      glob 的那個 agent。`EXCEPT_GROUP_RE` 先抓「一串連續、逗號分隔、緊接同一組
+ *      括號」的檔名區塊，再從區塊裡逐一抽檔名——中等坑 4（括號說明文字裡順口提到
+ *      的檔名不算）沒有被這次改動打開，因為「區塊」在遇到非「逗號+反引號檔名」的
+ *      字元就停止延伸，括號內文字不會被當成區塊的一部分。
+ *
+ * 🔴 **46 條全綠只證明這 46 種已知形狀被擋住，不證明沒有第 47 種。** 這一輪找到
+ * 的四個洞都不在原本那 46 條裡，而且 B3 用的是 repo 裡**已經存在**的寫法
+ * （`providers.md:21`）、C2 打的是**最普通**的一種 bug（子目錄整個被跳過）——
+ * 兩者都不是刁鑽的邊界案例，是這支檔案本來就該擋、卻沒擋住的日常形狀。改這支
+ * 檔案的人下一次也不該假設「現有案例都綠 = 沒有下一個洞」。
  *
  * 自證：pnpm exec tsx scripts/gate-ownership.ts --selftest
  */
-import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
+import {
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readdirSync,
+  readFileSync,
+  rmSync,
+  statSync,
+  writeFileSync,
+} from 'node:fs';
+import { tmpdir } from 'node:os';
 import { join, relative } from 'node:path';
 
 const ROOT = new URL('..', import.meta.url).pathname;
@@ -29,9 +170,24 @@ type OwnerMap = Map<string, string>;
 type DupMap = Map<string, Set<string>>;
 
 const GLOB_RE = /`([\w$./@-]+\/\*\*)`/g;
-const FILE_RE = /`([\w$./-]+\.tsx?)`/g;
+const FILE_RE = /`([\w$./-]+\.tsx?|package\.json)`/g;
+// 例外清單只算「緊接著自己那組括號說明」的檔名——見檔頭第 12 點。
+// 第五輪坑 D：一組括號可以幫**逗號分隔的一串檔名**背書（`a.ts`, `b.ts` (both H5's)），
+// 不是只有「單一檔名 + 自己的括號」這一種形狀——`EXCEPT_GROUP_RE` 先抓「一串連續、
+// 以逗號分隔、緊接著同一組括號」的檔名區塊，`EXCEPT_FILE_RE` 再從那個區塊裡逐一
+// 抽出檔名。括號*說明文字裡*順口提到的檔名不會落在「區塊」裡（區塊在遇到非「逗號+
+// 反引號檔名」的字元就會停止延伸），所以中等坑 4（`gemini.ts` (replaces the old
+// `legacyAdapter.ts` shim)）依然只抽得到 `gemini.ts`，不會被這次的改動打開。
+const EXCEPT_GROUP_RE =
+  /((?:`(?:[\w$./-]+\.tsx?|package\.json)`)(?:\s*,\s*`(?:[\w$./-]+\.tsx?|package\.json)`)*)\s*\([^)]*\)/g;
+const EXCEPT_FILE_RE = /`([\w$./-]+\.tsx?|package\.json)`/g;
 const DIR_BULLET = /^\s*-\s*`([\w/.$-]+\/)`\s*—(.*)$/;
 const BULLET = /^\s*-\s/;
+const TEST_DIR_NAME = '__tests__';
+// repo-root 具名檔——Peter 2026-08-28 裁定，見 `.claude/agents/platform.md` §1「Build & ship」
+const ROOT_FILES = ['package.json', 'vite.config.ts', 'vitest.config.ts'];
+// 涵蓋率下限的兩個常數（`MIN_DEEP_COUNT`、`MIN_RECURSION_DEPTH`）定義在 `coverageFloor` 旁邊——
+// 見那邊的檔頭，A2 那一輪把深/淺比換成這兩把絕對尺。
 
 function claim(own: OwnerMap, dup: DupMap, path: string, agent: string): void {
   const existing = own.get(path);
@@ -39,25 +195,139 @@ function claim(own: OwnerMap, dup: DupMap, path: string, agent: string): void {
     own.set(path, agent);
     return;
   }
-  if (existing !== agent) {
-    const s = dup.get(path) ?? new Set<string>();
-    s.add(existing);
-    s.add(agent);
-    dup.set(path, s);
+  if (existing !== agent) addDup(dup, path, existing, agent);
+}
+
+function addDup(dup: DupMap, path: string, a: string, b: string): void {
+  const s = dup.get(path) ?? new Set<string>();
+  s.add(a);
+  s.add(b);
+  dup.set(path, s);
+}
+
+/**
+ * Glob 認領跟具名檔用同一套衝突偵測（見檔頭第 11 點 a）。直接 `Map.set()` 會讓
+ * 後寫入的 agent 覆蓋前一個，兩個 agent 逐字宣告同一個 glob 就會從紀錄裡消失
+ * ——不是「沒偵測到」，是資料本身在解析階段就被抹掉了。
+ */
+function claimGlob(globs: OwnerMap, globDup: DupMap, g: string, agent: string): void {
+  const existing = globs.get(g);
+  if (existing === undefined) {
+    globs.set(g, agent);
+    return;
   }
+  if (existing !== agent) addDup(globDup, g, existing, agent);
 }
 
-/** 坑① + 坑④：只取 §1，且把 **except** 排除句整句剝掉。 */
-export function ownedSection(text: string): string {
+/** 只取 §1（坑①）。 */
+export function extractSection(text: string): string {
   const m = text.match(/## 1 · Files you own\n([\s\S]*?)\n## 2 · Files you must not write/);
-  return (m?.[1] ?? '').replace(/\*\*except\*\*[^\n]*/g, '');
+  return m?.[1] ?? '';
 }
 
-/** 是否進入／仍在「🔴 說明段」——坑②整段跳過，直到下一個 bullet。 */
-function nextNoteState(line: string, note: boolean): boolean {
-  if (line.trimStart().startsWith('🔴')) return true;
-  if (BULLET.test(line)) return false;
-  return note;
+/** 坑④：把 **except** 排除句整句剝掉，剩下的才拿去找「認領」。先過 `stripNotes()`。 */
+export function ownedSection(text: string): string {
+  return stripNotes(extractSection(text)).replace(/\*\*except\*\*[^\n]*/g, '');
+}
+
+/**
+ * 例外清單要在剝除 `**except**` 之前抽——剝完之後那句話本身就不在了，
+ * 沒有東西可以抽。跟 `ownedSection()` 是兩條平行路徑，不要合併。
+ *
+ * 一行可以列不只一個例外（`**except** \`a.ts\` (H8's), \`b.ts\` (H9's)`）——
+ * `**except**` 後面到行尾的每一個「具名檔緊接自己括號說明」都算。只出現在
+ * 別的檔名括號說明文字裡的反引號檔名不算——見檔頭第 12 點。
+ *
+ * 內部自己呼叫 `stripNotes()`（不假設呼叫方已經處理過）——說明段裡順口寫一句
+ * 帶 `**except**` 字樣的話（例如解釋另一支檔為什麼不算例外）不該被誤收。
+ */
+export function extractExceptions(rawSection: string): Set<string> {
+  const out = new Set<string>();
+  for (const line of stripNotes(rawSection).split('\n')) {
+    const idx = line.indexOf('**except**');
+    if (idx === -1) continue;
+    const glob = [...line.slice(0, idx).matchAll(GLOB_RE)].pop()?.[1] ?? '';
+    if (!glob) continue;
+    // 第五輪坑 D：先抓「檔名, 檔名, ... (括號)」整塊，再從塊裡逐一抽檔名——
+    // 一組括號底下可能不只一個檔名。
+    for (const gm of line.slice(idx).matchAll(EXCEPT_GROUP_RE)) {
+      const group = gm[1] ?? '';
+      for (const fm of group.matchAll(EXCEPT_FILE_RE)) {
+        const file = fm[1] ?? '';
+        if (file) out.add(glob.slice(0, -2) + file);
+      }
+    }
+  }
+  return out;
+}
+
+/**
+ * 一行「去掉所有反引號檔名 token、逗號、空白之後」還剩不剩東西——用來分辨
+ * 「純粹是檔名列表的續行」（坑③要接得回去的那種）跟「說明段的散文續行」
+ * （坑②要繼續跳過的那種）。見第五輪坑 B1 的檔頭說明。
+ */
+function isPureFileListLine(line: string): boolean {
+  const trimmed = line.trim();
+  if (!trimmed) return false;
+  const residue = trimmed.replace(/`(?:[\w$./-]+\.tsx?|package\.json)`/g, '').replace(/[,\s]/g, '');
+  return residue.length === 0;
+}
+
+/**
+ * 🔴 說明段跳過的**唯一實作**——第三輪的教訓：這支檔案有三條平行的解析路徑
+ * （具名檔、glob、`nobodyOwns()`），坑②原本只在具名檔那條路徑手工做了一次
+ * （逐行呼叫舊版的 `nextNoteState`），glob 那條路徑對整段 `body` 原文做正則、完全
+ * 不管說明段；`nobodyOwns()` 更誇張——連「說明段」這個概念都沒有，是對整個 §2
+ * 原文做正則。兩邊都被複驗用「模仿既有行文的澄清句」打穿，見檔頭 5-1／5-2。
+ *
+ * 現在只有這一個函式知道「🔴 到下一個 bullet 之間不算」，`parseClaims()` 的具名檔
+ * 迴圈與 glob 擷取都呼叫它，不再各自維護一份 `note` 狀態機。
+ *
+ * 第五輪補了兩個這個函式自己漏掉的形狀（複驗坑 B3／B1，見檔頭第五輪說明）：
+ *   B3：舊版只認「🔴 在行首」（`line.trimStart().startsWith('🔴')`）。`providers.md:21`
+ *      的真實寫法是 `` - `server/adapters/gemini.ts` — 🔴 in `adapters/`, not `lib/` `` ——
+ *      🔴 在句子中間，這整行本身又是一個 bullet，舊版判斷「先看 🔴 再看 bullet」，
+ *      bullet 贏，於是整行被當成「不是說明段」，🔴 之後的文字完全沒被剝掉。今天
+ *      安全只是運氣好（🔴 後面沒帶反引號檔名）；同一句型只要換成提另一個 agent
+ *      的檔名，就會被「行是 bullet」這個判斷誤放行、靜默認領。現在改成**在行內找
+ *      🔴 的位置**，不管它是不是在行首、這行是不是 bullet——🔴 之前的文字照常解析
+ *      （bullet／dir 前綴／檔名都在那一段），🔴 之後（含它自己）進入說明段狀態，
+ *      沿用到下一個 bullet 或下一個「純檔名列表行」為止。
+ *   B1：舊版的說明段只在遇到「下一個 bullet」才結束——`bullet → 🔴 說明 → 真續行`
+ *      這種形狀裡，真續行不是 bullet，於是被整行吃掉，沒人認領。這不是這一輪的
+ *      迴歸，是 `nextNoteState` 從第一輪就有的重置條件本身的洞（見檔頭第三輪
+ *      5-1/5-2 之後的教訓：往設計層查，不要往抽取過程查）。現有八支定義檔目前都
+ *      是「先列完檔、最後才接 🔴」，所以這個洞從沒被踩過——但這正是這個 repo 最
+ *      自然的下一步編輯（先列幾個檔、中間插一句澄清、再補幾個檔）。用
+ *      `isPureFileListLine()` 當第二個結束說明段的條件：一行如果**整行**只由反
+ *      引號檔名（加逗號、空白）組成、沒有任何散文字，判定它是坑③要接的真續行，
+ *      不是說明段的自然語言延伸——說明段的每一句到現在為止都至少帶一個介詞／
+ *      標點以外的英文字，兩者不會混淆。這是啟發式，不是語法分析：如果哪天有人
+ *      寫出「見 `a.ts`, `b.ts`」這種說明句、又剛好整行只有這兩個 token 跟逗號，
+ *      會被誤判成真續行——但目前 repo 裡沒有這種寫法，而且這種誤判的後果只是
+ *      「多認領兩個本來就相關的檔名」，不是「弄丟一個孤兒」，風險不對稱地小。
+ */
+export function stripNotes(body: string): string {
+  const out: string[] = [];
+  let note = false;
+  for (const line of body.split('\n')) {
+    if (note) {
+      if (BULLET.test(line) || isPureFileListLine(line)) {
+        note = false; // 新 bullet 或純檔名續行都會結束說明段——往下重新解析這一行
+      } else {
+        out.push('');
+        continue;
+      }
+    }
+    const idx = line.indexOf('🔴');
+    if (idx === -1) {
+      out.push(line);
+      continue;
+    }
+    out.push(line.slice(0, idx)); // 🔴 之前的文字照常保留（bullet／檔名都在這一段）
+    note = true; // 🔴 自己與之後的文字都算說明段，即使這一行本身是 bullet
+  }
+  return out.join('\n');
 }
 
 /** 坑③：`- \`dir/\` — a.ts` 更新目錄前綴；續行（非 bullet）沿用舊前綴。 */
@@ -83,48 +353,151 @@ function claimFilesIn(
   }
 }
 
-/** 坑② + 坑③：逐行解析，說明段跳過、目錄前綴延續到續行。 */
+/**
+ * 坑② + 坑③：逐行解析，說明段跳過、目錄前綴延續到續行。
+ *
+ * 5-2：glob 擷取原本對整段 `body` 原文跑 `GLOB_RE`，跑在說明段跳過**之前**——
+ * 一句「🔴 not `x/**` (that's H9's, just flagging for clarity)」會讓 `x/**`
+ * 被本 agent 誤認領。現在跟具名檔那條路徑共用同一份 `stripNotes()`，兩條路徑
+ * 看到的都是已經拿掉說明段的文字，不再各自決定「要不要跳」。
+ */
 export function parseClaims(
   body: string,
   agent: string,
   own: OwnerMap,
   dup: DupMap,
   globs: Map<string, string>,
+  globDup: DupMap,
 ): void {
-  for (const g of body.matchAll(GLOB_RE)) globs.set(g[1] ?? '', agent);
+  const stripped = stripNotes(body);
+  for (const g of stripped.matchAll(GLOB_RE)) claimGlob(globs, globDup, g[1] ?? '', agent);
 
   let cur: string | null = null;
-  let note = false;
-  for (const line of body.split('\n')) {
-    note = nextNoteState(line, note);
-    if (note) continue;
+  for (const line of stripped.split('\n')) {
     const ctx = nextLineContext(line, cur);
     cur = ctx.cur;
     claimFilesIn(ctx.rest, cur, agent, own, dup);
   }
 }
 
-function loadAgentClaims(): { own: OwnerMap; dup: DupMap; globs: Map<string, string> } {
+function loadAgentClaims(): {
+  own: OwnerMap;
+  dup: DupMap;
+  globs: Map<string, string>;
+  globDup: DupMap;
+  exceptions: Set<string>;
+} {
   const own: OwnerMap = new Map();
   const dup: DupMap = new Map();
   const globs = new Map<string, string>();
+  const globDup: DupMap = new Map();
+  const exceptions = new Set<string>();
   for (const f of readdirSync(AGENTS_DIR)
     .filter((n) => n.endsWith('.md'))
     .sort()) {
     const agent = f.slice(0, -3);
-    parseClaims(ownedSection(readFileSync(join(AGENTS_DIR, f), 'utf8')), agent, own, dup, globs);
+    const raw = readFileSync(join(AGENTS_DIR, f), 'utf8');
+    // 曾經在這裡手刻一份 `.replace(/\*\*except\*\*.../, '')`，跟 `ownedSection()`
+    // 是同一段邏輯的第二份拷貝——兩份一致是巧合，不是保證。現在只有一份。
+    for (const p of extractExceptions(extractSection(raw))) exceptions.add(p);
+    parseClaims(ownedSection(raw), agent, own, dup, globs, globDup);
   }
-  return { own, dup, globs };
+  return { own, dup, globs, globDup, exceptions };
+}
+
+/**
+ * 5-1：`AGENTS.md` §2 是 markdown 表格（`| 標籤 | Paths | Why | What to do |`），
+ * 舊版對整段 §2 原文跑 `FILE_RE`／`GLOB_RE`，不分欄——「Why」「What to do」欄本來
+ * 就會提到別的 agent 的檔名做澄清（X4 那一列現在就在用這種寫法：「`chatFile.test.ts`
+ * is H1's」），舊版把這種澄清當成「這個檔案沒人管」，跟具名認領它的 agent 撞出假重複。
+ *
+ * 這是跟 5-2 同一條律的另一種寫法：具名檔／glob 那兩條路徑用 `🔴` 開頭的**段落**
+ * 界定「這不是宣告」；§2 是表格，沒有段落可言，界定「這是宣告」的結構是**欄位**——
+ * 只有「Paths」欄（每一列的第 2 個 cell）算數，其餘欄位、以及表格外的說明段落
+ * （例如「### Not owned by anyone」那段散文），無論裡面提到什麼檔名都不算。
+ */
+export function pathsColumnOnly(section: string): string {
+  const out: string[] = [];
+  for (const line of section.split('\n')) {
+    if (!line.trimStart().startsWith('|')) continue;
+    out.push(line.split('|')[2] ?? '');
+  }
+  return out.join('\n');
+}
+
+export function parseNobodyOwnsSection(section: string): { X: Set<string>; Xg: Set<string> } {
+  const body = pathsColumnOnly(section);
+  return {
+    X: new Set([...body.matchAll(FILE_RE)].map((x) => x[1] ?? '')),
+    Xg: new Set([...body.matchAll(GLOB_RE)].map((x) => x[1] ?? '')),
+  };
 }
 
 function nobodyOwns(): { X: Set<string>; Xg: Set<string> } {
   const text = readFileSync(join(ROOT, 'AGENTS.md'), 'utf8');
   const m = text.match(/## 2 · Files nobody owns\n([\s\S]*?)\n## 3 ·/);
-  const body = m?.[1] ?? '';
-  return {
-    X: new Set([...body.matchAll(FILE_RE)].map((x) => x[1] ?? '')),
-    Xg: new Set([...body.matchAll(GLOB_RE)].map((x) => x[1] ?? '')),
-  };
+  return parseNobodyOwnsSection(m?.[1] ?? '');
+}
+
+/**
+ * 坑⑤＋坑⑪：`own`（具名認領）跟 `globs`（glob 認領）都要跟「沒人認領」與
+ * 「別人的宣告」對撞，不只跟同類的自己對撞。
+ *   ⑤a／⑤b own  vs X／Xg／別人的 glob（見檔頭第 5 點）
+ *   ⑪a     glob 對 glob 逐字重複——`globDup` 在解析階段就記下來了，這裡併回主 dup
+ *   ⑪b     glob vs X／Xg／別人的 glob（前綴重疊，字面不同）——見檔頭第 11 點
+ * 全域跑（不只掃 targets 裡的檔）——宣告本身衝突，不需要等它出現在掃描範圍裡才算數。
+ */
+export function crossCheckClaims(
+  own: OwnerMap,
+  dup: DupMap,
+  X: Set<string>,
+  Xg: Set<string>,
+  globs: Map<string, string>,
+  exceptions: Set<string>,
+  globDup: DupMap,
+): void {
+  for (const [path, agent] of own) {
+    if (X.has(path)) addDup(dup, path, agent, 'X');
+    for (const g of Xg) if (path.startsWith(g.slice(0, -2))) addDup(dup, path, agent, 'X');
+
+    if (exceptions.has(path)) continue;
+    for (const [g, gAgent] of globs) {
+      if (gAgent === agent) continue;
+      if (path.startsWith(g.slice(0, -2))) addDup(dup, path, agent, gAgent);
+    }
+  }
+
+  // ⑪a：逐字重複的 glob——`globDup` 已經在 parseClaims 階段記過，這裡併回主 dup。
+  for (const [g, agents] of globDup) {
+    const list = [...agents];
+    for (let i = 0; i < list.length; i++)
+      for (let j = i + 1; j < list.length; j++) addDup(dup, g, list[i] ?? '', list[j] ?? '');
+  }
+
+  // ⑪b：字面不同但前綴重疊——glob vs X／Xg／別人的 glob。
+  const entries = [...globs.entries()];
+  for (let i = 0; i < entries.length; i++) {
+    const [gA, agentA] = entries[i] ?? ['', ''];
+    const prefixA = gA.slice(0, -2);
+
+    for (const x of X) if (x.startsWith(prefixA)) addDup(dup, gA, agentA, 'X');
+    for (const gx of Xg) {
+      const prefixX = gx.slice(0, -2);
+      if (prefixA.startsWith(prefixX) || prefixX.startsWith(prefixA)) addDup(dup, gA, agentA, 'X');
+    }
+    for (let j = i + 1; j < entries.length; j++) {
+      const [gB, agentB] = entries[j] ?? ['', ''];
+      if (agentA === agentB) continue;
+      const prefixB = gB.slice(0, -2);
+      if (prefixA.startsWith(prefixB) || prefixB.startsWith(prefixA))
+        addDup(dup, gA, agentA, agentB);
+    }
+  }
+}
+
+/** 坑⑫：例外清單裡的每一個路徑，都要能在 `own` 裡找到真正的具名認領者。 */
+export function unclaimedExceptions(exceptions: Set<string>, own: OwnerMap): string[] {
+  return [...exceptions].filter((p) => !own.has(p)).sort();
 }
 
 function covered(
@@ -141,44 +514,220 @@ function covered(
   return null;
 }
 
-// ── 標的清單：AGENTS.md 現況實際維護的目錄／glob，不是憑空定義 ──
-const TOP_DIRS = [
-  'server/routes',
-  'server/lib',
-  'server/services',
-  'server/adapters',
-  'server/http',
-  'src/app',
-];
-
 function listFiles(dir: string, ext: RegExp): string[] {
   if (!existsSync(dir)) return [];
   return readdirSync(dir)
     .filter((n) => statSync(join(dir, n)).isFile() && ext.test(n))
     .sort();
 }
-function walk(dir: string, ext: RegExp, out: string[] = []): string[] {
+
+/** 遞迴 walk；`skipDirNames` 命中的目錄整棵不下鑽（用來排除 `__tests__/`）。 */
+function walk(
+  dir: string,
+  ext: RegExp,
+  out: string[] = [],
+  skipDirNames: ReadonlySet<string> = new Set(),
+): string[] {
   if (!existsSync(dir)) return out;
   for (const n of readdirSync(dir)) {
+    if (skipDirNames.has(n)) continue;
     const p = join(dir, n);
-    if (statSync(p).isDirectory()) walk(p, ext, out);
+    if (statSync(p).isDirectory()) walk(p, ext, out, skipDirNames);
     else if (ext.test(p)) out.push(relative(ROOT, p));
   }
   return out;
 }
 
-export function buildTargets(): string[] {
-  const targets: string[] = [];
-  for (const d of TOP_DIRS)
-    for (const f of listFiles(join(ROOT, d), /\.tsx?$/)) targets.push(`${d}/${f}`);
-  for (const f of listFiles(join(ROOT, 'src/app/screens'), /\.tsx?$/))
-    targets.push(`src/app/screens/${f}`);
-  targets.push(...walk(join(ROOT, 'src/app/routes'), /\.tsx$/));
-  targets.push(...walk(join(ROOT, 'server/providers'), /\.ts$/));
+/**
+ * 5-3：`server/__tests__/` 底下的檔數 ＋ `src/app/__tests__/` 底下的檔數——
+ * 舊版只加這兩個**寫死的路徑**，漏算了 `src/app/screens/__tests__/`（巢狀在
+ * `src/app/screens/` 底下，同一個目錄名，`walk()` 的 `SKIP` 判斷其實在任何深度
+ * 都會跳過它，但舊版的「回報用」計數只知道兩個固定位置，兩者對不上）。
+ * 改成跟 `walk()` 用同一套判斷方式——遞迴找「目錄名剛好叫 `__tests__`」，不管
+ * 深度，數字就不會再跟 `SKIP` 實際跳過的範圍脫節。
+ *
+ * 🔴 只數 `server/` 與 `src/app/` 這兩個遞迴掃描根底下的——`src/features/**` 是
+ * 目錄粒度（本來就不會遞迴進去看 `__tests__/`），`src/shared/**` 是 X1（本來就
+ * 不在這支的掃描範圍內）。這兩類的 `__tests__/` 不是「排除」，是「本來就沒被掃到」，
+ * 兩種概念不一樣，不能混進同一個數字——混了這個數字就又變成一個「講不清楚在講
+ * 什麼量」的洞。
+ */
+function countTestFiles(dir: string, ext: RegExp): number {
+  if (!existsSync(dir)) return 0;
+  let count = 0;
+  for (const n of readdirSync(dir)) {
+    const p = join(dir, n);
+    if (!statSync(p).isDirectory()) continue;
+    if (n === TEST_DIR_NAME) count += walk(p, ext).length;
+    else count += countTestFiles(p, ext);
+  }
+  return count;
+}
+
+/** 一段路徑相對於 prefix 之後，最多鑽了幾層——用來證明遞迴真的往下鑽，不是只掃頂層。 */
+function maxDepthUnder(prefix: string, targets: string[]): number {
+  let max = 0;
+  for (const t of targets) {
+    if (!t.startsWith(prefix)) continue;
+    const depth = t.slice(prefix.length).split('/').length;
+    if (depth > max) max = depth;
+  }
+  return max;
+}
+
+export function buildTargets(): { targets: string[]; excludedTests: number } {
+  const TS_EXT = /\.tsx?$/;
+  const SKIP = new Set([TEST_DIR_NAME]);
+  const targets = new Set<string>();
+
+  // server/** 全遞迴（含根目錄 app.ts/index.ts/static.ts，含未來任何深子目錄）
+  for (const f of walk(join(ROOT, 'server'), TS_EXT, [], SKIP)) targets.add(f);
+  // src/app/** 全遞迴（含 routes 底下的 .ts，不再只抓 .tsx；含未來任何深子目錄）
+  for (const f of walk(join(ROOT, 'src/app'), TS_EXT, [], SKIP)) targets.add(f);
+  // src/ 根目錄的具名檔（不含 src/app、src/features——那兩個各自另外處理）
+  for (const f of listFiles(join(ROOT, 'src'), TS_EXT)) targets.add(`src/${f}`);
+  // repo 根目錄具名檔——Peter 2026-08-28 裁定
+  for (const f of ROOT_FILES) if (existsSync(join(ROOT, f))) targets.add(f);
+  // electron/**：目前只有頂層 .cjs，platform.md 的 `electron/**` glob 蓋得到
+  for (const f of listFiles(join(ROOT, 'electron'), /\.cjs$/)) targets.add(`electron/${f}`);
+  // src/features/**：刻意維持目錄粒度，見檔頭第 7 點
   if (existsSync(join(ROOT, 'src/features')))
     for (const n of readdirSync(join(ROOT, 'src/features')))
-      if (statSync(join(ROOT, 'src/features', n)).isDirectory()) targets.push(`src/features/${n}/`);
-  return targets.filter((t) => !t.includes('routeTree.gen'));
+      if (statSync(join(ROOT, 'src/features', n)).isDirectory()) targets.add(`src/features/${n}/`);
+
+  const excludedTests =
+    countTestFiles(join(ROOT, 'server'), TS_EXT) + countTestFiles(join(ROOT, 'src/app'), TS_EXT);
+
+  return {
+    targets: [...targets].filter((t) => !t.includes('routeTree.gen')),
+    excludedTests,
+  };
+}
+
+type RootFloor = { deep: number; shallow: number; maxDepth: number; ok: boolean };
+
+/**
+ * A2：門檻改成「絕對深度數下限」＋「遞迴深度真的鑽到位」，兩者都要過，而且兩者都
+ * **只會隨成長變大，不會被合規成長壓小**——不再是深/淺比例。
+ *
+ * 舊版（深/淺比 ≥3x）在 `src/app/` 只留了 1.8x 的安全邊際（現況 5.4x）。往
+ * `src/app/` 頂層合規地加 12 個新檔（這一輪本身就往 X3 加了 `src/main.tsx`
+ * 這種模式）會讓淺的那邊漲得比深的那邊快，比例塌到 2.90x，紅燈——但沒有任何
+ * 東西壞掉，紅燈訊息卻說「像是遞迴掃描被改壞了」，把人導去查一個沒壞的地方。
+ * 這是量測管道自己在說謊：分母（淺）會被合規成長稀釋，分子（深）不會同步跟上。
+ *
+ * 改成兩把**不受頂層新檔影響**的尺：
+ *   1. `deep >= MIN_DEEP_COUNT`——遞迴掃到的絕對檔數下限，訂在現況（server 104、
+ *      app 49）之下留出安全邊際，但遠高於「遞迴整個失效」時會塌到的量級（塌到
+ *      跟 `listFiles()` 只掃頂層差不多，server ~3、app ~9）。往頂層加檔只會讓
+ *      這個數字變大，不會變小，永遠不會被合規成長觸發。
+ *   2. `maxDepth >= MIN_RECURSION_DEPTH`——遞迴真的鑽到至少三層，不是只鑽一層
+ *      就停。這一段補的是絕對數字擋不住的洞：實測「`walk()` 只鑽一層」這種
+ *      改法（很寫實，不是刻意逼近門檻）幾乎不影響絕對檔數（server 104→99、
+ *      app 49→33，都遠高於下限）——因為這個 repo 大多數檔案本來就只有兩層深。
+ *      但這種改法會讓「三層以上」的檔案全部消失，`maxDepth` 直接塌到 2，
+ *      這一段抓得到，前一段抓不到。同樣不受頂層新檔影響：加在頂層的新檔
+ *      深度是 1，不會把 `maxDepth` 往下拉。
+ *      🔴 `server/` 現況 `maxDepth` 剛好等於 3（只靠 `server/providers/formats/`
+ *      這五個檔撐著），margin 很薄——如果哪天這個子目錄被攤平，這裡會紅，
+ *      那是真的門檻該調，不是尺壞了；調之前先確認不是遞迴真的斷了。
+ *
+ * 🔴 兩個根**分開算、都要過**，不能合成一個總數：只拿掉 `server/` 那條掃描時
+ * （整個 104 個深檔案消失），合成的深度數字仍然會被 `src/app/` 那邊撐住，
+ * forward 閘門照樣 PASS——這正是「量測管道本身在說謊」的那種假陽性。分開算
+ * 之後，`server/` 那一半自己塌到 0，立刻低於門檻，不靠另一半掩護。
+ */
+const MIN_DEEP_COUNT: Record<'server' | 'app', number> = { server: 30, app: 20 };
+const MIN_RECURSION_DEPTH = 3;
+
+function rootFloor(dir: string, prefix: string, minDeep: number, targets: string[]): RootFloor {
+  const TS_EXT = /\.tsx?$/;
+  const shallow = listFiles(join(ROOT, dir), TS_EXT).length;
+  const deep = targets.filter((t) => t.startsWith(prefix)).length;
+  const maxDepth = maxDepthUnder(prefix, targets);
+  return { deep, shallow, maxDepth, ok: deep >= minDeep && maxDepth >= MIN_RECURSION_DEPTH };
+}
+
+export function coverageFloor(targets: string[]): {
+  ok: boolean;
+  server: RootFloor;
+  app: RootFloor;
+} {
+  const server = rootFloor('server', 'server/', MIN_DEEP_COUNT.server, targets);
+  const app = rootFloor('src/app', 'src/app/', MIN_DEEP_COUNT.app, targets);
+  return { ok: server.ok && app.ok, server, app };
+}
+
+/**
+ * 第五輪坑 C2（最高優先）：`coverageFloor()` 量的是「總深度／總鑽層數」，粒度是
+ * 整個 `server/` 或整個 `src/app/`——**一整個子目錄被跳過**（`server/lib/`
+ * 48 檔全消失、`server/routes/` 20 檔全消失、`src/app/screens/` 19 檔全消失）
+ * 完全不會讓總數塌到門檻下：deep 從 104 掉到 56 依然 ≥30，`maxDepth` 撐住是因為
+ * 深度 3 的那五個檔在 `server/providers/formats/`，跟被跳過的子目錄無關。而且
+ * 後果比「floor 沒抓到」更重——這些檔根本沒進 `targets`，`decide()` 的孤兒偵測
+ * 只查 `targets` 裡的東西，沒進陣列的檔案永遠不會被判成孤兒，是比「紅燈變綠」
+ * 更安靜的失敗：連 FAIL 訊息都不會有。觸發條件極普通：`SKIP` 集合手滑多收一個
+ * 目錄名、或排除條件寫錯。
+ *
+ * 🔴 **這是跟 `walk()` 不共用任何一行程式碼的第二把尺**——`walk()` 的歷史 bug
+ * （檔頭第 6 點、A2）全部長在「遞迴 + `skipDirNames` 判斷」這段自己維護的邏輯
+ * 裡；如果第二把尺也呼叫 `walk()` 或複製同一段 SKIP 判斷，`walk()` 壞掉那天
+ * 兩把尺會一起壞，就不是交叉驗證，只是同一個 bug 被問了兩次。這裡改用 Node fs
+ * **內建**的遞迴列舉（`readdirSync(dir, { recursive: true })`，Node ≥20.1，這
+ * 個 repo 鎖定 `engines.node >= 20.19`）——遞迴邏輯本身是 Node 自己實作的，不是
+ * 這支檔案手寫、可能手滑的那段，`SKIP`／`skipDirNames` 那一段判斷完全沒有被複製
+ * 過來。兩者除了都在最底層呼叫 `readdirSync`／`statSync` 這兩個 Node 原生 API
+ * 之外（這無法避免，任何檔案系統走訪最終都要落地到這兩個呼叫），沒有共用一行
+ * 判斷邏輯，尤其是「這個目錄該不該跳過」這一段——這正是歷史上真正壞過的地方。
+ *
+ * 判準刻意放得很寬（只問「有沒有」，不比對絕對數字）：對 `server/`／`src/app/`
+ * 底下**每一個一級子目錄**，獨立算一次「這個子目錄底下遞迴有沒有 `.ts`/`.tsx`
+ * 檔（排除 `__tests__/`）」；只要算出來 >0，就必須在 `targets` 裡至少出現一個
+ * 以 `<root>/<子目錄>/` 開頭的標的。兩把尺排除 `__tests__/` 的寫法不同（這把用
+ * 路徑片段比對、`walk()` 用目錄名整棵跳過），細微的檔案數落差是預期的，所以不
+ * 比對絕對數字，只比對「至少一個」——粒度是「整個子目錄消失」，不是「差一兩個
+ * 檔」，比對太精確只會在兩把尺各自排除方式的正常落差裡製造假警報。
+ */
+function independentSubdirFileCount(dir: string, ext: RegExp): Map<string, number> {
+  const counts = new Map<string, number>();
+  if (!existsSync(dir)) return counts;
+  for (const child of readdirSync(dir)) {
+    if (child === TEST_DIR_NAME) continue; // X4：這兩支掃描根底下的 __tests__ 本就不算數
+    const childPath = join(dir, child);
+    if (!statSync(childPath).isDirectory()) continue;
+    let entries: string[] = [];
+    try {
+      entries = readdirSync(childPath, { recursive: true }) as string[];
+    } catch {
+      entries = [];
+    }
+    let count = 0;
+    for (const e of entries) {
+      if (e.split(/[\\/]/).includes(TEST_DIR_NAME)) continue;
+      if (!ext.test(e)) continue;
+      const full = join(childPath, e);
+      if (existsSync(full) && statSync(full).isFile()) count++;
+    }
+    counts.set(child, count);
+  }
+  return counts;
+}
+
+export function subdirCoverage(
+  dir: string,
+  prefix: string,
+  targets: string[],
+): { ok: boolean; missing: string[]; checked: number } {
+  const TS_EXT = /\.tsx?$/;
+  const counts = independentSubdirFileCount(join(ROOT, dir), TS_EXT);
+  const missing: string[] = [];
+  for (const [child, count] of counts) {
+    if (count === 0) continue;
+    const has = targets.some((t) => t.startsWith(`${prefix}${child}/`));
+    if (!has) missing.push(child);
+  }
+  missing.sort();
+  return { ok: missing.length === 0, missing, checked: counts.size };
 }
 
 export function decide(
@@ -202,15 +751,63 @@ if (process.argv.includes('--selftest')) {
 }
 
 function run(): void {
-  const { own, dup, globs } = loadAgentClaims();
+  const { own, dup, globs, globDup, exceptions } = loadAgentClaims();
   const { X, Xg } = nobodyOwns();
-  const targets = buildTargets();
-  const { code, orphans, dupList } = decide(targets, own, dup, X, Xg, globs);
+  crossCheckClaims(own, dup, X, Xg, globs, exceptions, globDup);
 
-  if (code === 2) {
+  const unclaimed = unclaimedExceptions(exceptions, own);
+  if (unclaimed.length) {
+    console.error(
+      `gate:ownership FAIL — ${unclaimed.length} 個 **except** 例外沒有被任何 agent 具名認領` +
+        `（孤兒穿著例外的外衣溜走）：`,
+    );
+    for (const p of unclaimed) console.error(`    ${p}`);
+    process.exit(1);
+  }
+
+  const { targets, excludedTests } = buildTargets();
+
+  if (targets.length === 0) {
     console.error('gate:ownership FAIL — 掃到 0 個標的（尺壞了，不是乾淨）');
     process.exit(2);
   }
+
+  const floor = coverageFloor(targets);
+  if (!floor.ok) {
+    // A2：不再說「像是遞迴掃描被改壞了」——這個門檻本身已經對頂層新檔免疫
+    // （見 `coverageFloor` 檔頭），所以會紅只可能是遞迴真的少掃到東西，不可能
+    // 是「新檔變多」。訊息如實列出兩把尺各自的數字，不用再用詞含糊帶過。
+    console.error('gate:ownership FAIL — 遞迴掃描少掃到東西了（不是新檔變多能造成的）：');
+    if (!floor.server.ok)
+      console.error(
+        `    server/ 深度掃到 ${floor.server.deep} 個檔（下限 ${MIN_DEEP_COUNT.server}）、` +
+          `最深鑽 ${floor.server.maxDepth} 層（下限 ${MIN_RECURSION_DEPTH}）`,
+      );
+    if (!floor.app.ok)
+      console.error(
+        `    src/app/ 深度掃到 ${floor.app.deep} 個檔（下限 ${MIN_DEEP_COUNT.app}）、` +
+          `最深鑽 ${floor.app.maxDepth} 層（下限 ${MIN_RECURSION_DEPTH}）`,
+      );
+    process.exit(1);
+  }
+
+  // C2：第二把尺，跟上面的 coverageFloor 不共用程式碼——見 `subdirCoverage` 檔頭。
+  const subServer = subdirCoverage('server', 'server/', targets);
+  const subApp = subdirCoverage('src/app', 'src/app/', targets);
+  if (!subServer.ok || !subApp.ok) {
+    console.error('gate:ownership FAIL — 有一整個子目錄從掃描標的裡消失了（第二把尺抓到）：');
+    if (!subServer.ok)
+      console.error(
+        `    server/ 底下這些子目錄有 .ts 檔卻沒有任何標的：${subServer.missing.join(', ')}`,
+      );
+    if (!subApp.ok)
+      console.error(
+        `    src/app/ 底下這些子目錄有 .ts 檔卻沒有任何標的：${subApp.missing.join(', ')}`,
+      );
+    process.exit(1);
+  }
+
+  const { code, orphans, dupList } = decide(targets, own, dup, X, Xg, globs);
   if (code === 1) {
     console.error(`gate:ownership FAIL — 掃了 ${targets.length} 個標的`);
     if (orphans.length) {
@@ -223,7 +820,39 @@ function run(): void {
     }
     process.exit(1);
   }
-  console.log(`gate:ownership PASS — 掃了 ${targets.length} 個標的，無孤兒、無重複`);
+  console.log(
+    `gate:ownership PASS — 掃了 ${targets.length} 個標的，無孤兒、無重複、涵蓋率健康` +
+      `（server/ 深 ${floor.server.deep} 檔／鑽 ${floor.server.maxDepth} 層、` +
+      `src/app/ 深 ${floor.app.deep} 檔／鑽 ${floor.app.maxDepth} 層，` +
+      `子目錄涵蓋（第二把尺）server/ ${subServer.checked} 個、src/app/ ${subApp.checked} 個都對得上）` +
+      `（另外排除 server/ 與 src/app/ 底下（含巢狀）共 ${excludedTests} 個 __tests__ 檔——` +
+      `X4 沒有機制守，這一輪刻意排除；不含 src/features/**（目錄粒度，本就不遞迴）` +
+      `與 src/shared/**（X1，本就不掃）底下的 __tests__）`,
+  );
+}
+
+/** 嚴重1：`walk()` 真的鑽得到巢狀目錄，也真的排除 `skipDirNames`。用完即刪。 */
+function testWalkRecursion(): boolean {
+  const fixtureRoot = mkdtempSync(join(tmpdir(), 'gate-ownership-walk-'));
+  try {
+    mkdirSync(join(fixtureRoot, 'a/b/c'), { recursive: true });
+    mkdirSync(join(fixtureRoot, '__tests__'), { recursive: true });
+    writeFileSync(join(fixtureRoot, 'shallow.ts'), '');
+    writeFileSync(join(fixtureRoot, 'a/mid.ts'), '');
+    writeFileSync(join(fixtureRoot, 'a/b/c/deep.ts'), '');
+    writeFileSync(join(fixtureRoot, '__tests__/skip.ts'), '');
+
+    const found = walk(fixtureRoot, /\.ts$/, [], new Set([TEST_DIR_NAME]));
+    return (
+      found.length === 3 &&
+      found.some((f) => f.endsWith('shallow.ts')) &&
+      found.some((f) => f.endsWith('a/mid.ts')) &&
+      found.some((f) => f.endsWith('a/b/c/deep.ts')) &&
+      !found.some((f) => f.includes('__tests__'))
+    );
+  } finally {
+    rmSync(fixtureRoot, { recursive: true, force: true });
+  }
 }
 
 function runSelftest(): void {
@@ -239,17 +868,23 @@ function runSelftest(): void {
     own1,
     dup1,
     globs1,
+    new Map(),
   );
 
+  // 坑②：decoy 這次寫成**裸檔名**（沒有 dir 前綴）。note 邏輯正常 ⇒ 這整行被跳過，
+  // decoy 永遠不會被認領。note 邏輯被改壞（例如永遠回傳 false）⇒ 這行變成續行，
+  // 沿用 cur='server/lib/' 前綴，產生 own2.get('server/lib/decoy.ts') === 'b' ——
+  // 斷言因此真的會翻盤，不像舊版那樣因為前綴重複而永遠測不到。
   const own2: OwnerMap = new Map();
   parseClaims(
     ownedSection(
       '## 1 · Files you own\n\n- `server/lib/` — `real2.ts`\n' +
-        '  🔴 not `server/lib/decoy.ts` (someone else’s)\n\n' +
+        '  🔴 not `decoy.ts` (someone else’s)\n\n' +
         '## 2 · Files you must not write\n',
     ),
     'b',
     own2,
+    new Map(),
     new Map(),
     new Map(),
   );
@@ -264,26 +899,323 @@ function runSelftest(): void {
     own3,
     new Map(),
     new Map(),
+    new Map(),
   );
 
   const own4: OwnerMap = new Map();
   const globs4 = new Map<string, string>();
-  parseClaims(
-    ownedSection(
-      '## 1 · Files you own\n\n- `server/adapters/**` **except** `excluded.ts` (H5’s)\n\n' +
-        '## 2 · Files you must not write\n',
-    ),
-    'd',
-    own4,
-    new Map(),
-    globs4,
-  );
+  const rawExcept =
+    '## 1 · Files you own\n\n- `server/adapters/**` **except** `excluded.ts` (H5’s)\n\n' +
+    '## 2 · Files you must not write\n';
+  parseClaims(ownedSection(rawExcept), 'd', own4, new Map(), globs4, new Map());
+  const exceptions4 = extractExceptions(extractSection(rawExcept));
+
+  // 坑⑫ / 中等4：括號說明文字裡順口提到的檔名不算例外，只有緊接自己括號的才算。
+  const rawProse =
+    '## 1 · Files you own\n\n' +
+    '- `server/adapters/**` **except** `gemini.ts` (replaces the old `legacyAdapter.ts` shim)\n\n' +
+    '## 2 · Files you must not write\n';
+  const exceptionsProse = extractExceptions(extractSection(rawProse));
+
+  // 第五輪坑 D：一組括號幫一串逗號分隔的檔名背書——兩個檔名都要進例外清單，
+  // 不能只有緊接括號的那一個。同時確認中等坑 4 的對照組（單一檔名 + 自己的括號）
+  // 依然只抽得到那一個，沒有被這次改動打開。
+  const rawExceptGroup =
+    '## 1 · Files you own\n\n' +
+    "- `server/adapters/**` **except** `a.ts`, `b.ts` (both H9's)\n\n" +
+    '## 2 · Files you must not write\n';
+  const exceptionsGroup = extractExceptions(extractSection(rawExceptGroup));
 
   const orphanRun = decide(['x/orphan.ts'], new Map(), new Map(), new Set(), new Set(), new Map());
   const dupOwn: OwnerMap = new Map([['x/dup.ts', 'a']]);
   const dupDup: DupMap = new Map([['x/dup.ts', new Set(['a', 'b'])]]);
   const dupRun = decide(['x/dup.ts'], dupOwn, dupDup, new Set(), new Set(), new Map());
   const zeroRun = decide([], new Map(), new Map(), new Set(), new Set(), new Map());
+
+  // 坑⑤a：具名認領撞到 AGENTS.md §2 的無主檔／無主 glob（X／Xg）
+  const dup5a: DupMap = new Map();
+  crossCheckClaims(
+    new Map([['server/services/settings.ts', 'chat-core']]),
+    dup5a,
+    new Set(['server/services/settings.ts']),
+    new Set(),
+    new Map(),
+    new Set(),
+    new Map(),
+  );
+  const dup5b: DupMap = new Map();
+  crossCheckClaims(
+    new Map([['src/shared/tokens.ts', 'chat-core']]),
+    dup5b,
+    new Set(),
+    new Set(['src/shared/**']),
+    new Map(),
+    new Set(),
+    new Map(),
+  );
+
+  // 坑⑤b：具名認領撞到「別人」的 glob——非法（chat-core 名下的檔落在 platform 的 glob 裡）
+  const dup5c: DupMap = new Map();
+  crossCheckClaims(
+    new Map([['server/adapters/backgrounds.ts', 'chat-core']]),
+    dup5c,
+    new Set(),
+    new Set(),
+    new Map([['server/adapters/**', 'platform']]),
+    new Set(),
+    new Map(),
+  );
+  // 坑⑤b 的對照組：合法的 **except** 例外不算重複（providers 具名認領 gemini.ts，
+  // platform 的 glob 蓋到同一個路徑，但那正是 platform.md 自己宣告的例外）
+  const dup5d: DupMap = new Map();
+  crossCheckClaims(
+    new Map([['server/adapters/gemini.ts', 'providers']]),
+    dup5d,
+    new Set(),
+    new Set(),
+    new Map([['server/adapters/**', 'platform']]),
+    new Set(['server/adapters/gemini.ts']),
+    new Map(),
+  );
+
+  // 坑⑪a：兩個 agent 逐字宣告同一個 glob——`globs.set()` 直接覆蓋會讓這件事整個
+  // 消失，改成 `claimGlob` 之後要進 `globDup`，再由 `crossCheckClaims` 併回主 dup。
+  const globsG: OwnerMap = new Map();
+  const globDupG: DupMap = new Map();
+  const rawGlobDup =
+    '## 1 · Files you own\n\n- `server/adapters/**`\n\n## 2 · Files you must not write\n';
+  parseClaims(ownedSection(rawGlobDup), 'e', new Map(), new Map(), globsG, globDupG);
+  parseClaims(ownedSection(rawGlobDup), 'f', new Map(), new Map(), globsG, globDupG);
+  const dup11a: DupMap = new Map();
+  crossCheckClaims(new Map(), dup11a, new Set(), new Set(), globsG, new Set(), globDupG);
+
+  // 坑⑪b：字面不同但前綴重疊——glob 撞 Xg（worldbook 手滑宣告了 X1 的 `src/shared/**`）
+  const dup11b: DupMap = new Map();
+  crossCheckClaims(
+    new Map(),
+    dup11b,
+    new Set(),
+    new Set(['src/shared/**']),
+    new Map([['src/shared/**', 'worldbook']]),
+    new Set(),
+    new Map(),
+  );
+
+  // 坑⑪b：glob 撞 X（某 agent 的 glob 蓋到 AGENTS.md §2 具名列出的無主檔）
+  const dup11c: DupMap = new Map();
+  crossCheckClaims(
+    new Map(),
+    dup11c,
+    new Set(['server/adapters/legacyGlobal.ts']),
+    new Set(),
+    new Map([['server/adapters/**', 'platform']]),
+    new Set(),
+    new Map(),
+  );
+
+  // 坑⑪b：兩個 agent 的 glob 前綴重疊但字面不同（一個是另一個的子目錄）
+  const dup11d: DupMap = new Map();
+  crossCheckClaims(
+    new Map(),
+    dup11d,
+    new Set(),
+    new Set(),
+    new Map([
+      ['server/adapters/**', 'platform'],
+      ['server/adapters/legacy/**', 'ghost'],
+    ]),
+    new Set(),
+    new Map(),
+  );
+
+  // 坑⑫：**except** 例外沒有被任何 agent 具名認領——孤兒被例外掩蓋。
+  const unclaimedOk = unclaimedExceptions(new Set(['server/adapters/gemini.ts']), new Map());
+  const unclaimedClean = unclaimedExceptions(
+    new Set(['server/adapters/gemini.ts']),
+    new Map([['server/adapters/gemini.ts', 'providers']]),
+  );
+
+  // 嚴重1：walk() 真的遞迴，且排除 skipDirNames——用臨時 fixture 樹驗，不是 mock。
+  const walkOk = testWalkRecursion();
+
+  // 嚴重1：buildTargets() 的六個掃描根，各自要有一個標的能證明那段邏輯真的跑了。
+  const built = buildTargets();
+  const serverDeepOk = maxDepthUnder('server/', built.targets) >= 3;
+  const appDeepOk = maxDepthUnder('src/app/', built.targets) >= 3;
+  const srcRootOk = built.targets.some((t) => /^src\/[^/]+$/.test(t));
+  const rootFilesOk = ROOT_FILES.filter((f) => existsSync(join(ROOT, f))).every((f) =>
+    built.targets.includes(f),
+  );
+  const electronOk = built.targets.some((t) => t.startsWith('electron/'));
+  const featuresGrainOk =
+    built.targets.some((t) => /^src\/features\/[^/]+\/$/.test(t)) &&
+    !built.targets.some((t) => /^src\/features\/[^/]+\/[^/]+/.test(t));
+
+  // 嚴重1：涵蓋率下限——健康的真實標的要過門檻；把它退化成「只剩頂層」要塌到門檻下。
+  const floorHealthy = coverageFloor(built.targets);
+  const shallowOnly = built.targets.filter((t) => {
+    if (t.startsWith('server/')) return t.split('/').length === 2;
+    if (t.startsWith('src/app/')) return t.split('/').length === 3;
+    return true;
+  });
+  const floorBroken = coverageFloor(shallowOnly);
+  // 兩個根分開算的理由本身要有 selftest 守：只拿掉 server/ 那一半（src/app/ 仍健康），
+  // 合成單一比例會被 src/app/ 撐住而放行（實測發生過，見 coverageFloor 檔頭 🔴）。
+  // 分開算之後，server/ 那一半自己要塌到門檻下，不能靠另一半掩護。
+  const serverOnlyBroken = built.targets.filter((t) => !t.startsWith('server/'));
+  const floorServerOnlyBroken = coverageFloor(serverOnlyBroken);
+
+  // 迴歸（Peter 2026-08-28 指名）：server/lib/worldPresets.ts 一次踩到坑①＋坑③——
+  // presets.md 在 §2 提到它（坑①要放過，不算認領），worldbook.md 在 §1 用第三條
+  // 續行認領它（坑③要接得回 `server/lib/` 前綴）。用真檔，不是造出來的 fixture。
+  const real = loadAgentClaims();
+  const realX = nobodyOwns();
+  crossCheckClaims(
+    real.own,
+    real.dup,
+    realX.X,
+    realX.Xg,
+    real.globs,
+    real.exceptions,
+    real.globDup,
+  );
+  const realUnclaimed = unclaimedExceptions(real.exceptions, real.own);
+
+  // 5-2：glob 擷取現在也走 stripNotes()——複驗的原句實測。audio 在自己的說明段裡
+  // 提到 extensions 的 glob 做澄清，那句話不該被 audio 認領；同一批 real claim 裡
+  // extensions 自己真的宣告了那個 glob，兩者不該被誤判成重複。
+  const globNoteGlobs: OwnerMap = new Map();
+  const globNoteDup: DupMap = new Map();
+  const rawGlobNote =
+    '## 1 · Files you own\n\n- `src/features/audio/**`\n' +
+    "  🔴 not `src/features/extensions/**` (that's H9's, not ours — just flagging for clarity)\n\n" +
+    '## 2 · Files you must not write\n';
+  parseClaims(ownedSection(rawGlobNote), 'audio', new Map(), new Map(), globNoteGlobs, globNoteDup);
+  const rawGlobReal =
+    '## 1 · Files you own\n\n- `src/features/extensions/**`\n\n## 2 · Files you must not write\n';
+  parseClaims(
+    ownedSection(rawGlobReal),
+    'extensions',
+    new Map(),
+    new Map(),
+    globNoteGlobs,
+    globNoteDup,
+  );
+  const dup5_2: DupMap = new Map();
+  crossCheckClaims(new Map(), dup5_2, new Set(), new Set(), globNoteGlobs, new Set(), globNoteDup);
+
+  // 5-1：§2 只有「Paths」欄（第 2 個 cell）算數——複驗的原句實測，模仿 X4 那一列
+  // 既有的「順口提到別的 agent 檔名做澄清」寫法，分別放在（a）表格裡別的欄位、
+  // （b）表格外的散文段落。兩種都不該被當成「這個檔沒人管」。
+  const rawTableClarify =
+    '| **X-test** | `real/unowned.ts` | why | ' +
+    "**What to do**: e.g. `server/lib/audio.ts` is H8's, not unowned — only the paths column counts. |\n";
+  const parsedTableClarify = parseNobodyOwnsSection(rawTableClarify);
+  const rawProseClarify =
+    '| **X-test** | `real/unowned2.ts` | why | what |\n\n' +
+    '### Not owned by anyone\n\n' +
+    "（For avoidance of doubt, e.g. `server/lib/audio2.ts` is H8's, not unowned — only the table counts.）\n";
+  const parsedProseClarify = parseNobodyOwnsSection(rawProseClarify);
+
+  // 5-3：countTestFiles() 真的遞迴找任何深度的 __tests__/，不是寫死兩個固定路徑。
+  // fixture：頂層一個、巢狀兩層深一個都要數到；非 __tests__ 目錄裡的檔不算。
+  function testCountTestFilesRecursion(): boolean {
+    const fixtureRoot = mkdtempSync(join(tmpdir(), 'gate-ownership-tests-'));
+    try {
+      mkdirSync(join(fixtureRoot, '__tests__'), { recursive: true });
+      mkdirSync(join(fixtureRoot, 'a/b/__tests__'), { recursive: true });
+      mkdirSync(join(fixtureRoot, 'a/b'), { recursive: true });
+      writeFileSync(join(fixtureRoot, '__tests__/top.ts'), '');
+      writeFileSync(join(fixtureRoot, 'a/b/__tests__/nested.ts'), '');
+      writeFileSync(join(fixtureRoot, 'a/b/notTest.ts'), '');
+      return countTestFiles(fixtureRoot, /\.ts$/) === 2;
+    } finally {
+      rmSync(fixtureRoot, { recursive: true, force: true });
+    }
+  }
+  const countTestFilesOk = testCountTestFilesRecursion();
+  // 迴歸：真實 excludedTests 要等於「三個已知 __tests__ 目錄」各自獨立重新 walk() 的和
+  // ——如果有人把 countTestFiles() 改回舊版那種寫死兩個路徑相加，這裡的數字會對不上
+  // （因為漏了 src/app/screens/__tests__），56 ≠ 舊版算出來的 52。
+  const expectedExcludedTests =
+    walk(join(ROOT, 'server/__tests__'), /\.tsx?$/).length +
+    walk(join(ROOT, 'src/app/__tests__'), /\.tsx?$/).length +
+    walk(join(ROOT, 'src/app/screens/__tests__'), /\.tsx?$/).length;
+
+  // A2：新門檻對「往頂層合規加檔」免疫——12 個全部正確認領（用假路徑串接進 targets
+  // 就好，coverageFloor 本身不看有沒有主）的新檔，不該讓 floor 變紅。
+  const legitGrowthTargets = [
+    ...built.targets,
+    ...Array.from({ length: 12 }, (_, i) => `src/app/legitNew${i}.tsx`),
+  ];
+  const floorLegitGrowth = coverageFloor(legitGrowthTargets);
+
+  // A2：「只鑽一層就停」的改法幾乎不動絕對檔數（這個 repo 大多數檔案本來就只有
+  // 兩層深），舊的深/淺比也抓不太到（server 33.0x、幾乎沒掉）。真正抓得住的是
+  // maxDepth——三層以上的檔案會整批消失。這裡刻意只讓絕對數字仍然健康、只讓深度
+  // 塌下去，證明 maxDepth 這一段真的在拉自己的重量，不是絕對數字順便帶到的。
+  function depthLimitedTo(targets: string[], prefix: string, maxRelDepth: number): string[] {
+    return targets.filter((t) => {
+      if (!t.startsWith(prefix)) return true;
+      return t.slice(prefix.length).split('/').length <= maxRelDepth;
+    });
+  }
+  const oneLevelTargets = depthLimitedTo(built.targets, 'src/app/', 2);
+  const floorOneLevel = coverageFloor(oneLevelTargets);
+
+  // A2：反過來也要驗——絕對數字下限自己要拉自己的重量，不能靠 maxDepth 順便帶到。
+  // 只留 server/ 底下深度 ≥3 的那 5 個檔（`server/providers/formats/*.ts`），
+  // maxDepth 仍然是 3（healthy），但總數塌到 5、遠低於下限 30。如果只靠 maxDepth
+  // 判斷（把 `deep >= minDeep` 那段拿掉），這裡會誤放行——這是實測過的真突變，
+  // 不是假設。
+  const countOnlyBrokenTargets = built.targets.filter((t) => {
+    if (!t.startsWith('server/')) return true;
+    return t.slice('server/'.length).split('/').length >= 3;
+  });
+  const floorCountOnlyBroken = coverageFloor(countOnlyBrokenTargets);
+
+  // C2：第二把尺——健康的真實標的兩個根都要過。
+  const subServerHealthy = subdirCoverage('server', 'server/', built.targets);
+  const subAppHealthy = subdirCoverage('src/app', 'src/app/', built.targets);
+
+  // C2：複驗實測的三個真實案例——整個子目錄從 targets 消失，coverageFloor（舊尺）
+  // 全部誤放行，這把新尺要抓到。用真實 built.targets 過濾掉該子目錄，不是造假資料。
+  const targetsNoLib = built.targets.filter((t) => !t.startsWith('server/lib/'));
+  const subServerNoLib = subdirCoverage('server', 'server/', targetsNoLib);
+  const floorNoLib = coverageFloor(targetsNoLib); // 對照：舊尺對這個突變沒有免疫力
+
+  const targetsNoRoutes = built.targets.filter((t) => !t.startsWith('server/routes/'));
+  const subServerNoRoutes = subdirCoverage('server', 'server/', targetsNoRoutes);
+  const floorNoRoutes = coverageFloor(targetsNoRoutes);
+
+  const targetsNoScreens = built.targets.filter((t) => !t.startsWith('src/app/screens/'));
+  const subAppNoScreens = subdirCoverage('src/app', 'src/app/', targetsNoScreens);
+  const floorNoScreens = coverageFloor(targetsNoScreens);
+
+  // B3：複驗的原句型——`providers.md:21` 本尊，🔴 在句子中間、整行本身又是 bullet。
+  // 用真實 loadAgentClaims() 的結果確認 gemini.ts 依然正確歸 providers（不要為了修
+  // B3 把這個合法寫法擋掉）。
+  const providersGeminiOk = real.own.get('server/adapters/gemini.ts') === 'providers';
+
+  // B3：同款句型但說明裡帶一個別人的 .ts 檔名——舊版會把它靜默誤認領，因為整行是
+  // bullet，🔴 之後的文字從沒被剝掉過。
+  const own_b3: OwnerMap = new Map();
+  const rawB3 =
+    '## 1 · Files you own\n\n' +
+    "- `server/adapters/gemini.ts` — 🔴 in `adapters/`, not `lib/audioFiles.ts` (H8's)\n\n" +
+    '## 2 · Files you must not write\n';
+  parseClaims(ownedSection(rawB3), 'providers-b3', own_b3, new Map(), new Map(), new Map());
+
+  // B1：`bullet → 🔴 單行說明 → 真續行（純檔名列表）→ 下一個新 bullet`——真續行
+  // 現在要被正確接回同一個 dir 前綴認領，不能被說明段一路吃到下一個 bullet 才停。
+  const own_b1: OwnerMap = new Map();
+  const rawB1 =
+    '## 1 · Files you own\n\n' +
+    '- `server/lib/` — `first.ts`\n' +
+    '  🔴 A clarifying sentence about naming.\n' +
+    '  `second.ts`\n\n' +
+    '## 2 · Files you must not write\n';
+  parseClaims(ownedSection(rawB1), 'b1', own_b1, new Map(), new Map(), new Map());
 
   const cases: [string, boolean][] = [
     ['坑①：§2 must-not-write 不算認領', !own1.has('server/lib/notMine.ts')],
@@ -294,14 +1226,139 @@ function runSelftest(): void {
     ['坑③：續行沿用目錄前綴（第二個）', own3.get('server/lib/two.ts') === 'c'],
     ['坑④：**except** 排除句不是認領', !own4.has('excluded.ts')],
     ['坑④：glob 本身仍算認領', globs4.get('server/adapters/**') === 'd'],
+    ['坑④：例外清單抽得到排除的那個檔', exceptions4.has('server/adapters/excluded.ts')],
+    [
+      '中等4：括號說明文字裡順口提到的檔名不算例外',
+      exceptionsProse.has('server/adapters/gemini.ts') &&
+        !exceptionsProse.has('server/adapters/legacyAdapter.ts'),
+    ],
+    [
+      '第五輪坑 D：一組括號幫一串逗號分隔的檔名背書——兩個都要進例外清單',
+      exceptionsGroup.has('server/adapters/a.ts') && exceptionsGroup.has('server/adapters/b.ts'),
+    ],
     ['造孤兒 → 閘門變紅', orphanRun.code === 1 && orphanRun.orphans.includes('x/orphan.ts')],
     ['造重複 → 閘門變紅', dupRun.code === 1 && dupRun.dupList.length === 1],
     ['涵蓋率：0 個標的 → exit 2，不是 PASS', zeroRun.code === 2],
+    ['坑⑤a：具名認領撞到 X 具名檔 → 算重複', dup5a.has('server/services/settings.ts')],
+    ['坑⑤a：具名認領撞到 Xg glob → 算重複', dup5b.has('src/shared/tokens.ts')],
+    ['坑⑤b：具名認領撞到別人的 glob（非法）→ 算重複', dup5c.has('server/adapters/backgrounds.ts')],
+    ['坑⑤b：合法的 **except** 例外 → 不算重複', !dup5d.has('server/adapters/gemini.ts')],
+    [
+      '坑⑪a：兩個 agent 逐字宣告同一個 glob → globDup 記到、crossCheck 併回主 dup',
+      dup11a.has('server/adapters/**'),
+    ],
+    ['坑⑪b：glob 撞 Xg（前綴重疊）→ 算重複', dup11b.has('src/shared/**')],
+    ['坑⑪b：glob 撞 X（具名無主檔落在 glob 底下）→ 算重複', dup11c.has('server/adapters/**')],
+    ['坑⑪b：兩個 agent 的 glob 前綴重疊（字面不同）→ 算重複', dup11d.has('server/adapters/**')],
+    [
+      '坑⑫：**except** 例外沒被任何人具名認領 → 回報孤兒',
+      unclaimedOk.includes('server/adapters/gemini.ts'),
+    ],
+    ['坑⑫：例外有被具名認領時 → 不回報', unclaimedClean.length === 0],
+    ['嚴重1：walk() 真的鑽得到巢狀目錄，也排除 skipDirNames', walkOk],
+    ['嚴重1：buildTargets() server/ 遞迴（深度 ≥3）真的執行了', serverDeepOk],
+    ['嚴重1：buildTargets() src/app/ 遞迴（深度 ≥3）真的執行了', appDeepOk],
+    ['嚴重1：buildTargets() src/ 根目錄具名檔那段真的執行了', srcRootOk],
+    ['嚴重1：buildTargets() repo 根目錄具名檔那段真的執行了', rootFilesOk],
+    ['嚴重1：buildTargets() electron/** 那段真的執行了', electronOk],
+    ['嚴重1：buildTargets() src/features/** 維持目錄粒度、沒有誤遞迴', featuresGrainOk],
+    ['嚴重1：涵蓋率下限——健康的真實標的過門檻', floorHealthy.ok],
+    ['嚴重1：涵蓋率下限——退化成只剩頂層時塌到門檻下', !floorBroken.ok],
+    [
+      '嚴重1：涵蓋率下限——只拿掉 server/ 半邊不能靠 src/app/ 半邊掩護',
+      !floorServerOnlyBroken.ok && !floorServerOnlyBroken.server.ok && floorServerOnlyBroken.app.ok,
+    ],
+    ['C2：健康的真實標的，第二把尺 server/ 過關', subServerHealthy.ok],
+    ['C2：健康的真實標的，第二把尺 src/app/ 過關', subAppHealthy.ok],
+    [
+      'C2：整個 server/lib/（48 檔）從 targets 消失 → 第二把尺抓到',
+      !subServerNoLib.ok && subServerNoLib.missing.includes('lib'),
+    ],
+    [
+      'C2：對照組——舊尺（coverageFloor）對「整個跳過 server/lib/」沒有免疫力（複驗實測的現象）',
+      floorNoLib.ok,
+    ],
+    [
+      'C2：整個 server/routes/（20 檔）從 targets 消失 → 第二把尺抓到',
+      !subServerNoRoutes.ok && subServerNoRoutes.missing.includes('routes'),
+    ],
+    ['C2：對照組——舊尺對「整個跳過 server/routes/」一樣沒有免疫力', floorNoRoutes.ok],
+    [
+      'C2：整個 src/app/screens/（19 檔）從 targets 消失 → 第二把尺抓到',
+      !subAppNoScreens.ok && subAppNoScreens.missing.includes('screens'),
+    ],
+    ['C2：對照組——舊尺對「整個跳過 src/app/screens/」一樣沒有免疫力', floorNoScreens.ok],
+    ['B3：providers.md:21 現況照樣 PASS——沒有為了修 B3 把合法寫法擋掉', providersGeminiOk],
+    [
+      'B3：🔴 在句子中間、整行本身是 bullet——之後提到的別人檔名不該被靜默誤認領（複驗打穿的洞）',
+      own_b3.get('server/adapters/gemini.ts') === 'providers-b3' &&
+        !own_b3.has('lib/audioFiles.ts') &&
+        !own_b3.has('server/lib/audioFiles.ts') &&
+        !own_b3.has('audioFiles.ts'),
+    ],
+    [
+      'B1：bullet → 🔴 單行說明 → 真續行——續行要被正確接回同一個 dir 前綴認領',
+      own_b1.get('server/lib/first.ts') === 'b1' && own_b1.get('server/lib/second.ts') === 'b1',
+    ],
+    [
+      '迴歸：server/lib/worldPresets.ts 只屬於 worldbook（坑①＋坑③一次全踩）',
+      real.own.get('server/lib/worldPresets.ts') === 'worldbook' &&
+        !real.dup.has('server/lib/worldPresets.ts'),
+    ],
+    ['迴歸：真實 agents 定義檔之間沒有意外的 glob／具名重複', real.dup.size === 0],
+    ['迴歸：真實 agents 定義檔的每個 **except** 例外都有主', realUnclaimed.length === 0],
+    [
+      '5-2：說明段裡順口提到別人的 glob 做澄清，不算認領（複驗原句）',
+      globNoteGlobs.get('src/features/audio/**') === 'audio' &&
+        globNoteGlobs.get('src/features/extensions/**') === 'extensions',
+    ],
+    ['5-2：真的重複宣告同一個 glob 還是抓得到（不是把說明段一起放過）', dup5_2.size === 0],
+    [
+      '5-1：§2 表格「What to do」欄順口提到的檔名不算無主（複驗原句 a）',
+      parsedTableClarify.X.has('real/unowned.ts') &&
+        !parsedTableClarify.X.has('server/lib/audio.ts'),
+    ],
+    [
+      '5-1：§2 表格外的散文段落提到的檔名不算無主（複驗原句 b）',
+      parsedProseClarify.X.has('real/unowned2.ts') &&
+        !parsedProseClarify.X.has('server/lib/audio2.ts'),
+    ],
+    [
+      '迴歸：真實 AGENTS.md §2 的 X 集合抓不到 X4 欄位裡的範例檔名',
+      !realX.X.has('chatFile.test.ts') && !realX.X.has('wiInject.test.ts'),
+    ],
+    ['5-3：countTestFiles() 遞迴找任何深度的 __tests__/，不是寫死兩個路徑', countTestFilesOk],
+    [
+      '5-3：真實 excludedTests 等於三個已知 __tests__ 目錄各自獨立算出來的和（56，不是舊版的 52）',
+      built.excludedTests === expectedExcludedTests && built.excludedTests === 56,
+    ],
+    ['A2：門檻對「頂層合規加 12 個新檔」免疫，不該紅', floorLegitGrowth.ok],
+    [
+      'A2：「只鑽一層」的改法絕對檔數仍健康，但 maxDepth 這段自己要抓到、不能靠絕對數字',
+      !floorOneLevel.ok &&
+        !floorOneLevel.app.ok &&
+        floorOneLevel.app.deep >= MIN_DEEP_COUNT.app &&
+        floorOneLevel.app.maxDepth < MIN_RECURSION_DEPTH,
+    ],
+    [
+      'A2：反過來——maxDepth 健康但總數塌下去，絕對數字下限這段自己要抓到、不能靠 maxDepth',
+      !floorCountOnlyBroken.ok &&
+        !floorCountOnlyBroken.server.ok &&
+        floorCountOnlyBroken.server.maxDepth >= MIN_RECURSION_DEPTH &&
+        floorCountOnlyBroken.server.deep < MIN_DEEP_COUNT.server,
+    ],
   ];
   const bad = cases.filter(([, ok]) => !ok);
   for (const [name] of bad) console.error(`  selftest FAIL：${name}`);
   console.log(
-    bad.length ? `selftest FAIL（${bad.length} 條）` : 'selftest PASS（四個坑與三種壞法都擋得住）',
+    bad.length
+      ? `selftest FAIL（${bad.length} 條，共 ${cases.length} 條）`
+      : `selftest PASS（${cases.length} 條：十二個坑、walk() 遞迴、buildTargets() 六個掃描根、` +
+          `三條解析路徑共用的說明段跳過（5-1／5-2）、__tests__ 計數（5-3）、` +
+          `涵蓋率下限（A2，含頂層成長免疫）、子目錄整個消失的第二把尺（C2）、` +
+          `🔴 行中觸發與純檔名續行的說明段結束條件（B3／B1）、` +
+          `**except** 一組括號多檔背書（第五輪坑 D）都擋得住——` +
+          `46＋條全綠只證明這些已知形狀被擋住，不證明沒有第 N+1 種）`,
   );
   process.exit(bad.length ? 1 : 0);
 }
