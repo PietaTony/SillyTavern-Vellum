@@ -21,6 +21,7 @@ export {
   type StreamEvent,
 } from './model';
 export { ChatList, type ChatListItem } from './ui/ChatList';
+export { CompanionLayer } from './ui/CompanionLayer';
 export { Composer } from './ui/Composer';
 export { FrontendNotice } from './ui/FrontendNotice';
 export type { FrontendRenderer } from './ui/MessageContent';

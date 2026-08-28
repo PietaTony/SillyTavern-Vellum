@@ -1,21 +1,10 @@
-import AutoStoriesOutlinedIcon from '@mui/icons-material/AutoStoriesOutlined';
-import DataObjectOutlinedIcon from '@mui/icons-material/DataObjectOutlined';
-import ExtensionOutlinedIcon from '@mui/icons-material/ExtensionOutlined';
 import MenuIcon from '@mui/icons-material/Menu';
-import PersonOutlineIcon from '@mui/icons-material/PersonOutlined';
-import SmartToyOutlinedIcon from '@mui/icons-material/SmartToyOutlined';
-import WallpaperOutlinedIcon from '@mui/icons-material/WallpaperOutlined';
 import IconButton from '@mui/material/IconButton';
-import ListItemIcon from '@mui/material/ListItemIcon';
-import ListItemText from '@mui/material/ListItemText';
 import Menu from '@mui/material/Menu';
-import MenuItem from '@mui/material/MenuItem';
 import { useState } from 'react';
-import { BackgroundsLayer } from '@/features/backgrounds';
-import { VariablesLayer } from '@/features/chat';
-import { ChatPersona } from '@/features/persona';
-import { ProvidersLayer } from '@/features/providers';
-import { ReportMenuItem } from './ReportButton';
+import { ChatMenuItems } from './ChatMenuItems';
+import type { ChatMenuLayer } from './ChatMenuLayer';
+import { ChatMenuLayers } from './ChatMenuLayers';
 
 /**
  * 對話頁右上角的 ☰（Peter 2026-08-26：「這邊右上角讓我們顯示三條橫線，點開來後其中一個選項要有 API供應商與金鑰」＋「背景Backgrounds」＋「我是 Peter 收進去」）。
@@ -27,9 +16,11 @@ import { ReportMenuItem } from './ReportButton';
  * ⚠️ **這個版本的 `@mui/icons-material` 沒有無後綴的別名。** `DeleteOutline`／`PersonOutline` 都是 `TS2307 Cannot find module` —— 要寫成 `DeleteOutlineOutlined`／`PersonOutlined`。憑印象打會直接 typecheck 紅燈。
  *
  * 🔴 這一支住 `app/screens/` 不住 `features/chat/`：它的工作是**把幾個 feature 組合到對話畫面上**，放進 chat 會讓 chat → persona／backgrounds／providers／variables 長出相依。
+ *
+ * 🔴 **選單列表與五個 overlay layer 分別搬去 `ChatMenuItems.tsx`／`ChatMenuLayers.tsx`**
+ * （E1，2026-08-28，`gate:file-size` 頂到了）：選單項與它背後的引擎仍然一起上，
+ * 只是「列哪些項」「畫哪一層」這兩段搬過去了，見那兩支檔頭。
  */
-type Layer = 'persona' | 'backgrounds' | 'providers' | 'variables';
-
 export function ChatMenu({
   chatId,
   persona,
@@ -53,10 +44,10 @@ export function ChatMenu({
   onRevokeScripts?: (() => void) | undefined;
 }) {
   const [anchor, setAnchor] = useState<HTMLElement | null>(null);
-  const [layer, setLayer] = useState<Layer | null>(null);
+  const [layer, setLayer] = useState<ChatMenuLayer | null>(null);
   const close = () => setLayer(null);
 
-  const open = (which: Layer) => {
+  const open = (which: ChatMenuLayer) => {
     setAnchor(null);
     setLayer(which);
   };
@@ -72,77 +63,22 @@ export function ChatMenu({
         <MenuIcon />
       </IconButton>
       <Menu anchorEl={anchor} open={Boolean(anchor)} onClose={() => setAnchor(null)}>
-        <MenuItem onClick={() => open('persona')}>
-          <ListItemIcon>
-            <PersonOutlineIcon fontSize="small" />
-          </ListItemIcon>
-          {/* 🔴 名字要出現在選單上 —— 收進 ☰ 之後頂欄看不到「我是誰」了，
-              把它藏成一個叫「我是誰」的通用標籤，等於少了一個原本一眼可見的狀態。 */}
-          <ListItemText
-            primary={`我是 ${persona?.name ?? '你'}`}
-            secondary="這段對話的「我是誰」"
-          />
-        </MenuItem>
-        {onGreetings ? (
-          <MenuItem
-            onClick={() => {
-              setAnchor(null);
-              onGreetings();
-            }}
-          >
-            <ListItemIcon>
-              <AutoStoriesOutlinedIcon fontSize="small" />
-            </ListItemIcon>
-            <ListItemText primary="換開場" secondary="這張卡的開場等於不同的故事線" />
-          </MenuItem>
-        ) : null}
-        {onRevokeScripts ? (
-          <MenuItem
-            onClick={() => {
-              setAnchor(null);
-              onRevokeScripts();
-            }}
-          >
-            <ListItemIcon>
-              <ExtensionOutlinedIcon fontSize="small" />
-            </ListItemIcon>
-            <ListItemText primary="停止執行這張卡的程式" secondary="收回同意，介面會變回引導卡" />
-          </MenuItem>
-        ) : null}
-        <MenuItem onClick={() => open('variables')}>
-          <ListItemIcon>
-            <DataObjectOutlinedIcon fontSize="small" />
-          </ListItemIcon>
-          <ListItemText primary="變數" secondary="目前的值（唯讀）" />
-        </MenuItem>
-        <MenuItem onClick={() => open('backgrounds')}>
-          <ListItemIcon>
-            <WallpaperOutlinedIcon fontSize="small" />
-          </ListItemIcon>
-          <ListItemText primary="背景" secondary="只換這一間（全站的在設定裡）" />
-        </MenuItem>
-        <MenuItem onClick={() => open('providers')}>
-          <ListItemIcon>
-            <SmartToyOutlinedIcon fontSize="small" />
-          </ListItemIcon>
-          {/* 🔴 文案與 `/settings` 那一列**逐字相同** —— 同一件事在兩個入口叫不同名字，使用者要學兩次。 */}
-          <ListItemText primary="AI 供應商與金鑰" secondary="26 家供應商、選模型" />
-        </MenuItem>
-        {/* 🔴 回報要在他發現問題的當下按得到 —— 埋在設定裡的話他得先離開這段對話，
-            而他要講的往往就是「剛剛這段對話怎麼了」。
-            ⚠️ 帶 `chatId` 但**不帶對話內容**：我們要的是查得到那一間，不是他的故事。 */}
-        <ReportMenuItem input={{ extra: { 對話: chatId } }} onDone={() => setAnchor(null)} />
+        <ChatMenuItems
+          chatId={chatId}
+          persona={persona}
+          onGreetings={onGreetings}
+          onRevokeScripts={onRevokeScripts}
+          open={open}
+          closeMenu={() => setAnchor(null)}
+        />
       </Menu>
-      <ChatPersona
-        open={layer === 'persona'}
-        onClose={close}
+      <ChatMenuLayers
+        layer={layer}
+        close={close}
         chatId={chatId}
         persona={persona}
-        onChanged={onPersonaChanged}
+        onPersonaChanged={onPersonaChanged}
       />
-      <BackgroundsLayer open={layer === 'backgrounds'} onClose={close} chatId={chatId} />
-      <ProvidersLayer open={layer === 'providers'} onClose={close} />
-      <VariablesLayer open={layer === 'variables'} onClose={close} chatId={chatId} />
     </>
   );
 }

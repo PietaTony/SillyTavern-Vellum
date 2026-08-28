@@ -29,6 +29,7 @@ import { chatImport } from './routes/chatImport.ts';
 import { generate } from './routes/generate.ts';
 import { update } from './routes/update.ts';
 import { network } from './routes/network.ts';
+import { companionSettings } from './routes/companionSettings.ts';
 import { currentVersion } from './adapters/version.ts';
 import { LICENSE_ID, sourceUrl, UPSTREAM_URL } from './adapters/sourceUrl.ts';
 
@@ -77,6 +78,7 @@ export const app = new Hono()
   .route('/api/update', update)
   // 「允許其他裝置連線」的開關（見該檔檔頭：GET 會同時回設定值與實際綁的介面）。
   .route('/api/network', network)
+  .route('/api/settings', companionSettings)
   /**
    * 🔴 **一處守全部**（GAP-69）。`c.req.json()` 對非 JSON body 丟 `SyntaxError`，
    * 沒攔就是 **500** —— 而 500 的意思是「我壞了」，這其實是**呼叫端送錯東西**、該回 400。
