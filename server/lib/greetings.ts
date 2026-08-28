@@ -66,22 +66,13 @@ export function greetingForSwipe(
 }
 
 /**
- * 把一則訊息的候選**展開回完整字串陣列**。
- *
- * 🔴 **兩種來源，判準看字面 `swipes` 存不存在**（`chatModel.ts` 的 `greetingSwipes`
- * 欄位頭有完整理由）：
- *   · **字面（快照）**——舊資料、匯入的對話、使用者編輯過的訊息。原樣回傳。
- *   · **參照**（`msg.greetingSwipes === true` 且沒有字面 `swipes`）——
- *     這則訊息就是角色卡的開場白，候選**現在**從 `ch.greetings` 剝過再拼，
- *     不是建立對話那一刻存的快照。角色卡的問候語之後被改了，這裡會跟著變
- *     （這是刻意的附帶好處，不是 bug —— 見呼叫端 `chats.ts` 的註解）。
- *
- * 找不到來源（沒有字面 `swipes`、也沒有 `ch.greetings` 可用——例如角色被刪了、
- * 或角色重新匯入後 `greetings` 是空的）就回 `undefined`：**呼叫端要能處理
- * 「這則訊息其實沒有候選」，不要偽造一個空陣列或單元素陣列。**
- *
- * ⚠️ 跟 `greetingForSwipe` 一樣收 `strip` 當參數、不直接 import `stripLoreTags`：
- * 留在「純判準」這一層，測試可以塞假的 strip 來證明「真的有剝過」。
+ * 把一則訊息的候選**展開回完整字串陣列**。判準看字面 `swipes` 存不存在
+ * （`chatModel.ts` 的 `greetingSwipes` 欄位頭有完整理由）：
+ *   · **字面（快照）**——舊資料、匯入、編輯過的訊息，原樣回傳。
+ *   · **參照**（`greetingSwipes: true` 且沒有字面 `swipes`）——現拼自
+ *     `ch.greetings`，角色卡問候語之後被改了會跟著變（附帶好處，見 `chats.ts`）。
+ * 找不到來源就回 `undefined`——呼叫端要處理「沒有候選」，不可以偽造陣列。
+ * ⚠️ 收 `strip` 當參數不直接 import：留在「純判準」層，測試能塞假的 strip。
  */
 export function resolveSwipes(
   msg: { swipes?: string[] | undefined; greetingSwipes?: boolean | undefined },
@@ -93,23 +84,39 @@ export function resolveSwipes(
   return undefined;
 }
 
+/** `pickSwipe` 與 `withResolvedSwipes` 共用的夾法——兩條路徑要用同一把尺，不要各寫一套。 */
+const clampIndex = (requested: number, len: number): number =>
+  Math.min(Math.max(requested, 0), len - 1);
+
 /**
- * `GET /chats/:id` 用：把整份訊息清單裡「參照」角色開場白的那幾則展開成字面 `swipes`，
- * 前端沒有另一套「參照」的畫法，一律吃展開後的陣列。
- * 🔴 放這裡不放 route：`routes/chats.ts` 建立時已經頂著 150 行上限（見檔頭），
- * 這支跟 `resolveSwipes` 是同一層判準，擺一起比較不會分岔。
+ * `GET /chats/:id` 用：展開「參照」角色開場白的那幾則成字面 `swipes`；
+ * 放這裡不放 route——`chats.ts` 頂著 150 行上限（見檔頭），跟 `resolveSwipes`
+ * 同一層判準，擺一起不會分岔。
+ *
+ * 🔴 **同一個坑、兩條路徑，這裡補漏掉的那一條**（獨立驗收線抓到）：夾
+ * `swipeIndex` 之前只做在「主動切換」（`pickSwipe`）。角色卡 `greetings`
+ * 變短不需要使用者動作就會讓存著的 index 懸空，GET 不夾就印出「5 / 3」
+ * 這種不存在的分數（`SwipeBar.tsx:66,107` 直接信任 `swipeIndex`）。
+ * 🔴 只改回應、不寫回磁碟——`chats.ts` 的 GET 從沒把回傳值餵回 `writeJson`，
+ * 「只是看」不該有副作用（同「編輯過才材質化」那套心智模型）。
+ * ⚠️ 夾過的 index 要配對著換 `text`：不然「3 / 3」配「第 5 則」內容，
+ * 又是一種「尺的兩端不同單位」。這則訊息還沒被編輯過（不然不會落到這支），
+ * 本來就跟著角色卡活，跟「候選跟著更新」同一條規則。
  */
 export function withResolvedSwipes<
-  T extends { swipes?: string[] | undefined; greetingSwipes?: boolean | undefined },
->(
-  messages: T[],
-  greetings: string[] | undefined,
-  strip: (s: string) => string,
-): T[] {
+  T extends {
+    swipes?: string[] | undefined;
+    swipeIndex?: number | undefined;
+    text?: string | undefined;
+    greetingSwipes?: boolean | undefined;
+  },
+>(messages: T[], greetings: string[] | undefined, strip: (s: string) => string): T[] {
   return messages.map((m) => {
     if (!m.greetingSwipes) return m;
     const swipes = resolveSwipes(m, greetings, strip);
-    return swipes ? { ...m, swipes } : m;
+    if (!swipes?.length) return m;
+    const swipeIndex = clampIndex(m.swipeIndex ?? 0, swipes.length);
+    return { ...m, swipes, swipeIndex, text: swipes[swipeIndex] ?? m.text };
   });
 }
 
@@ -132,6 +139,6 @@ export function pickSwipe(
 ): { index: number; text: string } | null {
   const candidates = resolveSwipes(msg, greetings, strip);
   if (!candidates?.length) return null;
-  const index = Math.min(Math.max(requestedIndex, 0), candidates.length - 1);
+  const index = clampIndex(requestedIndex, candidates.length);
   return { index, text: candidates[index] ?? '' };
 }

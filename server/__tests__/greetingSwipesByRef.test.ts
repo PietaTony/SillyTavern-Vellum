@@ -1,4 +1,5 @@
-import { mkdtempSync, rmSync, statSync } from 'node:fs';
+import { createHash } from 'node:crypto';
+import { mkdtempSync, readFileSync, rmSync, statSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -131,6 +132,44 @@ describe('GET /api/chats/:id —— 讀取時現拼', () => {
     const got = await (await a.request(`/api/chats/${created.id}`)).json();
     expect(got.messages[0].swipes).toHaveLength(9);
     expect(got.messages[0].swipeIndex).toBe(0);
+  });
+
+  /**
+   * 🔴 **獨立驗收線抓到的坑**：角色卡的 `greetings` 變短（9 → 3），存著的
+   * `swipeIndex: 4` 沒有被 GET 這條「被動讀取」路徑夾住 ⇒ 前端 `SwipeBar`
+   * 印出「5 / 3」這種不存在的分數。這裡釘住修好之後的行為，順便證明
+   * GET **沒有副作用**——回應前後磁碟上的檔案 md5 要一致（「只是看，不算數」）。
+   */
+  it('🔴 9→3 則：swipeIndex 4 讀出來要夾回 [0,2]，text 配對著換，且 GET 不寫回磁碟', async () => {
+    const a = await app();
+    await seedChar();
+    const created = await (
+      await a.request('/api/chats', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ characterId: CH.id, greetingIndex: 4 }),
+      })
+    ).json();
+    expect(created.messages[0].swipeIndex).toBe(4);
+
+    // 角色卡的問候語被砍到只剩 3 則（作者精簡開場白）。
+    const { writeJson } = await import('../adapters/storage.ts');
+    await writeJson(`characters/${CH.id}.json`, { ...CH, greetings: NINE.slice(0, 3) });
+
+    const filePath = join(root, 'chats', `${created.id}.json`);
+    const md5Before = createHash('md5').update(readFileSync(filePath)).digest('hex');
+
+    const res = await a.request(`/api/chats/${created.id}`);
+    expect(res.status).toBe(200);
+    const got = await res.json();
+    console.log('GET 實際回應（9→3 之後）：', JSON.stringify(got.messages[0]));
+    expect(got.messages[0].swipes).toHaveLength(3);
+    expect(got.messages[0].swipeIndex).toBe(2); // 夾回合法範圍的最後一格
+    expect(got.messages[0].text).toBe('第 2 則開場白，足夠長一點'); // text 配對著換
+
+    const md5After = createHash('md5').update(readFileSync(filePath)).digest('hex');
+    console.log(`GET 前後檔案 md5：${md5Before} → ${md5After}`);
+    expect(md5After).toBe(md5Before);
   });
 });
 

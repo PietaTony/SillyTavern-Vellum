@@ -53,6 +53,32 @@ describe('withResolvedSwipes', () => {
     expect(out[0]).toEqual({ id: 'm0', greetingSwipes: true });
     expect('swipes' in (out[0] as object)).toBe(false);
   });
+
+  /**
+   * 🔴 **被動讀取這條路徑要夾 swipeIndex——這是獨立驗收線抓到的坑**：
+   * `pickSwipe`（主動切換）早就有 `resolveSwipes.test.ts` 那條「超出範圍要夾住」
+   * 守著，但 GET 現拼時角色卡的 `greetings` 可以在使用者沒做任何事的情況下變短
+   * （作者砍掉幾則問候語），存著的 `swipeIndex` 就懸空了——這條測的是這裡，
+   * 不是同一條「主動切換」測試的重複。
+   */
+  it('🔴 角色卡的候選變少了（9 → 3），swipeIndex 4 要夾回合法範圍', () => {
+    const messages = [{ id: 'm0', greetingSwipes: true as const, swipeIndex: 4, text: '第 5 則' }];
+    const out = withResolvedSwipes(messages, ['剝> A', '剝> B', '剝> C'], strip);
+    expect(out[0]).toMatchObject({ swipeIndex: 2, swipes: ['A', 'B', 'C'] });
+  });
+
+  it('⚠️ 夾過的 index 要配對著換 text，不能只改數字（不然計數器與內文不同單位）', () => {
+    const messages = [{ id: 'm0', greetingSwipes: true as const, swipeIndex: 4, text: '第 5 則' }];
+    const out = withResolvedSwipes(messages, ['剝> A', '剝> B', '剝> C'], strip);
+    // swipeIndex 夾到 2，text 就該是 swipes[2]（'C'），不是原本沒被夾過時對應的舊字。
+    expect(out[0]).toMatchObject({ swipeIndex: 2, text: 'C' });
+  });
+
+  it('沒超出範圍：index 不變，text 一律用現拼的那一格（參照訊息本來就跟著卡片活）', () => {
+    const messages = [{ id: 'm0', greetingSwipes: true as const, swipeIndex: 1, text: '舊文字' }];
+    const out = withResolvedSwipes(messages, ['剝> A', '剝> B', '剝> C'], strip);
+    expect(out[0]).toMatchObject({ swipeIndex: 1, text: 'B' });
+  });
 });
 
 describe('pickSwipe', () => {
