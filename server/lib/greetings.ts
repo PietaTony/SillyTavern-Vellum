@@ -64,3 +64,74 @@ export function greetingForSwipe(
   if (raw === undefined || target === undefined) return undefined;
   return strip(raw) === target ? raw : undefined;
 }
+
+/**
+ * 把一則訊息的候選**展開回完整字串陣列**。
+ *
+ * 🔴 **兩種來源，判準看字面 `swipes` 存不存在**（`chatModel.ts` 的 `greetingSwipes`
+ * 欄位頭有完整理由）：
+ *   · **字面（快照）**——舊資料、匯入的對話、使用者編輯過的訊息。原樣回傳。
+ *   · **參照**（`msg.greetingSwipes === true` 且沒有字面 `swipes`）——
+ *     這則訊息就是角色卡的開場白，候選**現在**從 `ch.greetings` 剝過再拼，
+ *     不是建立對話那一刻存的快照。角色卡的問候語之後被改了，這裡會跟著變
+ *     （這是刻意的附帶好處，不是 bug —— 見呼叫端 `chats.ts` 的註解）。
+ *
+ * 找不到來源（沒有字面 `swipes`、也沒有 `ch.greetings` 可用——例如角色被刪了、
+ * 或角色重新匯入後 `greetings` 是空的）就回 `undefined`：**呼叫端要能處理
+ * 「這則訊息其實沒有候選」，不要偽造一個空陣列或單元素陣列。**
+ *
+ * ⚠️ 跟 `greetingForSwipe` 一樣收 `strip` 當參數、不直接 import `stripLoreTags`：
+ * 留在「純判準」這一層，測試可以塞假的 strip 來證明「真的有剝過」。
+ */
+export function resolveSwipes(
+  msg: { swipes?: string[] | undefined; greetingSwipes?: boolean | undefined },
+  greetings: string[] | undefined,
+  strip: (s: string) => string,
+): string[] | undefined {
+  if (msg.swipes) return msg.swipes;
+  if (msg.greetingSwipes && greetings?.length) return greetings.map(strip);
+  return undefined;
+}
+
+/**
+ * `GET /chats/:id` 用：把整份訊息清單裡「參照」角色開場白的那幾則展開成字面 `swipes`，
+ * 前端沒有另一套「參照」的畫法，一律吃展開後的陣列。
+ * 🔴 放這裡不放 route：`routes/chats.ts` 建立時已經頂著 150 行上限（見檔頭），
+ * 這支跟 `resolveSwipes` 是同一層判準，擺一起比較不會分岔。
+ */
+export function withResolvedSwipes<
+  T extends { swipes?: string[] | undefined; greetingSwipes?: boolean | undefined },
+>(
+  messages: T[],
+  greetings: string[] | undefined,
+  strip: (s: string) => string,
+): T[] {
+  return messages.map((m) => {
+    if (!m.greetingSwipes) return m;
+    const swipes = resolveSwipes(m, greetings, strip);
+    return swipes ? { ...m, swipes } : m;
+  });
+}
+
+/**
+ * `PATCH .../swipe` 用：挑出第 `requestedIndex` 個候選，順便把 index 夾回合法範圍
+ * （沿用既有「夾住不 500」的判準，`chats.test.ts` 早就在守）。
+ * 回 `null` ＝ 這則訊息沒有其他候選，呼叫端轉 404。
+ * 🔴 **不回傳整份 `candidates`**——呼叫端只需要「夾好的 index」與「那一格的文字」，
+ * 給整份陣列只會誘使呼叫端手滑把它寫回磁碟（那就是把參照凍回快照，見 `resolveSwipes`）。
+ */
+export function pickSwipe(
+  msg: {
+    swipes?: string[] | undefined;
+    swipeIndex?: number | undefined;
+    greetingSwipes?: boolean | undefined;
+  },
+  greetings: string[] | undefined,
+  requestedIndex: number,
+  strip: (s: string) => string,
+): { index: number; text: string } | null {
+  const candidates = resolveSwipes(msg, greetings, strip);
+  if (!candidates?.length) return null;
+  const index = Math.min(Math.max(requestedIndex, 0), candidates.length - 1);
+  return { index, text: candidates[index] ?? '' };
+}

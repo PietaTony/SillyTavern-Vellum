@@ -1,0 +1,254 @@
+import { mkdtempSync, rmSync, statSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import type { Character } from '../lib/character.ts';
+import type { Chat } from '../services/chatModel.ts';
+
+/**
+ * 🔴 **這支守的是量出來的那個問題本身有沒有真的被解掉**：
+ * 建立對話時開場白的候選不再整批落字面 `swipes`（`chats.ts` 的 `POST /`），
+ * 讀取時現拼（`GET /:id`），編輯會材質化（`chatMessages.ts`），角色卡問候語
+ * 改了、還沒編輯過的候選要跟著變（附帶好處）。
+ *
+ * `chatSwipe.test.ts` 已經守「切換」與 B2／B3 那條世界書鏈——這裡不重複，
+ * 只加「落檔形狀」「回應展開」「編輯材質化」「舊檔相容」「跟著角色卡變」五件事。
+ */
+let root: string;
+
+async function app() {
+  vi.resetModules();
+  process.env['VELLUM_DATA'] = root;
+  const { Hono } = await import('hono');
+  const { chats } = await import('../routes/chats.ts');
+  const { chatMessages } = await import('../routes/chatMessages.ts');
+  return new Hono().route('/api/chats', chatMessages).route('/api/chats', chats);
+}
+
+const NINE = Array.from({ length: 9 }, (_v, i) => `<!-- lore: ${i} -->第 ${i} 則開場白，足夠長一點`);
+
+const CH: Character = {
+  id: 'char1',
+  name: '九則開場',
+  description: 'x',
+  firstMessage: NINE[0] as string,
+  avatar: '',
+  createdAt: '2026-08-28T00:00:00.000Z',
+  greetings: NINE,
+};
+
+const seedChar = async (ch: Character = CH) => {
+  const { writeJson } = await import('../adapters/storage.ts');
+  await writeJson(`characters/${ch.id}.json`, ch);
+};
+
+const readChatFile = async (id: string) => {
+  const { readJson } = await import('../adapters/storage.ts');
+  return readJson<Chat | null>(`chats/${id}.json`, null);
+};
+
+const chatFileBytes = (id: string): number => statSync(join(root, 'chats', `${id}.json`)).size;
+
+beforeEach(() => {
+  root = mkdtempSync(join(tmpdir(), 'vellum-greetingref-'));
+});
+afterEach(() => {
+  rmSync(root, { recursive: true, force: true });
+  delete process.env['VELLUM_DATA'];
+});
+
+describe('POST /api/chats —— 落檔形狀', () => {
+  it('🔴 9 則開場白：磁碟上第一則訊息沒有字面 swipes，只有 greetingSwipes 標記', async () => {
+    const a = await app();
+    await seedChar();
+    const res = await a.request('/api/chats', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ characterId: CH.id }),
+    });
+    expect(res.status).toBe(201);
+    const onDisk = await readChatFile((await res.clone().json()).id);
+    expect(onDisk?.messages[0]?.greetingSwipes).toBe(true);
+    expect(onDisk?.messages[0]?.swipes).toBeUndefined();
+    expect(onDisk?.messages[0]?.swipeIndex).toBe(0);
+  });
+
+  it('🔴 前後 bytes 對照：同一張 9 則開場白的卡，落檔大小遠小於「整批落字面 swipes」', async () => {
+    const a = await app();
+    await seedChar();
+    const created = await (
+      await a.request('/api/chats', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ characterId: CH.id }),
+      })
+    ).json();
+    const actualBytes = chatFileBytes(created.id);
+
+    // 舊行為的等價落檔：同一份 chat，但第一則訊息把 9 則候選整批寫成字面 swipes。
+    const { writeJson, readJson } = await import('../adapters/storage.ts');
+    const asIs = await readJson<Chat | null>(`chats/${created.id}.json`, null);
+    const oldShape: Chat = structuredClone(asIs) as Chat;
+    if (oldShape.messages[0]) {
+      delete oldShape.messages[0].greetingSwipes;
+      oldShape.messages[0].swipes = NINE.map((g) => g.replace(/^<!-- lore: \d+ -->/, ''));
+    }
+    await writeJson(`chats/old-shape.json`, oldShape);
+    const oldBytes = chatFileBytes('old-shape');
+
+    console.log(`greetingSwipes: true → ${actualBytes} bytes；字面 swipes（舊行為等價）→ ${oldBytes} bytes`);
+    expect(actualBytes).toBeLessThan(oldBytes);
+    // 9 則開場白全文佔了絕大多數重量——省下來的應該是大宗，不是零頭。
+    expect(oldBytes - actualBytes).toBeGreaterThanOrEqual(oldBytes * 0.5);
+  });
+
+  it('回應（不是磁碟）仍然要展開 swipes——呼叫端當場要看到候選', async () => {
+    const a = await app();
+    await seedChar();
+    const body = await (
+      await a.request('/api/chats', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ characterId: CH.id }),
+      })
+    ).json();
+    expect(body.messages[0].swipes).toHaveLength(9);
+    expect(body.messages[0].swipes[0]).toBe('第 0 則開場白，足夠長一點');
+  });
+});
+
+describe('GET /api/chats/:id —— 讀取時現拼', () => {
+  it('greetingSwipes 訊息展開成完整 swipes，字面訊息原樣通過', async () => {
+    const a = await app();
+    await seedChar();
+    const created = await (
+      await a.request('/api/chats', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ characterId: CH.id }),
+      })
+    ).json();
+    const got = await (await a.request(`/api/chats/${created.id}`)).json();
+    expect(got.messages[0].swipes).toHaveLength(9);
+    expect(got.messages[0].swipeIndex).toBe(0);
+  });
+});
+
+describe('🔴 附帶好處：角色卡問候語改了，還沒編輯過的候選跟著更新', () => {
+  it('切候選之後（仍是參照），改角色卡的開場白，再讀一次會拿到新內容', async () => {
+    const a = await app();
+    await seedChar();
+    const created = await (
+      await a.request('/api/chats', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ characterId: CH.id }),
+      })
+    ).json();
+
+    // 使用者切到第 3 則看看（純切換，不編輯——保持參照）。
+    await a.request(`/api/chats/${created.id}/messages/${created.messages[0].id}/swipe`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ index: 2 }),
+    });
+
+    // 角色卡的問候語被改了（例如作者修正錯字）。
+    const { writeJson } = await import('../adapters/storage.ts');
+    const edited: Character = {
+      ...CH,
+      greetings: NINE.map((g, i) => (i === 2 ? '<!-- lore: 2 -->改過的第 2 則' : g)),
+    };
+    await writeJson(`characters/${CH.id}.json`, edited);
+
+    const got = await (await a.request(`/api/chats/${created.id}`)).json();
+    expect(got.messages[0].swipeIndex).toBe(2);
+    expect(got.messages[0].swipes[2]).toBe('改過的第 2 則');
+  });
+});
+
+describe('🔴 編輯把參照凍成快照', () => {
+  it('編輯第一則開場白之後，材質化成字面 swipes；之後角色卡再改也不受影響', async () => {
+    const a = await app();
+    await seedChar();
+    const created = await (
+      await a.request('/api/chats', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ characterId: CH.id }),
+      })
+    ).json();
+    const msgId = created.messages[0].id;
+
+    await a.request(`/api/chats/${created.id}/messages/${msgId}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ text: '使用者自己改過的開場白' }),
+    });
+
+    const onDisk = await readChatFile(created.id);
+    expect(onDisk?.messages[0]?.swipes).toHaveLength(9);
+    expect(onDisk?.messages[0]?.swipes?.[0]).toBe('使用者自己改過的開場白');
+    expect(onDisk?.messages[0]?.greetingSwipes).toBeUndefined();
+
+    // 切走再切回來，編輯還在（既有的 messageEdit 契約，材質化之後一樣要守住）。
+    await a.request(`/api/chats/${created.id}/messages/${msgId}/swipe`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ index: 3 }),
+    });
+    const back = await a.request(`/api/chats/${created.id}/messages/${msgId}/swipe`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ index: 0 }),
+    });
+    expect((await back.json()).text).toBe('使用者自己改過的開場白');
+
+    // 角色卡之後再改問候語，這則已經材質化的訊息不受影響。
+    const { writeJson } = await import('../adapters/storage.ts');
+    await writeJson(`characters/${CH.id}.json`, {
+      ...CH,
+      greetings: NINE.map((g) => `${g}（改過）`),
+    });
+    const got = await (await a.request(`/api/chats/${created.id}`)).json();
+    expect(got.messages[0].text).toBe('使用者自己改過的開場白');
+  });
+});
+
+describe('🔴 舊檔相容：加這個欄位之前落的檔，結構完全沒有 greetingSwipes', () => {
+  it('舊格式（字面 swipes，沒有 greetingSwipes 欄位）讀取、切換都正常', async () => {
+    const a = await app();
+    await seedChar();
+    const { writeJson } = await import('../adapters/storage.ts');
+    const legacy: Chat = {
+      id: 'legacy1',
+      characterId: CH.id,
+      characterName: CH.name,
+      createdAt: '2026-08-01T00:00:00.000Z',
+      messages: [
+        {
+          id: 'm0',
+          role: 'model',
+          text: '舊資料的開場白',
+          at: '2026-08-01T00:00:00.000Z',
+          swipes: ['舊資料的開場白', '舊資料的第二則'],
+          swipeIndex: 0,
+        },
+      ],
+    };
+    await writeJson('chats/legacy1.json', legacy);
+
+    const got = await (await a.request('/api/chats/legacy1')).json();
+    expect(got.messages[0].swipes).toEqual(['舊資料的開場白', '舊資料的第二則']);
+
+    const swiped = await (
+      await a.request('/api/chats/legacy1/messages/m0/swipe', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ index: 1 }),
+      })
+    ).json();
+    expect(swiped.swipeIndex).toBe(1);
+    expect(swiped.text).toBe('舊資料的第二則');
+  });
+});
