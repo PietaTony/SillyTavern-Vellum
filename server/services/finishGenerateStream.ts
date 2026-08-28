@@ -1,0 +1,63 @@
+/**
+ * `server/routes/generate.ts` 的收尾邏輯：串流讀到一半掛掉時，是「使用者自己按了
+ * 停止」還是「真的出錯」——這裡分流。抽成獨立檔案的理由跟 `commitPartialTurn.ts`
+ * 一樣：`generate.ts` 在動工前就已經卡在 150 行（`origin/staging` 量過，149 行、
+ * 沒有空間），這段新邏輯塞不進去，唯一乾淨的路是另開檔案，不是把既有註解砍薄——
+ * 那條路第一輪做過、被獨立驗收退回。
+ *
+ * 🔴 **中止（使用者按停止／連線斷了）跟「真的出錯」是兩件事**（跨層票 H1／H6，
+ * 2026-08-28）：`controller.signal.aborted` 為真時，`reader.read()` 丟的是我們自己
+ * 觸發的 AbortError，不是供應商出錯——這時要把已經吐出來的字落地成半成品，
+ * 而不是丟一顆 `error` 事件嚇使用者（那則訊息其實已經在寫了）。
+ *
+ * ⚠️ **半成品不套 `<UpdateVariable>`**：中止點不保證停在完整區塊之後，半句
+ * JSONPatch 套下去會靜默寫壞 `chat.variables`（見 `commitPartialTurn.ts` 檔頭）。
+ * ⚠️ 客戶端多半已經斷線讀不到這裡送出的 `done`／`error` 事件——落地（`writeJson`）
+ * 才是重點，`ctrl.enqueue` 只是「如果連線還在」的順手嘗試，失敗不影響已經寫進
+ * 檔案的訊息，所以兩個分支各自都用 try/catch 包住 enqueue。
+ */
+import { redact } from './secrets.ts';
+import { commitPartialTurn } from './commitPartialTurn.ts';
+
+export async function finishGenerateStream(opts: {
+  ctrl: ReadableStreamDefaultController<Uint8Array>;
+  enc: TextEncoder;
+  sse: (event: string, data: unknown) => string;
+  controller: AbortController;
+  full: string;
+  chatId: string;
+  chat: { messages: unknown[] };
+  usage: Record<string, number | undefined>;
+  key: string;
+  error: unknown;
+}): Promise<void> {
+  const { ctrl, enc, sse, controller, full, chatId, chat, usage, key, error } = opts;
+  if (controller.signal.aborted && full.length > 0) {
+    try {
+      const msg = await commitPartialTurn(chatId, chat, full);
+      ctrl.enqueue(enc.encode(sse('done', { message: msg, finishReason: 'ABORTED', usage })));
+    } catch (commitErr) {
+      console.error('[vellum] 中止時把半成品落地失敗：', commitErr);
+    }
+  } else if (!controller.signal.aborted) {
+    const detail = error instanceof Error ? redact(error.message, [key]) : '串流中斷';
+    try {
+      ctrl.enqueue(enc.encode(sse('error', { message: detail })));
+    } catch {
+      /* 連線已經沒了，寫不進去不算另一個錯誤 */
+    }
+  }
+}
+
+/**
+ * `finally { ctrl.close(); }` 加一層防呆——中止之後（`cancel()` 被呼叫）controller
+ * 可能已經進入不能再操作的狀態，再 close 一次會丟例外。這件事跟上面的分流邏輯
+ * 綁在一起改（同一輪跨層票），所以放同一支檔案，不另開檔。
+ */
+export function closeQuietly(ctrl: ReadableStreamDefaultController<Uint8Array>): void {
+  try {
+    ctrl.close();
+  } catch {
+    /* 已經因為中止被關掉的話，再關一次會丟例外——不用理它 */
+  }
+}

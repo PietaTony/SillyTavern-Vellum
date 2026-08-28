@@ -1,7 +1,7 @@
 import { useRef, useState } from 'react';
 import { appendMessage, streamGenerate } from './api';
 import type { Message } from './model';
-import { localPartialMessage } from './stopGeneration';
+import { applyStopGeneration } from './stopGeneration';
 
 /**
  * 對話畫面的「送出 → 串流 → 落地」狀態。
@@ -18,18 +18,22 @@ export function useChatStream(
   chatId: string,
   fromServer: Message[] | undefined,
   /**
-   * 🔴 **生成結束時重讀對話。** 後端到這一刻才把這一輪的 `<UpdateVariable>` 套進
-   * `chat.variables`——不重讀卡片的狀態欄永遠停在進來時那一份；順便解掉「剛生成完
-   * 那一則顯示原文」（`done` 送的是沒套過顯示規則的 `full`）。
+   * 🔴 **生成結束時重讀對話。** 後端要到這一刻才把這一輪的 `<UpdateVariable>` 套進
+   * `chat.variables`（引擎在 `server/lib/varUpdate.ts`／`varApply.ts`）——不重讀的話
+   * 卡片的狀態欄永遠停在進來時那一份。
+   * ⚠️ 順便解掉「剛生成完那一則顯示原文」：`done` 送的是沒套過顯示規則的 `full`，
+   * 於是 `<UpdateVariable><JSONPatch>…` 會原封印在畫面上直到下次重讀。
    */
   onDone?: () => Promise<unknown>,
 ) {
   const [local, setLocal] = useState<Message[] | null>(null);
   const [streaming, setStreaming] = useState<string | null>(null);
   /**
-   * 🔴 **模型正在思考，但一個字都還沒吐**（Peter 2026-08-27）：推理模型會先送一大段
-   * thinking 才開始寫正文，那段期間畫面上什麼都不動，看起來就是當掉了——這個旗標
-   * 讓畫面說得出「它在想」。⚠️ 不存 thinking 的內容，混進正文會變成角色的台詞。
+   * 🔴 **模型正在思考，但一個字都還沒吐**（Peter 2026-08-27）。
+   * 推理模型會先送一大段 thinking 才開始寫正文 —— 那段期間畫面上什麼都不動，
+   * 看起來就是當掉了。這個旗標讓畫面說得出「它在想」而不是「它壞了」。
+   * ⚠️ **不存 thinking 的內容**：後端刻意把它與正文分開（混進去會變成角色的台詞），
+   * 我們只需要「有沒有在想」這一個位元。
    */
   const [thinking, setThinking] = useState(false);
   const [failure, setFailure] = useState<string | null>(null);
@@ -89,12 +93,8 @@ export function useChatStream(
        * ⚠️ 使用者自己中止的不算失敗，不要跳一則訊息嚇他。
        */
       if (ac.signal.aborted) {
-        // 🔴 停止生成（跨層票 H1／H6，2026-08-28）：在此之前中止什麼都不做，
-        // composer 卡死（GAP-54 同一個坑家族）。半成品＝保留，樂觀塞進 `local`
-        // ——不自動重讀去對齊（理由與細節見 `stopGeneration.ts`）。
-        setThinking(false);
-        setStreaming(null);
-        if (acc) setLocal((prev) => [...(prev ?? base), localPartialMessage(acc)]);
+        // 🔴 停止生成（跨層票 H1／H6，2026-08-28）——理由見 `stopGeneration.ts`。
+        applyStopGeneration({ acc, base, setThinking, setStreaming, setLocal });
         return;
       }
       setThinking(false);
@@ -131,8 +131,10 @@ export function useChatStream(
     run([...messages, mine]);
   }
 
-  // 不加新訊息、直接再生成一次（長按選單「從這則重新生成」）。
-  // 🔴 呼叫端要**先刪、再重讀**，把重讀回來的那份當 `base` 傳進來 —— 理由見 `run`。
+  /**
+   * 不加新訊息、直接再生成一次（長按選單的「從這則重新生成」）。
+   * 🔴 呼叫端要**先刪、再重讀**，把重讀回來的那份當 `base` 傳進來 —— 理由見 `run`。
+   */
   function regenerate(base: Message[]) {
     setFailure(null);
     run(base);
@@ -141,8 +143,7 @@ export function useChatStream(
   /** 丟掉樂觀暫存，改讀伺服器那份。**切候選成功之後一定要叫它**（見檔頭 B1）。 */
   const reset = () => setLocal(null);
 
-  // 停止生成（跨層票 H1／H6，2026-08-28）：觸發交給 `run()` 的 catch 分支處理。
-  const stop = () => abortRef.current?.abort();
+  const stop = () => abortRef.current?.abort(); // 停止生成（跨層票 H1／H6）：交給 catch 分支處理。
 
   return { messages, streaming, thinking, failure, setFailure, send, regenerate, reset, stop };
 }

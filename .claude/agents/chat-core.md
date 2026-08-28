@@ -18,7 +18,7 @@ You own **H1 · Chat Core**. `AGENTS.md` holds the rules this file does not repe
 - `server/routes/` — `chats.ts` `chatMessages.ts` `chatImport.ts` `generate.ts`
 - `server/lib/` — `chatFile.ts` `greetings.ts` `messageEdit.ts`
 - `server/services/` — `chatModel.ts` `renderChat.ts` `buildTurn.ts` `greetingLore.ts`
-  `landOpening.ts` `seedGreetingVars.ts`
+  `landOpening.ts` `seedGreetingVars.ts` `commitPartialTurn.ts` `finishGenerateStream.ts`
   🔴 These four are in `services/`, not `lib/`. `services/` touches IO; `lib/` is pure.
 
 **Tests** — `server/__tests__/<module>.test.ts` for any module above.
