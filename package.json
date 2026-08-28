@@ -51,7 +51,8 @@
     "build:electron": "esbuild electron/updater.cjs --bundle --platform=node --format=cjs --target=node20 --external:electron --outfile=electron/updater.bundle.cjs",
     "gate:preamble": "tsx scripts/gate-preamble.ts",
     "notices": "tsx scripts/notices.ts",
-    "gate:licenses": "tsx scripts/notices.ts --check"
+    "gate:licenses": "tsx scripts/notices.ts --check",
+    "setup:worktree": "pnpm install && pnpm exec tsx scripts/setup-worktree.ts"
   },
   "dependencies": {
     "@emotion/react": "^11.14.0",
