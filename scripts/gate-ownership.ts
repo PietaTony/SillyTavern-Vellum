@@ -182,6 +182,7 @@ import {
 } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, relative } from 'node:path';
+import { dirOf, groupByDir, singleOwnerDirs } from './gate-ownership-dirgrain.ts';
 
 const ROOT = new URL('..', import.meta.url).pathname;
 const AGENTS_DIR = join(ROOT, '.claude/agents');
@@ -520,17 +521,36 @@ export function unclaimedExceptions(exceptions: Set<string>, own: OwnerMap): str
   return [...exceptions].filter((p) => !own.has(p)).sort();
 }
 
+/**
+ * 2026-08-28 補洞（第七輪，`INBOX/20260828-ownership-extract-deadlock.md`）：
+ * `server/lib/` `server/routes/` `server/services/` `src/app/screens/` 這幾個逐檔
+ * 具名（不是 glob）的目錄，一旦頂到 `gate:file-size` 的 150 行上限逼人抽檔，新抽出
+ * 的檔案在同一輪 PR 裡沒登記進 §1 就是孤兒——即使那個目錄事實上只有一個 owner，
+ * 抽檔完全不會引發「這支到底歸誰」的疑問。`dirOwners`（`singleOwnerDirs()`，見
+ * `gate-ownership-dirgrain.ts` 自己的檔頭）在具名／X／glob 都查不到之後再查一次：
+ * 這個路徑的直屬目錄，如果**目前所有具名認領都屬於同一個 agent**，就放行給那個
+ * agent。🔴 共用目錄（`server/services/` 這種 2 個以上 agent 在同一個目錄都有具名
+ * 檔）**不放行**——`singleOwnerDirs()` 自己就會把這種目錄整個排除在回傳的 map
+ * 之外，不是這裡再判斷一次；這裡收到的 `dirOwners` 已經是篩過的安全清單，多一層
+ * 判斷只會製造「兩個地方各自維護一份判準、遲早兜不攏」的下一個坑。
+ * 預設空 Map——舊有呼叫點（`--selftest` 裡近 20 個 `decide()`／`covered()` 呼叫）
+ * 不用全部改簽名，行為跟這輪之前完全一樣。
+ */
 function covered(
   path: string,
   own: OwnerMap,
   X: Set<string>,
   Xg: Set<string>,
   globs: Map<string, string>,
+  dirOwners: Map<string, string> = new Map(),
 ): string | null {
   if (own.has(path)) return own.get(path) ?? null;
   if (X.has(path)) return 'X';
   for (const g of Xg) if (path.startsWith(g.slice(0, -2))) return 'X';
   for (const [g, a] of globs) if (path.startsWith(g.slice(0, -2))) return a;
+  const dir = path.includes('/') ? path.slice(0, path.lastIndexOf('/') + 1) : '';
+  const soleAgent = dirOwners.get(dir);
+  if (soleAgent) return soleAgent;
   return null;
 }
 
@@ -834,9 +854,10 @@ export function decide(
   X: Set<string>,
   Xg: Set<string>,
   globs: Map<string, string>,
+  dirOwners: Map<string, string> = new Map(),
 ): { code: number; orphans: string[]; dupList: [string, string[]][] } {
   if (targets.length === 0) return { code: 2, orphans: [], dupList: [] };
-  const orphans = targets.filter((t) => !covered(t, own, X, Xg, globs));
+  const orphans = targets.filter((t) => !covered(t, own, X, Xg, globs, dirOwners));
   const dupList = [...dup.entries()].map(([k, v]) => [k, [...v].sort()] as [string, string[]]);
   return { code: orphans.length || dupList.length ? 1 : 0, orphans, dupList };
 }
@@ -915,12 +936,39 @@ function run(): void {
     process.exit(1);
   }
 
-  const { code, orphans, dupList } = decide(targets, own, dup, X, Xg, globs);
+  // 第七輪：單一owner目錄放寬——見 covered() 檔頭與 gate-ownership-dirgrain.ts。
+  // 🔴 `singleOwnerDirs()` 只看 `own`（具名認領字串），不知道哪些目錄真的存在
+  // 掃描到的檔案——`FILE_RE` 對「glob 宣告行括號裡順口列出的完整相對路徑」
+  // （`worldbook.md:14` 的 `src/app/routes/worlds/**（\`index.tsx\` ...
+  // \`$worldId/index.tsx\`）`）解析出來的是**沒有目錄前綴的裸字串**
+  // `$worldId/index.tsx`（這是既有 `claimFilesIn()` 的既有行為，不是這輪動的），
+  // 對 `own` 而言完全無害（沒有任何真實 target 字面等於 `$worldId/index.tsx`），
+  // 但會在 `singleOwnerDirs()` 裡冒出一個 `$worldId/` 幽靈目錄。用 `targets` 過濾掉
+  // 「沒有任何掃描到的檔案落在這個目錄底下」的項目——對真正要放寬的情境完全無感
+  // （新孤兒檔案本身就是自己那個目錄底下的一個 target，恆成立），只濾掉這種解析
+  // 副作用產生的幽靈路徑，PASS 訊息才不會印出誤導人的「放寬了一個目錄」。
+  const dirOwners = new Map(
+    [...singleOwnerDirs(own, X, Xg, globs)].filter(([dir]) =>
+      targets.some((t) => t.startsWith(dir)),
+    ),
+  );
+  const { code, orphans, dupList } = decide(targets, own, dup, X, Xg, globs, dirOwners);
   if (code === 1) {
     console.error(`gate:ownership FAIL — 掃了 ${targets.length} 個標的`);
     if (orphans.length) {
       console.error(`  沒人認領 ${orphans.length} 個：`);
-      for (const o of orphans) console.error(`    ${o}`);
+      // 第七輪：孤兒的目錄如果剛好是「2 個以上 agent 都有具名檔」的共用目錄，訊息
+      // 直接講出來——這不是尺壞了，是這個目錄本來就不吃單一owner放寬（見 covered()
+      // 檔頭），人類看到訊息就知道要去具名登記，不用自己再查一次 groupByDir()。
+      const byDir = groupByDir(own);
+      for (const o of orphans) {
+        const agents = [...(byDir.get(dirOf(o)) ?? [])].sort();
+        const hint =
+          agents.length >= 2
+            ? `（共用目錄，具名 owner 已有 ${agents.join('、')}——不吃單一owner放寬，需具名登記）`
+            : '';
+        console.error(`    ${o}${hint}`);
+      }
     }
     if (dupList.length) {
       console.error(`  重複認領 ${dupList.length} 個：`);
@@ -937,7 +985,9 @@ function run(): void {
       `最深 ${subApp.maxDepthChecked} 層都對得上）` +
       `（另外排除 server/ 與 src/app/ 底下（含巢狀）共 ${excludedTests} 個 __tests__ 檔——` +
       `X4 沒有機制守，這一輪刻意排除；不含 src/features/**（目錄粒度，本就不遞迴）` +
-      `與 src/shared/**（X1，本就不掃）底下的 __tests__）`,
+      `與 src/shared/**（X1，本就不掃）底下的 __tests__）` +
+      `（單一owner目錄放寬涵蓋 ${dirOwners.size} 個目錄：` +
+      `${[...dirOwners.entries()].map(([d, a]) => `${d}→${a}`).join('、') || '無'}）`,
   );
 }
 
@@ -1190,6 +1240,89 @@ function runSelftest(): void {
     real.globDup,
   );
   const realUnclaimed = unclaimedExceptions(real.exceptions, real.own);
+
+  // 第七輪（`INBOX/20260828-ownership-extract-deadlock.md`）：單一owner目錄放寬。
+  // 用真實 agents 資料——不是造出來的 fixture——因為這張票點名的四個共用目錄
+  // （票裡踩過孤兒卡關的兩個＋另外兩個同型）本來就已經存在於這個 repo。
+  const realDirOwners = singleOwnerDirs(real.own, realX.X, realX.Xg, real.globs);
+
+  // 案例1（票 §4 第1點）：owner 在自己單一擁有的目錄新增檔 → 綠。用真實單一owner
+  // 目錄 `src/app/routes/chat/`（只有 chat-core 具名），造一個真實不存在、沒被
+  // 任何 agent 具名列出的檔名，走完整的 `decide()` pipeline（不是只呼叫
+  // `singleOwnerDirs()`）——要真的降到 0 個孤兒，證明 `covered()`／`decide()`
+  // 有把 `dirOwners` 接進主流程，不是算好了沒人用的裝飾品。
+  const newFileInSingleOwnerDir = 'src/app/routes/chat/brandNewFile.tsx';
+  const singleOwnerRun = decide(
+    [newFileInSingleOwnerDir],
+    real.own,
+    new Map(),
+    realX.X,
+    realX.Xg,
+    real.globs,
+    realDirOwners,
+  );
+  // 🔴 嚴重1同款鐵律：把 `dirOwners` 換成空 Map（等同把這輪的放寬整段拔掉）重跑
+  // 同一個 `decide()` 呼叫，斷言結果會翻盤回孤兒——這才證明上面那個「綠」不是巧合
+  // 或本來就綠（例如目錄其實是 glob 覆蓋掉的），是這個放寬真的在起作用。
+  const singleOwnerRunWithoutRelax = decide(
+    [newFileInSingleOwnerDir],
+    real.own,
+    new Map(),
+    realX.X,
+    realX.Xg,
+    real.globs,
+    new Map(),
+  );
+
+  // 案例2（票 §4 第2點，🔴 最重要的安全欄杆）：共用目錄——2 個以上 agent 都有
+  // 具名檔——新檔仍然要判孤兒，不能被放寬掩護過去，也不能「先到先贏」隨便指定給
+  // 走訪順序先出現的那個 agent。用真實共用目錄 `server/services/`（chat-core 與
+  // card-scripts 等 8 個 agent）＋真實 `server/routes/`（10 個 agent）＋真實
+  // `src/app/screens/`（4 個 agent，票裡 D2 真的撞到的那個目錄）各自造一個不存在
+  // 的新檔名，全部要維持孤兒。
+  const sharedDirOrphans = [
+    'server/services/brandNewSharedFile.ts',
+    'server/routes/brandNewSharedFile.ts',
+    'server/lib/brandNewSharedFile.ts',
+    'src/app/screens/BrandNewSharedScreen.tsx',
+  ];
+  const sharedDirRun = decide(
+    sharedDirOrphans,
+    real.own,
+    new Map(),
+    realX.X,
+    realX.Xg,
+    real.globs,
+    realDirOwners,
+  );
+
+  // 案例3（票 §4 第3點）：兩個 owner 共用同一個目錄——`server/services/` 是票裡
+  // 點名「最難的情境」，本判準的做法（票 §3 方向 (a)）是維持嚴格，上面
+  // `sharedDirRun` 已經涵蓋；這裡再單獨斷言 `realDirOwners` 本身完全不包含這四個
+  // 目錄——不是靠 `decide()` 的某個旁路意外擋住，是 `singleOwnerDirs()` 從一開始
+  // 就沒把它們算進放行清單。
+
+  // 案例4（票 §4 第4點）：既有 170 個標的的判定不變——用真實 `buildTargets()` 全量
+  // 跑一次完整 `decide()`（含 `realDirOwners`），結果要跟不放寬時完全一樣（0 個
+  // 孤兒、0 個重複）——證明這輪放寬對「已經被具名認領的既有檔案」零影響，只在
+  // `covered()` 前面幾層都查不到的**新**檔案上才會被查到。
+  const fullRunWithRelax = decide(
+    built.targets,
+    real.own,
+    real.dup,
+    realX.X,
+    realX.Xg,
+    real.globs,
+    realDirOwners,
+  );
+  const fullRunWithoutRelax = decide(
+    built.targets,
+    real.own,
+    real.dup,
+    realX.X,
+    realX.Xg,
+    real.globs,
+  );
 
   // 5-2：glob 擷取現在也走 stripNotes()——複驗的原句實測。audio 在自己的說明段裡
   // 提到 extensions 的 glob 做澄清，那句話不該被 audio 認領；同一批 real claim 裡
@@ -1591,6 +1724,41 @@ function runSelftest(): void {
         !floorCountOnlyBroken.server.ok &&
         floorCountOnlyBroken.server.maxDepth >= MIN_RECURSION_DEPTH &&
         floorCountOnlyBroken.server.deep < MIN_DEEP_COUNT.server,
+    ],
+    // 第七輪：單一owner目錄放寬（INBOX/20260828-ownership-extract-deadlock.md）。
+    [
+      '第七輪案例1：單一owner目錄（真實 src/app/routes/chat/，只有 chat-core）' +
+        '新增未登記的檔 → 完整 decide() pipeline 判無孤兒',
+      singleOwnerRun.code === 0 && singleOwnerRun.orphans.length === 0,
+    ],
+    [
+      '第七輪嚴重1鐵律：把 dirOwners 換成空 Map 重跑同一筆 decide() → 翻盤回孤兒，' +
+        '證明上面那條「綠」不是巧合、是這個放寬真的在起作用',
+      singleOwnerRunWithoutRelax.code === 1 &&
+        singleOwnerRunWithoutRelax.orphans.includes(newFileInSingleOwnerDir),
+    ],
+    [
+      '第七輪案例2（🔴 最重要的安全欄杆）：4 個真實共用目錄（server/services/ ' +
+        'server/routes/ server/lib/ src/app/screens/，其中 server/services/ 與 ' +
+        'src/app/screens/ 正是票裡兩張真的卡關過的目錄）新增未登記的檔，即使套用了 ' +
+        'realDirOwners，仍然全部判孤兒——不是先到先贏、不是被掩護過去',
+      sharedDirRun.code === 1 && sharedDirOrphans.every((p) => sharedDirRun.orphans.includes(p)),
+    ],
+    [
+      '第七輪案例3：singleOwnerDirs() 從一開始就不把這 4 個共用目錄算進放行清單' +
+        '（不是靠 decide() 的某個旁路意外擋住）',
+      !realDirOwners.has('server/services/') &&
+        !realDirOwners.has('server/routes/') &&
+        !realDirOwners.has('server/lib/') &&
+        !realDirOwners.has('src/app/screens/'),
+    ],
+    [
+      '第七輪案例4（迴歸）：真實 170 個標的全量跑，套用放寬前後判定完全一樣' +
+        '（0 孤兒、0 重複）——放寬對既有具名認領的檔案零影響',
+      fullRunWithRelax.code === 0 &&
+        fullRunWithRelax.orphans.length === 0 &&
+        fullRunWithoutRelax.code === 0 &&
+        fullRunWithoutRelax.orphans.length === 0,
     ],
   ];
   const bad = cases.filter(([, ok]) => !ok);
