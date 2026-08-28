@@ -1246,7 +1246,22 @@ function runSelftest(): void {
   const countTestFilesOk = testCountTestFilesRecursion();
   // 迴歸：真實 excludedTests 要等於「三個已知 __tests__ 目錄」各自獨立重新 walk() 的和
   // ——如果有人把 countTestFiles() 改回舊版那種寫死兩個路徑相加，這裡的數字會對不上
-  // （因為漏了 src/app/screens/__tests__），56 ≠ 舊版算出來的 52。
+  // （因為漏了 src/app/screens/__tests__）。
+  //
+  // 🔴 2026-08-28（GAP：另一條線要新增 server/__tests__/buildTurn.test.ts，總數從
+  // 56 變 57，把這條選錯方向的斷言打紅）：這裡曾經多 `&& built.excludedTests === 56`
+  // 一截——**寫死當下量到的絕對值**，等同懲罰「有人真的多寫了一支測試」。拿掉那截，
+  // `expectedExcludedTests` 不是同一份計算抄兩遍：`countTestFiles()`（`buildTargets()`
+  // 實際用的那條）是「遞迴找任何深度、名字剛好叫 __tests__ 的目錄」；下面這段是
+  // 「對三個寫死的已知路徑各自呼叫 `walk()` 再相加」——演算法不同、路徑寫死的方式也
+  // 不同（前者靠目錄名比對、後者靠三條硬編路徑），只有兩者算出的**檔案總數**理論上
+  // 該相等這件事本身是不變量，不是 `x === x` 的套套邏輯。舊版的 `56` 才是那個會過期
+  // 的數字：這兩條路徑本來就該隨著任何一個 `__tests__` 目錄裡加減檔案而同步增減，
+  // `built.excludedTests === expectedExcludedTests` 這一行本身完全不受影響、也完全
+  // 不需要知道「現在是多少」。（歷史對照：舊版 `countTestFiles()` 漏了
+  // `src/app/screens/__tests__`，那時算出 52 ≠ 這裡三段式算出的 56——那是這條斷言
+  // 真的抓到迴歸的案例，不是巧合；後面新增的第 57 支測試檔則是兩條路徑會一起同步
+  // 變成 57、57，合規成長，不該被打紅。）
   const expectedExcludedTests =
     walk(join(ROOT, 'server/__tests__'), /\.tsx?$/).length +
     walk(join(ROOT, 'src/app/__tests__'), /\.tsx?$/).length +
@@ -1558,8 +1573,9 @@ function runSelftest(): void {
     ],
     ['5-3：countTestFiles() 遞迴找任何深度的 __tests__/，不是寫死兩個路徑', countTestFilesOk],
     [
-      '5-3：真實 excludedTests 等於三個已知 __tests__ 目錄各自獨立算出來的和（56，不是舊版的 52）',
-      built.excludedTests === expectedExcludedTests && built.excludedTests === 56,
+      '5-3：真實 excludedTests 等於「三個已知 __tests__ 目錄」各自獨立重新 walk() 算出來的和' +
+        '（兩條不同演算法的路徑，不是同一份計算比對自己——見上面的 🔴 GAP 註解）',
+      built.excludedTests === expectedExcludedTests,
     ],
     ['A2：門檻對「頂層合規加 12 個新檔」免疫，不該紅', floorLegitGrowth.ok],
     [
