@@ -26,10 +26,30 @@
  * 的既有迴圈），所以「這把尺量不量得到」這件事本身每次 `pnpm verify` 都會驗到，
  * 即使當下機器上沒有半個 .app。
  *
- * 非 macOS 的 CI runner（win/linux）上，`codesign` 這個指令本身就不存在，
- * `mac:` 段落也不會被 build——這不是「掃到 0 個」，是這個 gate 的守備範圍
- * 根本不適用，直接跳過（exit 0），跟 `rename-mac-intel-zip.cjs` 對非 mac build
- * 的處理方式一致。
+ * 非 macOS：正向檢查（`main()`）用 `process.platform !== 'darwin'` 判斷要不要跳過——
+ * `mac:` 段落本來就不會在非 mac runner 上被 build，跟 `rename-mac-intel-zip.cjs`
+ * 對非 mac build 的處理方式一致，這條沒有改（production 的 `mac-app` CI job 是
+ * `macos-latest`，保證有完整 Xcode，這裡沒有「判斷騙人」的風險）。
+ *
+ * 🔴 **`--selftest` 是另一件事，2026-08-28 CI 紅過一次**：`gate:selftest` 對每個
+ * `scripts/gate-*.ts` 都跑 `--selftest`，而 `gates` job 跑在 `ubuntu-latest`——
+ * Linux 上根本沒有 `codesign`，selftest 裡真的呼叫 `codesign --sign -` 簽一個假執行檔
+ * 那條斷言直接 `ENOENT` 炸掉整支。**修法不是把整支 selftest 包一層 try/catch 吞掉**
+ * （那會變成「這幾條斷言在 Linux 上從來沒真的跑過，但訊息說 PASS」——跟
+ * `gate-no-hex.ts` 檔頭記過的「守備範圍變 0 卻還 PASS」是同一種假綠燈）：
+ * 純字串比對那 3 條、以及「spawn 這支腳本本身指向空目錄」那 1 條**完全不需要
+ * `codesign`**（後者在 `findApps()` 掃到 0 個就 `exit(2)` 了，根本還沒叫到
+ * `codesign`），這 4 條任何平台都要跑到；只有「真的 ad-hoc 簽一個檔案再驗」那 1 條
+ * 需要 `codesign`，沒有就明確印出跳過、原因、跳過幾條，然後 exit(0)——跳過要出聲，
+ * 不能靜默。
+ *
+ * 🔴 判斷「這台機器有沒有 `codesign`」不用 `process.platform`——那個判斷本身會騙人：
+ * 一台 mac 但沒裝對的工具（理論上）一樣會被誤判成「有」。這裡改成真的 `spawnSync`
+ * 探測一次：`spawnSync` 對找不到的指令**不會丟例外**，只會在回傳值的 `.error` 帶上
+ * `ENOENT`，比起用 `execFileSync` 硬猜再包 try/catch 更誠實——量到的就是「這個指令
+ * 到底能不能被叫動」本身，不是一個代理指標。**這個判斷只用在 selftest**：`main()`
+ * 的平台判斷維持原樣不動（production 的 CI runner 保證有 Xcode，不是這次要修的問題，
+ * 不順手擴大改動範圍）。
  *
  * 期望值不寫死在這支檔案裡，直接從 `electron-builder.yml` 的 `mac.identity` 讀，
  * 再補回 `codesign` 實際印出來的 `Developer ID Application:` 型別字首——
@@ -37,10 +57,11 @@
  *
  * 自證：pnpm exec tsx scripts/gate-signer.ts --selftest
  *   ① 純字串比對：塞公司憑證的 Authority 行 → 紅；塞正確身分 → 綠；沒有 Authority 行（unsigned）→ 紅
- *   ② 真的呼叫一次 `codesign`：對一個剛 ad-hoc 簽章（`codesign --sign -`）的假執行檔跑
- *      這支真正的檢查函式——ad-hoc 正是 `after-pack.cjs` 在憑證找不到時最終會留下的
- *      那個狀態，不是憑空捏造的情境，且完全離線、不用密碼、不用真憑證
- *   ③ 真的 spawn 這支腳本本身，指向一個空目錄 → 驗證 exit code 精確等於 2
+ *   ② 真的呼叫一次 `codesign`（沒有就明確跳過並印出理由）：對一個剛 ad-hoc 簽章
+ *      （`codesign --sign -`）的假執行檔跑這支真正的檢查函式——ad-hoc 正是
+ *      `after-pack.cjs` 在憑證找不到時最終會留下的那個狀態，不是憑空捏造的情境，
+ *      且完全離線、不用密碼、不用真憑證
+ *   ③ 真的 spawn 這支腳本本身，指向一個空目錄 → 驗證 exit code 精確等於 2（不需要 codesign）
  */
 import { execFileSync, spawnSync } from 'node:child_process';
 import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
@@ -70,6 +91,16 @@ function findApps(dir: string, out: string[] = []): string[] {
     findApps(p, out); // 繼續往下走：Helper.app 藏在 Contents/Frameworks/ 底下
   }
   return out;
+}
+
+/** 這台機器實際叫不叫得動 `codesign`——用真的 spawn 探測一次，不用 `process.platform`
+ *  猜（見檔頭：後者在「mac 但沒裝對工具」時會騙人）。`spawnSync` 對找不到的指令不會
+ *  丟例外，只在回傳值的 `.error` 帶上 `ENOENT`，這裡只判斷「叫得動」，不管它自己的
+ *  exit code（`--help` 對某些版本可能回非 0，那不影響「這個指令存在」這個問題）。 */
+function hasCodesign(): boolean {
+  const r = spawnSync('codesign', ['--help'], { stdio: 'ignore' });
+  const err = r.error as NodeJS.ErrnoException | undefined;
+  return !err || err.code !== 'ENOENT';
 }
 
 /** 對純文字（codesign -dv --verbose=4 的輸出）做 Authority 比對 —— 不牽涉 shelling out，
@@ -102,7 +133,7 @@ async function selftest(): Promise<void> {
     console.log(`  ${ok ? '✅' : '❌'} ${name}`);
   };
 
-  // ① 純字串比對
+  // ① 純字串比對 —— 不牽涉 codesign，任何平台都要跑到
   const expected = 'Developer ID Application: Chia-Hao Lu (87B8LUAZ2G)';
   const companyLine = 'Authority=Apple Distribution: Byte to Byte LLC (HCUZ6W3C9H)';
   const correctLine = `Authority=${expected}`;
@@ -117,21 +148,35 @@ async function selftest(): Promise<void> {
   );
 
   // ② 真的呼叫 codesign：ad-hoc 簽一個假執行檔——這正是 after-pack.cjs 在憑證找不到時
-  // 最終會留下的狀態（見檔頭），不是憑空想像的情境；完全離線、不用密碼
-  const { mkdtempSync, copyFileSync, rmSync } = await import('node:fs');
-  const { tmpdir } = await import('node:os');
-  const dir = mkdtempSync(join(tmpdir(), 'gate-signer-selftest-'));
-  const dummy = join(dir, 'dummybin');
-  copyFileSync('/bin/echo', dummy);
-  execFileSync('codesign', ['--force', '--sign', '-', dummy]);
-  const adhoc = checkApp(dummy, expected);
-  record(
-    '真的對 ad-hoc 簽過的檔案跑 codesign+比對 → 紅（found 應為 null，不是隨便一個字串）',
-    adhoc.ok === false && adhoc.found === null,
-  );
-  rmSync(dir, { recursive: true, force: true });
+  // 最終會留下的狀態（見檔頭），不是憑空想像的情境；完全離線、不用密碼。
+  // 🔴 這台機器沒有 codesign（例如 CI 的 ubuntu-latest）就明確跳過並出聲，不是吞掉。
+  const codesignAvailable = hasCodesign();
+  let skipped = 0;
+  if (!codesignAvailable) {
+    skipped += 1;
+    console.log(
+      '  ⚠️ 跳過「真的呼叫 codesign 簽一個假執行檔再驗」——這台機器叫不動 codesign' +
+        '（真的 spawn 探測過，不是猜 process.platform；ubuntu-latest 這類 CI runner 本來就沒有）',
+    );
+  } else {
+    const { mkdtempSync, copyFileSync, rmSync } = await import('node:fs');
+    const { tmpdir } = await import('node:os');
+    const dir = mkdtempSync(join(tmpdir(), 'gate-signer-selftest-'));
+    const dummy = join(dir, 'dummybin');
+    copyFileSync('/bin/echo', dummy);
+    execFileSync('codesign', ['--force', '--sign', '-', dummy]);
+    const adhoc = checkApp(dummy, expected);
+    record(
+      '真的對 ad-hoc 簽過的檔案跑 codesign+比對 → 紅（found 應為 null，不是隨便一個字串）',
+      adhoc.ok === false && adhoc.found === null,
+    );
+    rmSync(dir, { recursive: true, force: true });
+  }
 
-  // ③ 真的 spawn 這支腳本本身指向空目錄，驗證 exit(2) 是真的 exit code，不是回傳值
+  // ③ 真的 spawn 這支腳本本身指向空目錄，驗證 exit(2) 是真的 exit code，不是回傳值。
+  // 不需要 codesign：findApps() 掃到 0 個就在呼叫 codesign 之前 exit(2) 了，任何平台都要跑到。
+  const { mkdtempSync, rmSync } = await import('node:fs');
+  const { tmpdir } = await import('node:os');
   const emptyDir = mkdtempSync(join(tmpdir(), 'gate-signer-empty-'));
   let exitCode = -1;
   const tsxBin = join(ROOT, 'node_modules', '.bin', 'tsx');
@@ -146,10 +191,15 @@ async function selftest(): Promise<void> {
     exitCode = (e as { status?: number }).status ?? -1;
   }
   rmSync(emptyDir, { recursive: true, force: true });
-  record('掃到 0 個 .app 的目錄 → 子行程真的用 exit code 2 結束', exitCode === 2);
+  record(
+    '掃到 0 個 .app 的目錄 → 子行程真的用 exit code 2 結束（不需要 codesign）',
+    exitCode === 2,
+  );
 
   const allOk = results.every((r) => r.ok);
-  console.log(allOk ? 'selftest PASS' : 'selftest FAIL');
+  const note =
+    skipped > 0 ? `（跳過 ${skipped} 條依賴 codesign 的斷言，這台機器沒有 codesign）` : '';
+  console.log(allOk ? `selftest PASS${note}` : 'selftest FAIL');
   process.exit(allOk ? 0 : 1);
 }
 
