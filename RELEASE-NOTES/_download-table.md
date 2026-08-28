@@ -9,7 +9,7 @@
 |---|---|
 | **Windows** | `Vellum-Setup-<版本>.exe` —— 雙擊安裝 |
 | **Mac（M1／M2／M3／M4）** | `Vellum-<版本>-arm64-mac.zip` |
-| **Mac（Intel）** | `Vellum-<版本>-mac.zip` |
+| **Mac（Intel）** | `Vellum-<版本>-intel-mac.zip` |
 
 **三個檔案都會自己通知你有新版，一鍵更新。** 其餘那幾個 `.yml` 是更新程式自己讀的，不用管。
 
