@@ -40,14 +40,15 @@ import { GLOBALS_SHIM } from './globals';
 import { LOG_SHIM } from './logShim';
 import { MVU_SHIM } from './mvuShim';
 import { ST_COMPAT_SHIM } from './stCompat';
+import { ST_GLOBALS_SHIM } from './stGlobalsCompat';
 import { VARS_SHIM } from './vars';
 
 export const PREAMBLE = /* js */ `
 (function () {
   /* 🔴 **最先裝**：後面每一段自己的警告也要轉得出去（理由見 logShim.ts）。 */
   ${LOG_SHIM}
-  /* 🔴 排 LOG_SHIM 之後（console.warn 已包好會轉發）、排其他一切之前（理由見 stCompat.ts）。 */
-  ${ST_COMPAT_SHIM}
+  /* 🔴 排 LOG_SHIM 之後、排其他一切之前（理由見 stCompat.ts；同一行順帶裝上 ST_GLOBALS_SHIM——查 ST 專屬全域出聲但不騙 typeof，理由見 stGlobalsCompat.ts）。 */
+  ${ST_COMPAT_SHIM}${ST_GLOBALS_SHIM}
   var pending = {}, seq = 0;
   addEventListener('message', function (e) {
     var d = e.data;
@@ -101,7 +102,6 @@ export const PREAMBLE = /* js */ `
   ${VARS_SHIM}
   /* 🔴 一定要排在 VARS_SHIM 之後 —— 它要就地改 SCOPES（理由見 mvuShim.ts）。 */
   ${MVU_SHIM}
-
   var NAMES = ['eventOn','eventRemoveListener','getChatMessages','getLastMessageId','getCurrentMessageId',
                'getAllVariables','getVariables','insertOrAssignVariables','replaceVariables',
                'updateVariablesWith','setChatMessages','setChatMessage',
