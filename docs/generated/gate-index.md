@@ -14,8 +14,10 @@
 | `gate-no-docker.ts` | **Docker 方案真的被移除了，而且不會偷偷長回來**（散布規格 §5 條件 1）。 |
 | `gate-no-eval.ts` | **原始碼裡不存在動態 code 執行**（規格 §5 第 5 條、驗收 C3）。 |
 | `gate-no-hex.ts` | 畫面程式碼裡不得出現字面色碼。 |
+| `gate-ownership-dirgrain.ts` | `gate-ownership.ts` 的「單一 owner 目錄」放寬——治 |
 | `gate-ownership.ts` | `AGENTS.md` 的唯一規則——**一個檔案只有一個寫入者**——真的成立。 |
 | `gate-preamble.ts` | **送進 iframe 的那幾段 JS 字串，語法要是對的**。 |
 | `gate-provider-guides.ts` | **每一家點得進去的供應商，都要有真的引導**（Peter 2026-08-26：「每一個都要做」）。 |
 | `gate-screens-vs-routes.ts` | 設計畫面與 route 檔的一對一對照（active 里程碑範圍內）。 |
+| `gate-signer.ts` | `dist-app/**\/*.app`（電子簽出來的每個 .app，含巢狀 Helper.app） |
 | `gate-toast.ts` | **全站的 tips 只有一種**（Peter 2026-08-26：「這個 tips 修改是固定的， |

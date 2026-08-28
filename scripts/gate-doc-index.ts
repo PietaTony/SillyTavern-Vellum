@@ -30,8 +30,11 @@ export function checkFresh(): string[] {
 
 if (process.argv.includes('--selftest')) {
   const fresh = checkFresh().length === 0;
-  const hasGap = generatedFiles()['docs/generated/gap-index.md'].includes('GAP-37');
-  const hasGate = generatedFiles()['docs/generated/gate-index.md'].includes('gate-boundaries');
+  const gen = generatedFiles();
+  const gapIdx = gen['docs/generated/gap-index.md'];
+  const gateIdx = gen['docs/generated/gate-index.md'];
+  const hasGap = gapIdx?.includes('GAP-37') ?? false;
+  const hasGate = gateIdx?.includes('gate-boundaries') ?? false;
   const ok = hasGap && hasGate;
   if (!ok) {
     console.error('gate-doc-index selftest FAIL');

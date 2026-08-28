@@ -32,8 +32,11 @@ function parseAgentGaps(agent: string, text: string): GapRow[] {
       .map((c) => c.trim())
       .filter(Boolean);
     if (cols.length < 2) continue;
-    for (const id of cols[1].match(/GAP-\d+/g) ?? []) {
-      rows.push({ id, agent, trap: cols[0], source: cols[1] });
+    const trap = cols[0];
+    const source = cols[1];
+    if (trap === undefined || source === undefined) continue;
+    for (const id of source.match(/GAP-\d+/g) ?? []) {
+      rows.push({ id, agent, trap, source });
     }
   }
   return rows;
