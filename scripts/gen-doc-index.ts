@@ -21,7 +21,7 @@ const HEADER =
 
 type GapRow = { id: string; agent: string; trap: string; source: string };
 
-function parseAgentGaps(agent: string, text: string): GapRow[] {
+export function parseAgentGaps(agent: string, text: string): GapRow[] {
   const block = text.match(/## 4 ·[^\n]*\n\n([\s\S]*?)(?=\n## |$)/)?.[1];
   if (!block) return [];
   const rows: GapRow[] = [];
