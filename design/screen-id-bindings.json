@@ -111,7 +111,152 @@
       "owner": "platform",
       "implemented": false,
       "stateRule": "settings/about 關於與更新"
+    },
+    {
+      "id": "Layer-Chat-Menu--1",
+      "kind": "menu",
+      "hostRoute": "chat/$chatId",
+      "owner": "chat-core",
+      "implemented": false,
+      "stateRule": "chat/$chatId；ChatMenu anchor 非 null；其上無 open 的 FullScreenLayer／Dialog"
+    },
+    {
+      "id": "Layer-Persona--1",
+      "kind": "layer",
+      "hostRoute": "chat/$chatId",
+      "owner": "characters",
+      "implemented": false,
+      "stateRule": "PersonaLayer open===true（且無更高優先 dialog）"
+    },
+    {
+      "id": "Layer-Backgrounds-Chat--1",
+      "kind": "layer",
+      "hostRoute": "chat/$chatId",
+      "owner": "platform",
+      "implemented": false,
+      "stateRule": "BackgroundsLayer scope=chat open===true"
+    },
+    {
+      "id": "Layer-Providers-List--1",
+      "kind": "layer",
+      "hostRoute": "chat/$chatId",
+      "owner": "providers",
+      "implemented": false,
+      "stateRule": "ProvidersLayer open && openId===null"
+    },
+    {
+      "id": "Layer-Providers-Detail--1",
+      "kind": "layer",
+      "hostRoute": "chat/$chatId",
+      "owner": "providers",
+      "implemented": false,
+      "stateRule": "ProvidersLayer open && openId!==null"
+    },
+    {
+      "id": "Layer-Greetings--1",
+      "kind": "layer",
+      "hostRoute": "chat/$chatId",
+      "owner": "characters",
+      "implemented": false,
+      "stateRule": "GreetingsLayer open && confirming===null"
+    },
+    {
+      "id": "Dialog-Greetings-Delete--1",
+      "kind": "dialog",
+      "hostRoute": "chat/$chatId",
+      "owner": "characters",
+      "implemented": false,
+      "stateRule": "GreetingsLayer 內 confirming!==null"
+    },
+    {
+      "id": "Layer-Character--1",
+      "kind": "layer",
+      "hostRoute": "chat/$chatId",
+      "owner": "characters",
+      "implemented": false,
+      "stateRule": "CharacterLayer open && !WorldSection open && !WorldEntryLayer open"
+    },
+    {
+      "id": "Layer-World-Book--1",
+      "kind": "layer",
+      "hostRoute": "chat/$chatId",
+      "owner": "worldbook",
+      "implemented": false,
+      "stateRule": "WorldSection open && !WorldEntryLayer open"
+    },
+    {
+      "id": "Layer-World-Entry--1",
+      "kind": "layer",
+      "hostRoute": "chat/$chatId",
+      "owner": "worldbook",
+      "implemented": false,
+      "stateRule": "WorldEntryLayer open===true"
+    },
+    {
+      "id": "Layer-Message-Actions--1",
+      "kind": "menu",
+      "hostRoute": "chat/$chatId",
+      "owner": "chat-core",
+      "implemented": false,
+      "stateRule": "MessageRow 長按／右鍵選單 open；無更高優先 dialog"
+    },
+    {
+      "id": "Layer-Message-Edit--1",
+      "kind": "layer",
+      "hostRoute": "chat/$chatId",
+      "owner": "chat-core",
+      "implemented": false,
+      "stateRule": "MessageEditor 編輯模式 open===true"
+    },
+    {
+      "id": "Dialog-Confirm-Delete--1",
+      "kind": "dialog",
+      "hostRoute": "chat/$chatId",
+      "owner": "chat-core",
+      "implemented": false,
+      "stateRule": "刪除訊息確認 Dialog open"
+    },
+    {
+      "id": "Dialog-Confirm-Regenerate--1",
+      "kind": "dialog",
+      "hostRoute": "chat/$chatId",
+      "owner": "chat-core",
+      "implemented": false,
+      "stateRule": "重新生成確認 Dialog open"
+    },
+    {
+      "id": "Layer-Swipe-Picker--1",
+      "kind": "layer",
+      "hostRoute": "chat/$chatId",
+      "owner": "chat-core",
+      "implemented": false,
+      "stateRule": "SwipePicker open===true"
+    },
+    {
+      "id": "Dialog-Consent-Scripts--1",
+      "kind": "dialog",
+      "hostRoute": "chat/$chatId",
+      "owner": "card-scripts",
+      "implemented": false,
+      "stateRule": "ConsentDialog open===true（最高優先之一）"
+    },
+    {
+      "id": "Layer-Backgrounds-Global--1",
+      "kind": "layer",
+      "hostRoute": "settings",
+      "owner": "platform",
+      "implemented": false,
+      "stateRule": "BackgroundsLayer scope=global open===true"
+    },
+    {
+      "id": "Layer-World-Picker--1",
+      "kind": "dialog",
+      "hostRoute": "profile",
+      "owner": "worldbook",
+      "implemented": false,
+      "stateRule": "WorldPicker Dialog open===true"
     }
   ],
-  "_deferred": "全螢層（ConsentDialog、GreetingsLayer、PersonaLayer…）尚未登記 catalog —— 實作前先補 screens.json + 本檔。"
+  "_excluded": "不登記 id：ToastStack、LanWarning、ChatFailure 橫幅 —— 非全頁狀態，截圖時用底下 route／layer。",
+  "_stack": "水印優先：dialog > layer（最深 open）> menu > route。見 GAP-124-spec.md §4。"
 }

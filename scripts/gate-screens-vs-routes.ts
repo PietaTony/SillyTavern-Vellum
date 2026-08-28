@@ -31,8 +31,9 @@ function routeFiles(route: string): string[] {
 
 type Manifest = {
   active: string;
-  milestones?: Record<string, { title?: string; screens?: { route: string }[] }>;
+  milestones?: Record<string, { title?: string; screens?: ScreenRow[] }>;
 };
+type ScreenRow = { route: string; hostRoute?: string; kind?: string };
 type Result =
   | { ok: false; fatal: string }
   | { ok: true; active: string; title: string; screens: number; routes: number; missing: string[] };
@@ -42,7 +43,7 @@ function check(manifest: Manifest): Result {
   const ms = manifest.milestones?.[active];
   if (!ms) return { ok: false, fatal: `screens.json 的 active="${active}" 在 milestones 裡不存在` };
 
-  const screens = ms.screens ?? [];
+  const screens = (ms.screens ?? []) as ScreenRow[];
   // 🔴 守涵蓋率：0 張畫面必然 PASS ⇒ 明確視為失敗，不是綠燈
   if (screens.length === 0)
     return {
@@ -50,7 +51,12 @@ function check(manifest: Manifest): Result {
       fatal: `里程碑 ${active} 的畫面清單是空的 —— 比對 0 個項目必然 PASS，這是假綠燈`,
     };
 
-  const routes = [...new Set(screens.map((s) => s.route))];
+  /** route 頁用 route；layer／dialog／menu 用 hostRoute —— 兩者都要有 route 檔 */
+  const routes = [
+    ...new Set(
+      screens.map((s) => (!s.kind || s.kind === 'route' ? s.route : (s.hostRoute ?? s.route))),
+    ),
+  ];
   const missing = routes.filter((r) => !routeFiles(r).some(existsSync));
   return {
     ok: true,

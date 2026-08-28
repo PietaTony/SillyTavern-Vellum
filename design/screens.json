@@ -107,6 +107,150 @@
           "route": "login",
           "note": "存取密碼登入 —— 只有設了密碼且未登入時會被 root 守衛導來。無返回鍵",
           "back": null
+        },
+        {
+          "id": "Layer-Chat-Menu--1",
+          "kind": "menu",
+          "hostRoute": "chat/$chatId",
+          "route": "chat/$chatId",
+          "note": "對話 ☰ 選單展開（Persona／背景／供應商／換開場等入口）",
+          "component": "ChatMenu"
+        },
+        {
+          "id": "Layer-Persona--1",
+          "kind": "layer",
+          "hostRoute": "chat/$chatId",
+          "route": "chat/$chatId",
+          "note": "對話 ☰ → 我是誰（PersonaLayer）",
+          "component": "PersonaLayer"
+        },
+        {
+          "id": "Layer-Backgrounds-Chat--1",
+          "kind": "layer",
+          "hostRoute": "chat/$chatId",
+          "route": "chat/$chatId",
+          "note": "對話 ☰ → 對話背景（BackgroundsLayer chat）",
+          "component": "BackgroundsLayer"
+        },
+        {
+          "id": "Layer-Providers-List--1",
+          "kind": "layer",
+          "hostRoute": "chat/$chatId",
+          "route": "chat/$chatId",
+          "note": "對話 ☰ → AI 供應商清單（ProvidersLayer 第一級）",
+          "component": "ProvidersLayer"
+        },
+        {
+          "id": "Layer-Providers-Detail--1",
+          "kind": "layer",
+          "hostRoute": "chat/$chatId",
+          "route": "chat/$chatId",
+          "note": "對話 ☰ → 單一供應商（ProvidersLayer 層內第二級）",
+          "component": "ProvidersLayer"
+        },
+        {
+          "id": "Layer-Greetings--1",
+          "kind": "layer",
+          "hostRoute": "chat/$chatId",
+          "route": "chat/$chatId",
+          "note": "對話 ☰ → 換開場（GreetingsLayer）",
+          "component": "GreetingsLayer"
+        },
+        {
+          "id": "Dialog-Greetings-Delete--1",
+          "kind": "dialog",
+          "hostRoute": "chat/$chatId",
+          "route": "chat/$chatId",
+          "note": "GreetingsLayer 內刪除問候語確認框",
+          "component": "GreetingsLayer"
+        },
+        {
+          "id": "Layer-Character--1",
+          "kind": "layer",
+          "hostRoute": "chat/$chatId",
+          "route": "chat/$chatId",
+          "note": "對話 → 點頭像 → 角色設定（CharacterLayer）",
+          "component": "CharacterLayer"
+        },
+        {
+          "id": "Layer-World-Book--1",
+          "kind": "layer",
+          "hostRoute": "chat/$chatId",
+          "route": "chat/$chatId",
+          "note": "CharacterLayer 內 → 世界書清單（WorldSection）",
+          "component": "WorldSection"
+        },
+        {
+          "id": "Layer-World-Entry--1",
+          "kind": "layer",
+          "hostRoute": "chat/$chatId",
+          "route": "chat/$chatId",
+          "note": "WorldSection 內 → 單一條目編輯（WorldEntryLayer）",
+          "component": "WorldEntryLayer"
+        },
+        {
+          "id": "Layer-Message-Actions--1",
+          "kind": "menu",
+          "hostRoute": "chat/$chatId",
+          "route": "chat/$chatId",
+          "note": "長按訊息／右鍵 → 編輯／複製／重新生成／刪除",
+          "component": "MessageRow"
+        },
+        {
+          "id": "Layer-Message-Edit--1",
+          "kind": "layer",
+          "hostRoute": "chat/$chatId",
+          "route": "chat/$chatId",
+          "note": "就地編輯訊息（MessageEditor）",
+          "component": "MessageEditor"
+        },
+        {
+          "id": "Dialog-Confirm-Delete--1",
+          "kind": "dialog",
+          "hostRoute": "chat/$chatId",
+          "route": "chat/$chatId",
+          "note": "刪除訊息確認（不可逆）",
+          "component": "MessageRow"
+        },
+        {
+          "id": "Dialog-Confirm-Regenerate--1",
+          "kind": "dialog",
+          "hostRoute": "chat/$chatId",
+          "route": "chat/$chatId",
+          "note": "從這則重新生成確認（含 cascade 說明）",
+          "component": "MessageRow"
+        },
+        {
+          "id": "Layer-Swipe-Picker--1",
+          "kind": "layer",
+          "hostRoute": "chat/$chatId",
+          "route": "chat/$chatId",
+          "note": "點 swipe 計數器 → 切換候選（SwipePicker）",
+          "component": "SwipePicker"
+        },
+        {
+          "id": "Dialog-Consent-Scripts--1",
+          "kind": "dialog",
+          "hostRoute": "chat/$chatId",
+          "route": "chat/$chatId",
+          "note": "卡片程式同意（ConsentDialog）",
+          "component": "ConsentDialog"
+        },
+        {
+          "id": "Layer-Backgrounds-Global--1",
+          "kind": "layer",
+          "hostRoute": "settings",
+          "route": "settings",
+          "note": "設定 → 全站背景（BackgroundsLayer global）",
+          "component": "BackgroundsLayer"
+        },
+        {
+          "id": "Layer-World-Picker--1",
+          "kind": "dialog",
+          "hostRoute": "profile",
+          "route": "profile",
+          "note": "Persona 編輯 → 世界書選擇器（WorldPicker）",
+          "component": "WorldPicker"
         }
       ]
     },
@@ -140,6 +284,7 @@
     "Import-And-Archive--3 刻意沒有返回鍵：進行中狀態，已有『取消』"
   ],
   "_note_deferred": "M2b-import 尚未做：Peter 2026-08-25 指定先做 Gemini 主線到「聊天室看到 AI 說第一句話」。active 只指向 M2。",
+  "_note_layers": "kind=layer|dialog|menu 的項目無獨立 route 檔；hostRoute 是打開時底下那頁。GAP-124 水印取「最頂層可見 UI」的 id，見 design/GAP-124-spec.md §4。",
   "_back_source": "返回落點抄自設計正本 plans/ui/prototype/back.json。back 為 null ＝ 刻意沒有返回（GAP-25 的三個真實入口：好友列表／首次啟動第一步／匯入中）。🔴 chat/$chatId 的正確落點是好友列表（Friends-And-Cards--1），M3 才有，現在暫代成 add-friend。",
   "_gaps": {
     "124": {
@@ -156,7 +301,7 @@
       "notThis": "不是 DOM data-* 屬性；不是開發者工具才看得到的 debug overlay；不是把 id 寫在 title 或 aria-label 裡冒充無障礙。",
       "canonicalId": "本檔 milestones.*.screens[].id 是唯一正本。同一 route 多個視覺狀態（如 First-Run--3／3a／3b／3c）各自有不同的 id，水印必須跟著「目前呈現的狀態」變，不能只標 route。",
       "doneWhen": [
-        "active 里程碑內每個可達到的 screen 狀態，實機畫面上都渲染對應 id 水印",
+        "active 里程碑內每個可達到的 screen 狀態（含 layer／dialog／menu）實機均有水印",
         "1080p 以上截圖上，vision model（或等效 OCR）連續 10 次測試 ≥9 次讀出正確 id",
         "深／淺色主題、backdrop 半透明、有背景圖三種情況下仍可讀",
         "新增 gate（或擴 gate:screens）驗「有 id 的畫面必須渲染水印」，含 --selftest",
