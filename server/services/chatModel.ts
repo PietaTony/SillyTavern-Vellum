@@ -16,6 +16,13 @@ export const MessageSchema = z.object({
    */
   swipes: z.array(z.string()).optional(),
   swipeIndex: z.number().optional(),
+  /**
+   * 🔴 **半成品**（H1／H6 跨層票，2026-08-28）。使用者按下「停止生成」時已經吐出來的字
+   * ——「半成品＝保留」（Peter 同日裁定，同 ST），但**要在資料上分得出來**，
+   * 不然下一輪組 prompt（`buildTurn.ts`）會把腰斬的句子當成說完的話送出去。
+   * 沒有值＝完整回覆（舊資料讀進來是 `undefined`，行為不變）。
+   */
+  partial: z.boolean().optional(),
 });
 export type Message = z.infer<typeof MessageSchema>;
 

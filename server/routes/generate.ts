@@ -18,6 +18,7 @@ import type { Chat } from '../services/chatModel.ts';
 import { buildTurn } from '../services/buildTurn.ts';
 import { getActiveProvider, getProviderModel } from '../services/settings.ts';
 import { commitTurn } from '../services/applyVarUpdate.ts';
+import { closeQuietly, finishGenerateStream } from '../services/finishGenerateStream.ts';
 
 const Body = z.object({
   chatId: z.string(),
@@ -132,10 +133,9 @@ export const generate = new Hono().post('/', async (c) => {
           enc.encode(sse('done', { message: msg, finishReason: finish ?? 'STOP', usage })),
         );
       } catch (e) {
-        const detail = e instanceof Error ? redact(e.message, [key]) : '串流中斷';
-        ctrl.enqueue(enc.encode(sse('error', { message: detail })));
+        await finishGenerateStream({ ctrl, enc, sse, controller, full, chatId, chat, usage, key, error: e });
       } finally {
-        ctrl.close();
+        closeQuietly(ctrl);
       }
     },
     cancel() {

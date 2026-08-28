@@ -1,6 +1,7 @@
 import { useRef, useState } from 'react';
 import { appendMessage, streamGenerate } from './api';
 import type { Message } from './model';
+import { applyStopGeneration } from './stopGeneration';
 
 /**
  * 對話畫面的「送出 → 串流 → 落地」狀態。
@@ -91,7 +92,11 @@ export function useChatStream(
        * 訊息早就存下來了，壞掉的是生成。
        * ⚠️ 使用者自己中止的不算失敗，不要跳一則訊息嚇他。
        */
-      if (ac.signal.aborted) return;
+      if (ac.signal.aborted) {
+        // 🔴 停止生成（跨層票 H1／H6，2026-08-28）——理由見 `stopGeneration.ts`。
+        applyStopGeneration({ acc, base, setThinking, setStreaming, setLocal });
+        return;
+      }
       setThinking(false);
       setStreaming(null);
       setFailure(e instanceof Error ? e.message : '生成中斷');
@@ -138,5 +143,7 @@ export function useChatStream(
   /** 丟掉樂觀暫存，改讀伺服器那份。**切候選成功之後一定要叫它**（見檔頭 B1）。 */
   const reset = () => setLocal(null);
 
-  return { messages, streaming, thinking, failure, setFailure, send, regenerate, reset };
+  const stop = () => abortRef.current?.abort(); // 停止生成（跨層票 H1／H6）：交給 catch 分支處理。
+
+  return { messages, streaming, thinking, failure, setFailure, send, regenerate, reset, stop };
 }

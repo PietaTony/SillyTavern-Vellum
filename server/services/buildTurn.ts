@@ -17,6 +17,16 @@ export type Turn = {
   messages: { role: 'user' | 'assistant'; text: string }[];
 };
 
+/**
+ * 半成品（`partial: true`，跨層票 H1／H6 2026-08-28）送進下一輪 prompt 前要怎麼講。
+ * 🔴 **停止生成時的字原封不動留在 `chat.messages`**（Peter 裁定「半成品＝保留」），
+ * 但直接把它當一輪完整回覆送給模型，模型會把腰斬的句子當成說完了，容易接歪。
+ * ⇒ 只在「送給模型看」的這份文字加註記；存檔／畫面上的原文一個字都不動。
+ */
+export function historyTextOf(m: { text: string; partial?: boolean | undefined }): string {
+  return m.partial ? `${m.text}\n\n（以上一句在此被使用者中止，還沒說完，不是完整回覆）` : m.text;
+}
+
 export async function buildTurn(chat: Chat): Promise<Turn> {
   /**
    * 🔴 **persona 在這裡現算，不是建立對話時算一次存起來**（規格 B2）。
@@ -28,7 +38,10 @@ export async function buildTurn(chat: Chat): Promise<Turn> {
   const macros = { user: userName, char: chat.characterName };
 
   // `{{user}}`／`{{char}}` 在送進模型之前就要展開 —— 模型看到大括號只會照抄。
-  const history = chat.messages.map((m) => ({ role: m.role, text: substitute(m.text, macros) }));
+  const history = chat.messages.map((m) => ({
+    role: m.role,
+    text: substitute(historyTextOf(m), macros),
+  }));
   // 世界書：好友那本（character 層）＋ persona 那本（persona 層）。
   const world = await worldForChat(chat, who.persona, history.map((m) => ({ name: '', text: m.text })));
 

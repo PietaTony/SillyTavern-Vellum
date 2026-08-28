@@ -42,7 +42,7 @@ function ChatPage() {
   // ☰ →「換開場」開的候選目錄（M12 第三批）。同一個元件，第三個入口。
   const [showGreetings, setShowGreetings] = useState(false);
   // 🔴 生成完要重讀（理由見 `useChatStream` 的 `onDone`）。
-  const { messages, streaming, thinking, failure, setFailure, send, regenerate, reset } =
+  const { messages, streaming, thinking, failure, setFailure, send, regenerate, reset, stop } =
     useChatStream(chatId, q.data?.messages, () => q.refetch());
 
   const swipe = useSwipeMessage(chatId, () => q.refetch(), reset);
@@ -105,6 +105,7 @@ function ChatPage() {
         onSwipe={(messageId, index) => void swipe.mutate({ messageId, index })}
         onAvatarClick={() => setShowChar(true)}
         actions={actions}
+        onStop={stop}
         // 卡片自己的前端區塊怎麼呈現：見 `CardFrontend`（那一層才認識 cardscripts）。
         frontend={(part) => (
           <CardFrontend cards={cards} characterId={q.data.characterId} {...part} />
