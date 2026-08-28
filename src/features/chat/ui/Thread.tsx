@@ -1,12 +1,14 @@
 import Box from '@mui/material/Box';
 import Stack from '@mui/material/Stack';
 import type { Message } from '../model';
+import { useMessageWindow } from '../useMessageWindow';
 import type { MessageActions } from '../useRowActions';
 import { useStickToBottom } from '../useStickToBottom';
 import { useSwipeKeys } from '../useSwipeKeys';
 import { type FrontendRenderer, MessageContent } from './MessageContent';
 import { MessageRow } from './MessageRow';
 import { ScrollToLatest } from './ScrollToLatest';
+import { ShowEarlierMessages } from './ShowEarlierMessages';
 import { StopGenerating } from './StopGenerating';
 import { ThemRow } from './ThemRow';
 import { StreamCaret, Typing } from './Typing';
@@ -65,11 +67,18 @@ export function Thread({
   onStop?: (() => void) | undefined;
 }) {
   // `←` `→` 切候選（ST 有，M12 G5）。掛在「最後一則有候選的訊息」上，同 ST 的 `.last_mes`。
+  // 🔴 吃**全量** `messages`，不是渲染視窗那份切片 —— 候選有多個的那一則不一定在視窗裡
+  // （已讀完全部再往回捲之前，開場白 `messages[0]` 常常還沒進 DOM），鍵盤切候選不該因此失效。
   useSwipeKeys(messages, onSwipe);
 
   // 🔴 黏底規則照 LINE，四條判準在 `useStickToBottom`。這裡只定義「什麼算內容變了」：
   //    訊息數 ＋ 串流字數（串流時每一幀都變 ⇒ 黏住時每一幀跟著到底）。
   const stick = useStickToBottom(`${messages.length}:${streaming?.length ?? -1}`);
+
+  // 渲染層懶載入（照抄 ST，理由與行號見 `useMessageWindow.ts` 檔頭）。
+  // 🔴 只影響下面 `<Stack>` 要 map 哪一段 —— `messages` 這個參數本身完全沒被動過，
+  // 上面 `useSwipeKeys` 與外層 `$chatId.tsx` 餵給卡片的都還是全量。
+  const win = useMessageWindow(messages, stick.ref);
 
   // 🔴 只有第一則的候選是角色的開場白（`server/routes/chats.ts:73` 建的就只有它）。
   const firstId = messages[0]?.id;
@@ -98,10 +107,14 @@ export function Thread({
       <Box
         ref={stick.ref}
         onScroll={stick.onScroll}
+        // 🔴 只給測試用來抓到這個捲動容器（懶載入的捲動補償測在這一顆身上）——
+        // 不影響畫面，MUI `Box` 把不認識的字串屬性原樣傳給底層 `div`。
+        data-testid="thread-scroll"
         sx={{ height: '100%', overflowY: 'auto', p: 2 }}
       >
         <Stack spacing={2.5}>
-          {messages.map((m) => (
+          {win.hasMore ? <ShowEarlierMessages ref={win.moreRef} onClick={win.loadMore} /> : null}
+          {win.visible.map((m) => (
             <MessageRow
               key={m.id}
               message={m}
