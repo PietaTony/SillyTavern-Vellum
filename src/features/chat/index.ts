@@ -26,6 +26,8 @@ export { FrontendNotice } from './ui/FrontendNotice';
 export type { FrontendRenderer } from './ui/MessageContent';
 export { SwipePicker } from './ui/SwipePicker';
 export { Thread } from './ui/Thread';
+export { VariablesLayer } from './ui/VariablesLayer';
 export { useChatStream } from './useChatStream';
 export type { MessageActions } from './useRowActions';
 export { useSwipeMessage } from './useSwipeMessage';
+export { type VariableRow, variableRows } from './variablesView';

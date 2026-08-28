@@ -1,4 +1,5 @@
 import AutoStoriesOutlinedIcon from '@mui/icons-material/AutoStoriesOutlined';
+import DataObjectOutlinedIcon from '@mui/icons-material/DataObjectOutlined';
 import ExtensionOutlinedIcon from '@mui/icons-material/ExtensionOutlined';
 import MenuIcon from '@mui/icons-material/Menu';
 import PersonOutlineIcon from '@mui/icons-material/PersonOutlined';
@@ -11,29 +12,23 @@ import Menu from '@mui/material/Menu';
 import MenuItem from '@mui/material/MenuItem';
 import { useState } from 'react';
 import { BackgroundsLayer } from '@/features/backgrounds';
+import { VariablesLayer } from '@/features/chat';
 import { ChatPersona } from '@/features/persona';
 import { ProvidersLayer } from '@/features/providers';
 import { ReportMenuItem } from './ReportButton';
 
 /**
- * 對話頁右上角的 ☰（Peter 2026-08-26：「這邊右上角讓我們顯示三條橫線，點開來後
- * 其中一個選項要有 API供應商與金鑰」＋「背景Backgrounds」＋「我是 Peter 收進去」）。
+ * 對話頁右上角的 ☰（Peter 2026-08-26：「這邊右上角讓我們顯示三條橫線，點開來後其中一個選項要有 API供應商與金鑰」＋「背景Backgrounds」＋「我是 Peter 收進去」）。
  *
- * 🔴 **三項都是原地開全螢層，不換路由、不開第二層 Menu。**
- * 使用者還在那段對話裡 —— 換 URL 等於把他帶走；
- * 而 `Menu` 裡再開 `Menu` 會疊在同一個座標上、關閉時關錯層。
+ * 🔴 **每一項都是原地開全螢層，不換路由、不開第二層 Menu。** 使用者還在那段對話裡 —— 換 URL 等於把他帶走；而 `Menu` 裡再開 `Menu` 會疊在同一個座標上、關閉時關錯層。
  *
- * 🔴 **選單項與它背後的引擎一起上。** 只掛入口卻沒有實作，就是總則五那條
- * 「門有了後面沒有引擎」：使用者點了、以為有用，實際什麼都沒發生。
+ * 🔴 **選單項與它背後的引擎一起上。** 只掛入口卻沒有實作，就是總則五那條「門有了後面沒有引擎」：使用者點了、以為有用，實際什麼都沒發生。
  *
- * ⚠️ **這個版本的 `@mui/icons-material` 沒有無後綴的別名。**
- * `DeleteOutline`／`PersonOutline` 都是 `TS2307 Cannot find module` ——
- * 要寫成 `DeleteOutlineOutlined`／`PersonOutlined`。憑印象打會直接 typecheck 紅燈。
+ * ⚠️ **這個版本的 `@mui/icons-material` 沒有無後綴的別名。** `DeleteOutline`／`PersonOutline` 都是 `TS2307 Cannot find module` —— 要寫成 `DeleteOutlineOutlined`／`PersonOutlined`。憑印象打會直接 typecheck 紅燈。
  *
- * 🔴 這一支住 `app/screens/` 不住 `features/chat/`：它的工作是**把三個 feature
- * 組合到對話畫面上**，放進 chat 會讓 chat → persona／backgrounds／providers 長出相依。
+ * 🔴 這一支住 `app/screens/` 不住 `features/chat/`：它的工作是**把幾個 feature 組合到對話畫面上**，放進 chat 會讓 chat → persona／backgrounds／providers／variables 長出相依。
  */
-type Layer = 'persona' | 'backgrounds' | 'providers';
+type Layer = 'persona' | 'backgrounds' | 'providers' | 'variables';
 
 export function ChatMenu({
   chatId,
@@ -46,9 +41,7 @@ export function ChatMenu({
   persona?: { id?: string | undefined; name?: string | undefined; layer: string } | undefined;
   onPersonaChanged: () => void;
   /**
-   * 🔴 **「換開場」的入口**（M12 第三批，Peter 2026-08-26 實機回報「現在在哪裡選擇人生？？？」）。
-   * 這張卡的 9 則開場是**九條人生線**、而且各自會開不同的世界書 ——
-   * 那是進對話第一個要做的決定，不該埋在一則兩千字訊息末端的 `N/9` 小計數器後面。
+   * 🔴 **「換開場」的入口**（M12 第三批，Peter 2026-08-26 實機回報「現在在哪裡選擇人生？？？」）。這張卡的 9 則開場是**九條人生線**、而且各自會開不同的世界書 —— 那是進對話第一個要做的決定，不該埋在一則兩千字訊息末端的 `N/9` 小計數器後面。
    * ⚠️ **沒給就不畫這一項**：第一則沒有多個候選時列出來，就是一顆點了沒東西的選單項。
    */
   onGreetings?: (() => void) | undefined;
@@ -116,6 +109,12 @@ export function ChatMenu({
             <ListItemText primary="停止執行這張卡的程式" secondary="收回同意，介面會變回引導卡" />
           </MenuItem>
         ) : null}
+        <MenuItem onClick={() => open('variables')}>
+          <ListItemIcon>
+            <DataObjectOutlinedIcon fontSize="small" />
+          </ListItemIcon>
+          <ListItemText primary="變數" secondary="目前的值（唯讀）" />
+        </MenuItem>
         <MenuItem onClick={() => open('backgrounds')}>
           <ListItemIcon>
             <WallpaperOutlinedIcon fontSize="small" />
@@ -143,6 +142,7 @@ export function ChatMenu({
       />
       <BackgroundsLayer open={layer === 'backgrounds'} onClose={close} chatId={chatId} />
       <ProvidersLayer open={layer === 'providers'} onClose={close} />
+      <VariablesLayer open={layer === 'variables'} onClose={close} chatId={chatId} />
     </>
   );
 }
