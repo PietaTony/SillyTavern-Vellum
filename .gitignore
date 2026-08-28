@@ -26,3 +26,9 @@ data.bak-*
 dist-zip/
 dist-app/
 electron/updater.bundle.cjs
+
+# 中控線派工用的 git worktree，harness 建在 repo 內部（不是外面）。
+# 每個 worktree 都帶自己的一份 biome.json，`biome check .` 從 repo 根往下遞迴
+# 撞到它會回「Found a nested root configuration」而整支 pnpm lint 變紅——
+# 而且這個目錄本來就不該進版控（那是另一個 agent 的暫時工作樹，不是這個 repo 的內容）。
+.claude/worktrees/

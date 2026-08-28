@@ -36,6 +36,27 @@ the user, starts, updates, and cannot be trivially broken into.
 - `package.json`
   🔴 Named claim, not covered by any glob. Another layer adding a dependency opens a ticket
   to P1 rather than editing it directly. Peter ruled 2026-08-28.
+- `.githooks/**`
+  🔴 A pre-commit hook is "how the product gets built and protected before it ever reaches CI" —
+  same class as `scripts/**`, `.github/**`, `packaging/**` already above. No agent's §1 or
+  `AGENTS.md` X1–X4 claimed it; verified by grep across `.claude/agents/*.md` 2026-08-28.
+  Peter ruled 2026-08-28. ⚠️ Directory does not exist yet in this tree — declared before
+  written, same as the four 🌱 greenfield layers in `AGENTS.md` §1. 🔴 `gate:ownership` does
+  **not** scan it: `buildTargets()` in `scripts/gate-ownership.ts` walks six hardcoded roots
+  (`server/`, `src/app/`, `src/` top-level, `package.json`/`vite.config.ts`/`vitest.config.ts`,
+  `electron/*.cjs` top-level, `src/features/*` at directory grain) and `.githooks/` is not one
+  of them — **neither is `.github/**`, `packaging/**` or `electron-builder.yml` above**, so this
+  is a pre-existing gap shared by every glob-only claim in this section, not something new this
+  path introduces. Widening the gate's scan is itself a change to every other layer's gate
+  (§3 Seams: "tightening a gate is a change to them") — that is a ticket, not a same-PR fix.
+- `RELEASE-NOTES/**`
+  🔴 `next.md` is the direct input `cd.yml` (already yours under `.github/**`) reads to build
+  the Release body, and the staleness gate that failed on it (`GAP-114`) lives in that same
+  workflow — same reasoning as `releaseNotes.ts` already above. Owning the *path* is not owning
+  the *prose*: `next.md`'s body routinely has to record what H1–H6 each shipped that release;
+  P1 owning the file means P1 is responsible for it existing, not being blank/templated/stale,
+  and reaching the gate — not for authoring every line. Peter ruled 2026-08-28. Same scanning
+  gap as `.githooks/**` above: not one of `buildTargets()`'s six roots, `.md` extension besides.
 
 **Tests** — `server/__tests__/<module>.test.ts` for any module above.
 
