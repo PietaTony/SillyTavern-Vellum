@@ -24,7 +24,7 @@ describe('mergeOwned', () => {
         ccv3: {
           spec: 'chara_card_v3',
           data: {
-            name: '何思年',
+            name: '測試卡A',
             description: '舊的',
             first_mes: '舊開場',
             alternate_greetings: ['舊 alt'],
@@ -42,7 +42,7 @@ describe('mergeOwned', () => {
     expect(d['first_mes']).toBe('新的開場');
     expect(d['alternate_greetings']).toEqual(['alt1', 'alt2']);
     // 🔴 `name` **不可以被改** —— 改名寫 displayName，永不寫回卡片（D-h）
-    expect(d['name']).toBe('何思年');
+    expect(d['name']).toBe('測試卡A');
     expect(d['character_book']).toEqual({ entries: [{ keys: ['醫院'] }] });
     expect(d['extensions']).toEqual({
       regex_scripts: [{ scriptName: 'x' }],

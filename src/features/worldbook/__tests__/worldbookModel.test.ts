@@ -34,11 +34,11 @@ describe('世界書清單的副標', () => {
     const s = subtitleOf({
       entryCount: 38,
       enabledCount: 20,
-      usedBy: [{ kind: 'friend', id: 'c1', name: '何思年' }],
+      usedBy: [{ kind: 'friend', id: 'c1', name: '測試卡A' }],
     });
     expect(s).toContain('38 條');
     expect(s).toContain('啟用 20');
-    expect(s).toContain('何思年');
+    expect(s).toContain('測試卡A');
   });
 
   it('🔴 沒動過不顯示 0 —— 顯示 0 會讓「沒動過」看起來像要注意的數字', () => {

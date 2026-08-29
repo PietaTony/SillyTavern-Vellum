@@ -29,7 +29,7 @@ describe('卡片腳本的提示', () => {
   it('🔴 使用者還沒動過 ⇒ 不顯示（那是腳本的自我介紹，不是事件通知）', async () => {
     const { showCardToast, useToasts } = await fresh();
     showCardToast({ level: 'success', text: '思维链标签修复脚本已加载' });
-    showCardToast({ level: 'warning', text: '工具列按鈕沒有接上；桌面上的何思年仍可直接點。' });
+    showCardToast({ level: 'warning', text: '工具列按鈕沒有接上；桌面上的測試卡A仍可直接點。' });
     expect(texts(useToasts)).toEqual([]);
   });
 

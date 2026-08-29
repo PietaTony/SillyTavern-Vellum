@@ -87,15 +87,15 @@ describe('draftStore', () => {
  * 上一版把整張加好友表單存成一筆物件；這一版改成每欄一筆。
  * 🔴 不搬的話，**升級當下那份填到一半的表單就變成孤兒** ——
  * 使用者看到的是「我打的東西不見了」，而他不會知道那是換 key 造成的。
- * （實際發生過：Peter 的 install 裡就有一份「何思年(4)」填到一半的表單。）
+ * （實際發生過：Peter 的 install 裡就有一份「測試卡A(4)」填到一半的表單。）
  */
 describe('舊 key 的一次性搬遷', () => {
   it('讀得到上一版的整包物件', () => {
     localStorage.setItem(
       'vellum.draft.add-friend',
-      JSON.stringify({ name: '何思年(4)', description: '描述', firstMessage: '', avatar: '' }),
+      JSON.stringify({ name: '測試卡A(4)', description: '描述', firstMessage: '', avatar: '' }),
     );
     const legacy = readDraft<{ name: string }>('vellum.draft.add-friend');
-    expect(legacy?.name).toBe('何思年(4)');
+    expect(legacy?.name).toBe('測試卡A(4)');
   });
 });

@@ -27,7 +27,7 @@ async function app() {
 
 const CH: Character = {
   id: 'char1',
-  name: '何思年',
+  name: '測試卡A',
   description: '婦產科主治醫師',
   firstMessage: '好久不見。',
   avatar: '',
@@ -41,10 +41,10 @@ const seed = async () => {
 
 /** header 一行 ＋ 三則訊息：使用者一則、帶 3 個候選的一則、沒有 `swipes` 的一則。 */
 const JSONL = [
-  JSON.stringify({ user_name: 'Peter', character_name: '何思年', create_date: '2026-08-01' }),
+  JSON.stringify({ user_name: 'Peter', character_name: '測試卡A', create_date: '2026-08-01' }),
   JSON.stringify({ name: 'Peter', is_user: true, mes: '嗨', send_date: '2026-08-01' }),
   JSON.stringify({
-    name: '何思年',
+    name: '測試卡A',
     is_user: false,
     mes: '第二個候選',
     send_date: '2026-08-01',
@@ -53,7 +53,7 @@ const JSONL = [
     // 認不得的鍵：匯出時必須原樣還在
     is_ejs_processed: [true],
   }),
-  JSON.stringify({ name: '何思年', is_user: false, mes: '沒有候選的一則', send_date: '2026-08-01' }),
+  JSON.stringify({ name: '測試卡A', is_user: false, mes: '沒有候選的一則', send_date: '2026-08-01' }),
 ].join('\n');
 
 const doImport = async () => {

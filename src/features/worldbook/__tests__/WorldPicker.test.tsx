@@ -6,16 +6,16 @@ import { WorldPicker } from '../ui/WorldPicker';
 const WORLDS = [
   {
     id: 'w1',
-    name: '何思年',
+    name: '測試卡A',
     entryCount: 38,
     enabledCount: 20,
     changedCount: 11,
     updatedAt: 'T',
-    usedBy: [{ kind: 'friend' as const, id: 'c1', name: '何思年' }],
+    usedBy: [{ kind: 'friend' as const, id: 'c1', name: '測試卡A' }],
   },
   {
     id: 'w2',
-    name: '何思年(1)',
+    name: '測試卡A(1)',
     entryCount: 38,
     enabledCount: 27,
     changedCount: 20,
@@ -50,7 +50,7 @@ describe('WorldPicker（C6）', () => {
    */
   it('🔴 已綁定時要解出書名，不是只顯示 id', async () => {
     wrap(<WorldPicker value="w2" onChange={vi.fn()} />);
-    await waitFor(() => expect(screen.getByText('何思年(1)')).toBeTruthy());
+    await waitFor(() => expect(screen.getByText('測試卡A(1)')).toBeTruthy());
     expect(screen.getByText('更換')).toBeTruthy();
   });
 
@@ -58,8 +58,8 @@ describe('WorldPicker（C6）', () => {
     const onChange = vi.fn();
     wrap(<WorldPicker value={undefined} onChange={onChange} />);
     fireEvent.click(screen.getByText('選擇'));
-    await waitFor(() => expect(screen.getByText('何思年(1)')).toBeTruthy());
-    fireEvent.click(screen.getByText('何思年(1)'));
+    await waitFor(() => expect(screen.getByText('測試卡A(1)')).toBeTruthy());
+    fireEvent.click(screen.getByText('測試卡A(1)'));
     expect(onChange).toHaveBeenCalledWith('w2');
   });
 
