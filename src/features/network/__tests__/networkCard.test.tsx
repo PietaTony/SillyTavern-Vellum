@@ -67,9 +67,17 @@ describe('允許其他裝置連線', () => {
     expect(container.textContent).toContain('不只 Tailscale');
   });
 
-  it('🔴 一定要講「沒有登入機制」', () => {
+  it('🔴 沒設密碼時要講「沒有登入機制」', () => {
     const { container } = render(<NetworkCard state={base} onToggle={noop} busy={false} />);
     expect(container.textContent).toContain('沒有登入機制');
+  });
+
+  it('🔴 已設密碼時要改講「已設定存取密碼」', () => {
+    const { container } = render(
+      <NetworkCard state={{ ...base, hasPassword: true }} onToggle={noop} busy={false} />,
+    );
+    expect(container.textContent).toContain('已設定存取密碼');
+    expect(container.textContent).not.toContain('沒有登入機制');
   });
 
   it('開放中會列出手機要打的網址，Tailscale 標示得出來', () => {

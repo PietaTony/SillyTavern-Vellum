@@ -1,8 +1,20 @@
 /**
  * 存取密碼與 session —— **單人 shared secret**，不是多使用者帳號。
  *
- * 🔴 獨立 `auth.json`，不混進 `settings.json`：密碼 hash 與 session secret
- * 的讀寫節奏跟一般設定不同，也不該被卡片變數那類端點碰到。
+ * 🔴 加 `auth.json` 的六題（對照 `settingsModel.ts` 的 `exposeNetwork`）：
+ * ① 加了什麼 —— `{ passwordHash, salt, sessionSecret }`，語意「這台 instance 的存取密碼」。
+ * ② 為何非加不可 —— README 已承諾「之後會加密碼」；`exposeNetwork` 開了之後
+ *    連得到的人等於使用者本人，不能繼續裸奔。
+ * ③ 為何不用既有的 —— `secrets.json` 是 LLM 金鑰；`settings.json` 會被卡片
+ *    `global` 變數端點間接碰到，密碼 hash 不該跟設定混寫。
+ * ④ 對既有資料的影響 —— 零；沒有 `auth.json` ⇒ 視為未設密碼，行為與現在相同。
+ * ⑤ 誰讀誰寫 —— 寫：`PUT/DELETE /api/auth/password`；讀：`authGuard`、`/api/auth/status`。
+ * ⑥ 可逆 —— 刪 `auth.json` 或 `DELETE /api/auth/password`（未開放連線時）。
+ *
+ * 🔴 **session 用 signed cookie，不用 server 端 session 表** —— 單 process、單人，
+ * 重啟後全部登出是可接受的；少一個要遷移的狀態檔。
+ * ⚠️ **變更密碼不主動踢舊 session**（Phase 1）—— 只有一台裝置在改密碼的話夠用；
+ * 若要「改密碼後全部重登」是 Phase 2（rotate `sessionSecret`）。
  */
 import { createHmac, randomBytes, scrypt, timingSafeEqual } from 'node:crypto';
 import { promisify } from 'node:util';

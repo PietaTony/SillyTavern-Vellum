@@ -1,13 +1,16 @@
 import { queryClient } from '@/app/queryClient';
-import { type AuthStatus, fetchAuthStatus, login } from '@/features/network/authApi';
+import { AUTH_QUERY, type AuthStatus, login } from '@/features/network/authApi';
 
-export const AUTH_QUERY = { queryKey: ['auth'], queryFn: fetchAuthStatus } as const;
+export { AUTH_QUERY };
 
 export async function authState(): Promise<AuthStatus> {
   return queryClient.fetchQuery(AUTH_QUERY);
 }
 
-/** 已設密碼且尚未登入 ⇒ 要導去 `/login`。 */
+/**
+ * 已設密碼且尚未登入 ⇒ 要導去 `/login`。
+ * 🔴 **判準是純函式** —— 跟 `needsFirstRun()` 一樣，可單獨測。
+ */
 export const needsLogin = (pathname: string, s: AuthStatus): boolean =>
   s.required && !s.loggedIn && !pathname.startsWith('/login');
 

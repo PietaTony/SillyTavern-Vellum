@@ -87,6 +87,8 @@ the user, starts, updates, and cannot be trivially broken into.
 | `identity: null` does not produce "unsigned", it produces **"damaged"** — Gatekeeper rejects it outright instead of showing the unidentified-developer prompt | `GAP-100` |
 | `electron-builder` publishes to GitHub Releases on its own, and signs with whatever certificate it finds in the local keychain. It found a **company** one | `GAP-98` / remove-docker report ④ |
 | After widening `gate-file-size` to cover `server/`, the reported file count **did not move**. The unchanged number was the failure signal | `scripts/gate-file-size.ts` header |
+| Root `beforeLoad` ran `isSetUp()` before auth —— `/api/secrets` 401 looked like a broken product when password was set | `GAP-115` / `src/app/routes/__root.tsx` |
+| `LanWarning` and `NetworkCard` each had their own「沒有登入機制」copy —— password shipped but mobile LAN banner still lied | `NoLoginWarning.tsx` |
 
 ## 5 · Before you say done
 

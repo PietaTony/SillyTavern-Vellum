@@ -95,6 +95,18 @@
           "route": "settings/about",
           "note": "關於與更新：目前版本、手動檢查、release notes、破壞性變更、複製更新指令。🔴 設計正本沒有這張，待補圖",
           "back": "settings"
+        },
+        {
+          "id": "Settings-Network--undrawn",
+          "route": "settings/network",
+          "note": "其他裝置：允許連線開關 + 存取密碼。🔴 設計正本沒有這張，待補圖",
+          "back": "settings"
+        },
+        {
+          "id": "Login--1",
+          "route": "login",
+          "note": "存取密碼登入 —— 只有設了密碼且未登入時會被 root 守衛導來。無返回鍵",
+          "back": null
         }
       ]
     },

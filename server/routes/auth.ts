@@ -1,7 +1,12 @@
 /**
- * 存取密碼：登入、登出、設定／變更。
+ * 存取密碼：登入、登出、設定／變更／移除。
  *
- * 🔴 單人 app —— 一組密碼鎖整個 instance，不是使用者帳號系統。
+ * 🔴 **單人 app** —— 一組密碼鎖整個 instance，不是使用者帳號系統。
+ * 🔴 **首次 `PUT /password` 回 204 + Set-Cookie** —— 設完就能繼續用，不必再去 login 頁
+ * 打第二次（本機在「其他裝置」頁設密碼的實際路徑）。
+ * 🔴 **`DELETE /password` 在 `exposeNetwork` 開著時一律 400** —— 跟 UI 禁用移除鈕
+ * 同一句話；只擋前端會再出現「開了遠端卻沒密碼」的說谎開關。
+ * ⚠️ **rate limit 在記憶體** —— 重啟清零；夠擋 casual 暴力破解，不是 enterprise WAF。
  */
 import { Hono } from 'hono';
 import { z } from 'zod';

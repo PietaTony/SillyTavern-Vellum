@@ -31,6 +31,7 @@
 | GAP-105 | platform | Two bugs covering for each other: the desktop app's port was hard-coded and the startup error had no handler, but the health check reached *someone* (a dev server) and it all looked like success | `GAP-105` |
 | GAP-113 | platform | The verification scanned more than the action changed. `main` moved forward with **no matching Release** and a version number permanently skipped | `GAP-113` |
 | GAP-114 | platform | The release-notes gate caught "template" and "blank" but not "last version's text". v0.2.5 shipped v0.2.4's notes | `GAP-114` |
+| GAP-115 | platform | Root `beforeLoad` ran `isSetUp()` before auth —— `/api/secrets` 401 looked like a broken product when password was set | `GAP-115` / `src/app/routes/__root.tsx` |
 | GAP-119 | chat-core | Swipe lore recompute compared *stripped* text against *raw* text — always false. The fixtures used the wrong unit too, so 7 tests were green about a world that did not exist | `GAP-119` |
 | GAP-120 | worldbook | Applying a world is **cumulative, not a switch**. Moving from greeting A to greeting B leaves A's entries on (9 grew to 25) | `GAP-120` |
 | GAP-123 | presets | **Partial update and full replace must be different functions.** One "set" that sometimes merges and sometimes overwrites is how variables were silently lost before | `GAP-88` / `GAP-123` in this repo |
