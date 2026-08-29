@@ -46,7 +46,16 @@ serve({ fetch: app.fetch, port, hostname }, (info) => {
     .catch((e: unknown) => console.error('[vellum] 內建背景複製失敗：', e));
   if (hostname === '127.0.0.1')
     console.log('[vellum] 只有這台電腦連得到。要讓手機／平板連進來：設定 →「允許其他裝置連線」');
-  else console.log(`[vellum] ⚠️ 綁在 ${hostname} —— 同一個網路上的人都連得到，而 Vellum 沒有密碼`);
+  else {
+    void import('./lib/authStore.ts').then(async ({ hasPassword }) => {
+      const locked = await hasPassword();
+      console.log(
+        locked
+          ? `[vellum] ⚠️ 綁在 ${hostname} —— 連進來需要存取密碼`
+          : `[vellum] ⚠️ 綁在 ${hostname} —— 同一個網路上的人都連得到，且尚未設定密碼`,
+      );
+    });
+  }
   // 🔴 **在 listen 成功之後才開**，而且預設關閉（`VELLUM_OPEN=1`）。理由見 `openBrowser.ts`。
   if (openBrowser(`http://${hostname}:${info.port}`))
     console.log('[vellum] 已幫你打開瀏覽器。要停止請關掉這個視窗。');

@@ -1,4 +1,5 @@
 import { createRootRoute, Navigate, Outlet, redirect } from '@tanstack/react-router';
+import { authState, needsLogin } from '@/app/auth';
 import { AppBackground } from '@/app/screens/AppBackground';
 import { isSetUp, needsFirstRun } from '@/app/setup';
 import { LanWarning } from '@/features/network';
@@ -8,19 +9,21 @@ export const Route = createRootRoute({
   /**
    * 🔴 **首次流程是必經的，而且守在「全站的入口」，不是每一支 route 各自守**
    * （Peter 2026-08-27：「沒跑過不能路由亂跑」）。
-   * 在此之前只有 `/` 會分流 —— 其餘每一支直接打網址就進得去，
-   * 而那時候一把金鑰都沒有：清單是空的、送訊息必然失敗。
-   * 那不是「你還沒設定」，看起來是「這個產品壞了」。
    *
-   * ⚠️ **一支一支加守衛必漏** —— 這個 repo 反覆講的同一件事：
-   * 「要記得的東西一定會漏」。加在根上，新 route 天生就被守著。
-   *
-   * 🔴 判準在 `needsFirstRun()`（純函式、單獨測）：唯一會出人命的地方是
-   * `/first-run/*` 自己要放行，否則守衛把它導向自己 ⇒ 無限重導。
+   * 🔴 **存取密碼守衛排在 first-run 之前**（2026-08-29）：已設密碼時 API 要 session，
+   * 若先跑 isSetUp() 會打到 `/api/secrets` 拿到 401，看起來像產品壞了。
+   * `/login` 兩條都不跑 —— 登入頁自己處理「已登入就離開」。
    */
   beforeLoad: async ({ location }) => {
-    if (needsFirstRun(location.pathname, await isSetUp()))
-      throw redirect({ to: '/first-run/provider' });
+    const path = location.pathname;
+    if (path.startsWith('/login')) return;
+
+    const auth = await authState();
+    if (needsLogin(path, auth)) {
+      throw redirect({ to: '/login', search: { next: path } });
+    }
+
+    if (needsFirstRun(path, await isSetUp())) throw redirect({ to: '/first-run/provider' });
   },
   component: RootLayout,
   notFoundComponent: NotFound,

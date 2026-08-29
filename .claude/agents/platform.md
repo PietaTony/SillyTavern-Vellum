@@ -15,18 +15,19 @@ the user, starts, updates, and cannot be trivially broken into.
 **Front end**
 - `src/features/about/**` `src/features/backgrounds/**` `src/features/network/**` `src/features/update/**`
 - `src/app/routes/` — `__root.tsx` `index.tsx` `first-run/index.tsx` `first-run/route.tsx`
-  `settings/index.tsx` `settings/about.tsx` `settings/network.tsx`
+  `settings/index.tsx` `settings/about.tsx` `settings/network.tsx` `login.tsx`
   🔴 Paths are relative to `src/app/routes/`. `index.tsx` means the app's own root index,
   not `worlds/index.tsx` (H3's) or `settings/providers/index.tsx` (H5's).
 - `src/app/screens/` — `AppBackground.tsx` `UpdateAvailablePanel.tsx` `UpdateCheckCard.tsx` `SettingsAboutScreen.tsx`
   `appFailure.ts` `AppUnreachable.tsx` `ReportButton.tsx`
+- `src/app/auth.ts`
 - `src/app/report.ts`
 
 **Back end**
-- `server/routes/` — `update.ts` `network.ts` `backgrounds.ts` `chatBackground.ts`
-- `server/lib/releaseNotes.ts`
+- `server/routes/` — `update.ts` `network.ts` `backgrounds.ts` `chatBackground.ts` `auth.ts`
+- `server/lib/releaseNotes.ts` `server/lib/authStore.ts`
 - `server/adapters/**` **except** `gemini.ts` (H5's), `audioFiles.ts` (H8's), `extensionFetch.ts` (H9's)
-- `server/http/**` — `bodyLimits.ts` `hostGuard.ts`
+- `server/http/**` — `bodyLimits.ts` `hostGuard.ts` `authGuard.ts`
 
 **Build & ship**
 - `scripts/**` (every `gate-*.ts` and `verify-*.ts`)

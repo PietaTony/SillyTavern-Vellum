@@ -1,6 +1,7 @@
 import { Hono } from 'hono';
 import { z } from 'zod';
 import { reachableUrls } from '../adapters/network.ts';
+import { hasPassword } from '../lib/authStore.ts';
 import { loadSettings, saveSettings } from '../services/settings.ts';
 
 /**
@@ -17,6 +18,8 @@ export const network = new Hono()
     return c.json({
       /** 設定裡是開還是關。 */
       enabled: (await loadSettings()).exposeNetwork === true,
+      /** 是否已設定存取密碼 —— 開放連線的前置條件。 */
+      hasPassword: await hasPassword(),
       /** 🔴 **這次啟動實際綁的介面** —— 與上面那個不一致就代表「要重啟才生效」。 */
       bound,
       /** 🔴 `HOST` 環境變數蓋過設定時，UI 要說得出「開關現在管不到」。 */
@@ -30,6 +33,9 @@ export const network = new Hono()
   .patch('/', async (c) => {
     const body = z.object({ enabled: z.boolean() }).safeParse(await c.req.json());
     if (!body.success) return c.json({ error: '參數不合法' }, 400);
+    if (body.data.enabled && !(await hasPassword())) {
+      return c.json({ error: '開啟其他裝置連線前，請先設定存取密碼。' }, 400);
+    }
     const s = await loadSettings();
     await saveSettings({ ...s, exposeNetwork: body.data.enabled });
     // 🔴 **不假裝立刻生效。** port 已經綁上去了，中途換介面做不到。

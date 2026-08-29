@@ -17,6 +17,12 @@ import { NoLoginWarning } from './NoLoginWarning';
  * 🔴 **「設定值」與「實際綁的」要分開顯示。** 只顯示設定值的話，
  * 改完還沒重啟時畫面會說「已開啟」而外面其實連不進來 —— 那是一顆說謊的開關。
  */
+const switchDisabled = (
+  state: NetworkState | undefined,
+  busy: boolean,
+  enabled: boolean,
+): boolean => busy || state === undefined || state.forcedByEnv || (!enabled && !state.hasPassword);
+
 export function NetworkCard({
   state,
   onToggle,
@@ -42,7 +48,7 @@ export function NetworkCard({
           </Stack>
           <Switch
             checked={enabled}
-            disabled={busy || state === undefined || state.forcedByEnv}
+            disabled={switchDisabled(state, busy, enabled)}
             onChange={(e) => onToggle(e.target.checked)}
             slotProps={{ input: { 'aria-label': '允許其他裝置連線' } }}
           />
@@ -66,7 +72,7 @@ export function NetworkCard({
 
         {/* 🔴 這一段不能省：使用者以為自己只開給了 Tailscale。文案與連進來那台共用。 */}
         <Alert severity={live ? 'warning' : 'info'}>
-          <NoLoginWarning />
+          <NoLoginWarning hasPassword={Boolean(state?.hasPassword)} />
           <br />
           而且打開之後<b>不只 Tailscale</b>：<b>同一個 wifi 上的人也連得到</b>
           （室友、訪客、被入侵的裝置）。在公共 wifi 上請不要打開。

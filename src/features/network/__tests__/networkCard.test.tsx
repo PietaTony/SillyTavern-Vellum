@@ -18,6 +18,7 @@ const base: NetworkState = {
   forcedByEnv: false,
   port: 8520,
   urls: [],
+  hasPassword: false,
 };
 const noop = () => undefined;
 
@@ -121,9 +122,16 @@ describe('允許其他裝置連線', () => {
     expect(sw(container).disabled).toBe(true);
   });
 
+  it('🔴 沒設密碼時不能打開開關', () => {
+    const { container } = render(<NetworkCard state={base} onToggle={noop} busy={false} />);
+    expect(sw(container).disabled).toBe(true);
+  });
+
   it('按下去會把新的值傳出來', () => {
     const onToggle = vi.fn();
-    const { container } = render(<NetworkCard state={base} onToggle={onToggle} busy={false} />);
+    const { container } = render(
+      <NetworkCard state={{ ...base, hasPassword: true }} onToggle={onToggle} busy={false} />,
+    );
     fireEvent.click(sw(container));
     expect(onToggle).toHaveBeenCalledWith(true);
   });
