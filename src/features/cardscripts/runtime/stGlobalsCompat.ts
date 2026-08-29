@@ -22,12 +22,12 @@
  * ⚠️ **只保證 `typeof`，不保證 `in`。** `Object.defineProperty` 裝上去之後
  * `'triggerSlash' in window` 會是 `true`（原本應該是 `false`）——這是攔截讀取
  * 這個手法本身的極限，沒有辦法在「攔得到」跟「`in` 也騙得過」之間兩者兼得。
- * 已知的四個呼叫點（何思年桌寵）都用 `typeof … === 'function'`，不用 `in`。
+ * 已知的四個呼叫點（測試卡A桌寵）都用 `typeof … === 'function'`，不用 `in`。
  *
  * 🔴 **只印 console，不發 toast**（跟 `stCompat.ts` 的 DOM 白名單不同，這裡結論
  * 不一樣，理由也不同）：`stCompat.ts` 警告的是「卡片承諾的介面不會出現」——
  * 那是新資訊，使用者原本不知道。這裡警告的是「卡片的某個功能不會動」，
- * 但何思年桌寵的四個呼叫點裡已經有兩個**自己會講話**
+ * 但測試卡A桌寵的四個呼叫點裡已經有兩個**自己會講話**
  * （`generateLetter()` 丟看得見的例外、`bindToolbar()` 自己彈 warning toast）；
  * 我們認不出當下是不是這兩種——再發一次 toast 等於同一件事講兩次。
  * `console.warn` 已經經 `logShim.ts` 轉發到主頁 DevTools（開發者看得到），

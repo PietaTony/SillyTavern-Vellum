@@ -8,7 +8,7 @@ import { externalsOf } from './cardExternals.ts';
  *   ① `extensions.tavern_helper.scripts` —— 背景腳本。實測那張卡有 **2,084,371 字元**、7 支，
  *      其中 99.2% 是「桌寵」那支的內嵌貼圖，真正的功能腳本只有約 17 KB。
  *   ② 🔴 `extensions.regex_scripts[].replaceString` —— **顯示用 regex 把整段訊息換成一份 HTML 網頁**。
- *      實測「何思年」那張卡使用者真正看到、會點的「CHOOSE YOUR TIMELINE」介面
+ *      實測「測試卡A」那張卡使用者真正看到、會點的「CHOOSE YOUR TIMELINE」介面
  *      就是這樣來的（`regex_scripts[1]`，17,862 字元，裡面有 `<script>` 與 15 個 `onclick=`）。
  *
  * ⚠️ **2026-08-26 補的就是 ②。** 在此之前盤點只算 ①，於是同意視窗

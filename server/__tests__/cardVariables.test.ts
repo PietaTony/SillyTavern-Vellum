@@ -28,7 +28,7 @@ async function app() {
 
 const CH: Character = {
   id: 'abc123',
-  name: '何思年',
+  name: '測試卡A',
   description: '婦產科主治醫師',
   firstMessage: '好久不見。',
   avatar: '',

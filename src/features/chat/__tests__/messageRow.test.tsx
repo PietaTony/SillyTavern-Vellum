@@ -47,7 +47,7 @@ beforeEach(() => {
 
 /** ⚠️ 不用預設參數 —— 「明確傳 `undefined`」會落回預設值，那條「沒給 actions」的測試會假綠。 */
 const row = (m: Message, a?: MessageActions) =>
-  render(<MessageRow message={m} isGreeting={false} name="何思年" actions={a} />);
+  render(<MessageRow message={m} isGreeting={false} name="測試卡A" actions={a} />);
 const rowWith = (m: Message) => row(m, actions);
 
 const openMenu = () => fireEvent.contextMenu(screen.getByText('原本的內容'));

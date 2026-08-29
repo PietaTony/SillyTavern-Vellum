@@ -22,10 +22,15 @@ describe('加好友草稿的一次性搬遷', () => {
   it('🔴 舊 key 的內容搬得過來', () => {
     localStorage.setItem(
       LEGACY,
-      JSON.stringify({ name: '何思年(4)', description: '描述', firstMessage: '指南', avatar: 'a' }),
+      JSON.stringify({
+        name: '測試卡A(4)',
+        description: '描述',
+        firstMessage: '指南',
+        avatar: 'a',
+      }),
     );
     const d = loadAddFriendDraft();
-    expect(d.name).toBe('何思年(4)');
+    expect(d.name).toBe('測試卡A(4)');
     expect(d.description).toBe('描述');
   });
 
@@ -37,12 +42,17 @@ describe('加好友草稿的一次性搬遷', () => {
   it('🔴 搬完之後重新載入還在（＝ 真的寫進新 key，不是只當初始值）', () => {
     localStorage.setItem(
       LEGACY,
-      JSON.stringify({ name: '何思年(4)', description: '描述', firstMessage: '指南', avatar: 'a' }),
+      JSON.stringify({
+        name: '測試卡A(4)',
+        description: '描述',
+        firstMessage: '指南',
+        avatar: 'a',
+      }),
     );
     loadAddFriendDraft();
     expect(localStorage.getItem(LEGACY)).toBeNull(); // 舊的清掉
-    expect(readDraft<string>(`${K}name`)).toBe('何思年(4)'); // 新的存好
-    expect(loadAddFriendDraft().name).toBe('何思年(4)'); // 再讀一次還在
+    expect(readDraft<string>(`${K}name`)).toBe('測試卡A(4)'); // 新的存好
+    expect(loadAddFriendDraft().name).toBe('測試卡A(4)'); // 再讀一次還在
   });
 
   it('新 key 已經有值時不被舊 key 蓋掉', () => {
@@ -55,7 +65,7 @@ describe('加好友草稿的一次性搬遷', () => {
     const { writeDraft } = await import('@/shared/lib/draftStore');
     // 🔴 **要有名字**，否則會被 `dropGhost` 判成半張卡的殘骸而整組清掉（GAP-68）——
     //    「沒名字卻有問候語」在現實中就是幽靈草稿，那條規則是對的。
-    writeDraft('vellum.draft.add-friend.name', '何思年');
+    writeDraft('vellum.draft.add-friend.name', '測試卡A');
     writeDraft('vellum.draft.add-friend.greetings', ['台北總是裹著一層濕氣', '這麼巧。']);
     expect(loadAddFriendDraft().greetings).toEqual(['台北總是裹著一層濕氣', '這麼巧。']);
   });

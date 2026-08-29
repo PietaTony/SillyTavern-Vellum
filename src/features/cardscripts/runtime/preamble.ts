@@ -90,7 +90,7 @@ export const PREAMBLE = /* js */ `
   });
 
   /* 🔴 事件名稱**照抄 ST**（實查 public/scripts/events.js:7,19,49）。拿不到 te 的卡片
-     會在「輪詢等待 10 秒」裡空轉（實測「何思年_開場連動」就是這個寫法）。 */
+     會在「輪詢等待 10 秒」裡空轉（實測「測試卡A_開場連動」就是這個寫法）。 */
   window.tavern_events = {
     MESSAGE_SWIPED: 'message_swiped',
     CHAT_CHANGED: 'chat_id_changed',

@@ -3,7 +3,7 @@
  *
  * 🔴 **`waitGlobalInitialized` 一定要有逾時。** 上一版沒有，而那不是效能問題，是**功能整個不跑**：
  *
- * 實測 2026-08-27（標的卡「何思年」三個區塊全是這個形狀）：
+ * 實測 2026-08-27（標的卡「測試卡A」三個區塊全是這個形狀）：
  * ```js
  * async function init(){
  *   await waitGlobalInitialized('Mvu');   // ← 卡在這裡，永遠

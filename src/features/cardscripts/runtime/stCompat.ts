@@ -1,7 +1,7 @@
 /**
  * 卡片對著「ST 特有、Vellum 沒有的 DOM id」操作時，目前 100% 靜默（GAP，2026-08-28 稽核）。
  *
- * 🔴 **實查**：`何思年_世界書切換`（`tavern_helper.scripts[4]`）做的是
+ * 🔴 **實查**：`測試卡A_世界書切換`（`tavern_helper.scripts[4]`）做的是
  * `$('#extensions_settings2').append(...)` —— 手動修復世界書的按鈕面板。
  * `extensions_settings2` 是 **ST 的 DOM id**，Vellum 前端沒有這個元素
  * （`grep -rn "extensions_settings" src/ server/` 零命中）。
@@ -15,7 +15,7 @@
  * 而且查詢落空時才算數。白名單故意窄，寧可漏抓也不要對卡片自己的元素誤報。
  */
 export const KNOWN_ST_IDS: readonly string[] = [
-  // ST 的擴充設定兩欄（`何思年_世界書切換` 操作的就是這一個）。
+  // ST 的擴充設定兩欄（`測試卡A_世界書切換` 操作的就是這一個）。
   'extensions_settings',
   'extensions_settings2',
 ];
