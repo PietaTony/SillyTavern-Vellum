@@ -37,7 +37,7 @@ describe('四層綁定的事實表（C4）', () => {
 
 describe('每位好友綁著什麼', () => {
   const owners = [
-    { id: 'c1', name: '何思年' },
+    { id: 'c1', name: '測試卡A' },
     { id: 'c2', name: '宇軒' },
   ];
 
@@ -53,8 +53,8 @@ describe('每位好友綁著什麼', () => {
   });
 
   it('顯示名優先於 name', () => {
-    const rows = friendBindings([{ id: 'c1', name: '何思年', displayName: '何思年(1)' }], []);
-    expect(rows[0]?.name).toBe('何思年(1)');
+    const rows = friendBindings([{ id: 'c1', name: '測試卡A', displayName: '測試卡A(1)' }], []);
+    expect(rows[0]?.name).toBe('測試卡A(1)');
   });
 
   it('沒有好友時回空陣列，不會炸', () => {

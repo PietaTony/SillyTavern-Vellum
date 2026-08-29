@@ -12,7 +12,7 @@ import { readFileSync } from 'node:fs';
 import { readCard } from '../server/lib/card.ts';
 import { applyRules, fromRegexScripts, type OutputRule } from '../server/lib/outputRules.ts';
 
-const GUIDE = '【何思年·使用指南】';
+const GUIDE = '【測試卡A·使用指南】';
 const PLACEHOLDER = '<StatusPlaceHolderImpl/>';
 const VAR_BLOCK = '<UpdateVariable>\n{"stat_data":{"安全感":40}}\n</UpdateVariable>';
 

@@ -9,11 +9,11 @@ import { reportBox, shadowSpread } from '../runtime/reportBox';
  * 而 overlay 的可見範圍就是拿那個框去裁的 ⇒ 不自己把陰影加回去，
  * 畫面上就會出現一圈邊緣是直線的髒灰色。
  *
- * 🔴 **數字全部取自真實的卡片**（何思年 V2 的 `.hsnr-pet-orb`／`.hsnr-pet-whisper`），
+ * 🔴 **數字全部取自真實的卡片**（測試卡A V2 的 `.hsnr-pet-orb`／`.hsnr-pet-whisper`），
  * 不是我自己編的。編出來的值測得過，真卡照樣切到。
  */
 describe('shadowSpread', () => {
-  it('🔴 何思年桌寵：drop-shadow(0 13px 22px) ⇒ 要留 35px，不是舊版的 0', () => {
+  it('🔴 測試卡A桌寵：drop-shadow(0 13px 22px) ⇒ 要留 35px，不是舊版的 0', () => {
     expect(
       shadowSpread({
         filter:

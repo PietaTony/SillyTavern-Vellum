@@ -41,7 +41,7 @@ const SWIPES = GREET.map(stripLoreTags);
 
 const CH: Character = {
   id: 'char1',
-  name: '何思年',
+  name: '測試卡A',
   description: 'x',
   firstMessage: GREET[0] as string,
   avatar: '',
@@ -53,7 +53,7 @@ const CH: Character = {
 const chatWith = (swipes: string[], extra: Chat['messages'] = []): Chat => ({
   id: 'chat1',
   characterId: CH.id,
-  characterName: '何思年',
+  characterName: '測試卡A',
   messages: [
     { id: 'm0', role: 'model', text: swipes[0] as string, at: 'now', swipes, swipeIndex: 0 },
     ...extra,

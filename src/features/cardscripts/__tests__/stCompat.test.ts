@@ -8,7 +8,7 @@ import {
 } from '../runtime/stCompat';
 
 /**
- * `何思年_世界書切換` 對著 `#extensions_settings2`（ST 專屬、Vellum 沒有的 DOM）
+ * `測試卡A_世界書切換` 對著 `#extensions_settings2`（ST 專屬、Vellum 沒有的 DOM）
  * 做 `$('#extensions_settings2').append(...)`——jQuery 在空集合上 `.append()` 是
  * 合法 no-op，100% 靜默。這支守的是「查得到」，分兩層測：
  *   ① `makeStCompatWarn` 本身（直接呼叫真的那支函式，不比字串）
