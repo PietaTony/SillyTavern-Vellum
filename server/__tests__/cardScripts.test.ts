@@ -103,7 +103,7 @@ describe('scriptsOf —— 盤點卡片自帶的腳本', () => {
 
 /**
  * 🔴 **2026-08-26 補的一整塊：卡片的程式帶在兩個地方，在此之前只盤了一個。**
- * 實測「何思年」那張卡使用者真正會點的「CHOOSE YOUR TIMELINE」介面來自
+ * 實測「測試卡A」那張卡使用者真正會點的「CHOOSE YOUR TIMELINE」介面來自
  * `regex_scripts[1].replaceString`（17,862 字元），**不是** `tavern_helper`。
  * 少盤它 ⇒ 同意視窗少報了真正會執行的那一份。
  */

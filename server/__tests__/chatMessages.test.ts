@@ -77,7 +77,7 @@ async function app() {
 const CHAT: Chat = {
   id: 'c1',
   characterId: 'ch1',
-  characterName: '何思年',
+  characterName: '測試卡A',
   createdAt: '2026-08-27T00:00:00.000Z',
   messages: [
     msg('m1', '好久不見。', { swipes: ['好久不見。', '這麼巧。', '你也來了。'], swipeIndex: 0 }),

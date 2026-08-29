@@ -4,7 +4,7 @@
  * 🔴 **這是修一個實機 bug 的根因**（Peter 2026-08-26：「桌寵目前調整大小沒有用」）。
  * ST 的 `getVariables({type:'chat'})` 是**同步回物件**；我們的橋每一支都走 `postMessage`
  * ⇒ 回的是 Promise。卡片是同步用的：
- *   `readPetState()` → `getVariables(...)['何思年桌寵']` → 在 Promise 上取鍵 → `undefined`
+ *   `readPetState()` → `getVariables(...)['測試卡A桌寵']` → 在 Promise 上取鍵 → `undefined`
  * 於是尺寸永遠算成預設值。而桌寵改完大小**緊接著呼叫 `schedulePetLayout()`**，
  * 那支又會 `applyPetSize(petSizePercent(readPetState()))` ⇒ **下一幀就把你的調整蓋掉**。
  * ⚠️ 這條不只影響大小 —— **任何同步讀變數的卡片都會壞**，而且壞得沒有錯誤訊息。

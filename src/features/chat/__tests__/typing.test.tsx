@@ -47,17 +47,17 @@ describe('thinking 事件', () => {
  */
 describe('生成中的等待指示', () => {
   // `as const` 會把 `messages` 變成 readonly，對不上 `Message[]` —— 這裡不需要凍結。
-  const args = { messages: [] as Message[], name: '何思年' };
+  const args = { messages: [] as Message[], name: '測試卡A' };
 
   it('🔴 還沒吐字 ⇒ 說「正在輸入…」，不是一個死的省略號', () => {
     render(<Thread {...args} streaming="" />);
-    expect(screen.getByRole('status').textContent).toContain('何思年 正在輸入…');
+    expect(screen.getByRole('status').textContent).toContain('測試卡A 正在輸入…');
     expect(screen.queryByText('⋯')).toBeNull();
   });
 
   it('🔴 模型在思考 ⇒ 措辭要換掉，那十幾秒才不會像當機', () => {
     render(<Thread {...args} streaming="" thinking />);
-    expect(screen.getByRole('status').textContent).toContain('何思年 正在思考…');
+    expect(screen.getByRole('status').textContent).toContain('測試卡A 正在思考…');
   });
 
   it('開始吐字 ⇒ 顯示正文，等待那一列就要收掉', () => {

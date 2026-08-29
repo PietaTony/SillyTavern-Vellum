@@ -16,7 +16,7 @@ describe('世界書摘要', () => {
   it('條數與啟用數', () => {
     const [s] = summarizeWorlds(
       [{ id: 'c1', world: world(), updatedAt: 'T' }],
-      [{ id: 'c1', name: '何思年' }],
+      [{ id: 'c1', name: '測試卡A' }],
       [],
     );
     expect(s?.entryCount).toBe(3);
@@ -34,7 +34,7 @@ describe('世界書摘要', () => {
   it('🔴 「誰在用」含擁有者與指到它的 persona', () => {
     const [s] = summarizeWorlds(
       [{ id: 'c1', world: world(), updatedAt: 'T' }],
-      [{ id: 'c1', name: '何思年' }],
+      [{ id: 'c1', name: '測試卡A' }],
       [{ id: 'p1', name: 'Peter', lorebookId: 'c1' }],
     );
     expect(s?.usedBy.map((u) => u.kind)).toEqual(['friend', 'persona']);
@@ -62,9 +62,9 @@ describe('世界書摘要', () => {
   it('顯示名優先於 name', () => {
     const [s] = summarizeWorlds(
       [{ id: 'c1', world: world(), updatedAt: 'T' }],
-      [{ id: 'c1', name: '何思年', displayName: '何思年(1)' }],
+      [{ id: 'c1', name: '測試卡A', displayName: '測試卡A(1)' }],
       [],
     );
-    expect(s?.name).toBe('何思年(1)');
+    expect(s?.name).toBe('測試卡A(1)');
   });
 });
