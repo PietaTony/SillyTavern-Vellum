@@ -111,6 +111,8 @@ Mark the ticket handled; locked paths go back to their owners.
 ## 5 · Things that will bite
 
 - 🔴 **`pnpm verify` is the only receipt.** No CI runs it for you before you push.
+- **Before opening a PR:** read [`FEATURE-DONE.md`](FEATURE-DONE.md) and run
+  `pnpm gate:pr-ready --diff origin/staging` (structural checks already run inside `pnpm verify`).
 - 🔴 **`package.json` changed → run `pnpm install` before `pnpm verify`**, or the gates
   measure the old dependency tree and go green while CI goes red.
 - 🔴 **Merging a PR into `main` publishes a public Release; pushing `staging` no longer does**

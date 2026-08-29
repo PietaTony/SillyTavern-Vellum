@@ -65,7 +65,7 @@ design/          screens.json —— UI 里程碑與路由對照
 3. [`.claude/agents/<domain>.md`](.claude/agents/) — 動手前查 §1 擁有檔、§4 GAP
 4. [`docs/generated/gap-index.md`](docs/generated/gap-index.md) — 跨域搜尋 GAP（generated，改 GAP 後跑 `pnpm gen:doc-index`）
 5. 要改的路由／畫面 — `design/screens.json` + 對應 `src/app/routes/`
-6. 改完 — **`pnpm verify`**，貼真實輸出（「我跑過了」不算）
+6. 改完 — **`pnpm verify`**，貼真實輸出（「我跑過了」不算）；開 PR 前再跑 **`pnpm gate:pr-ready --diff origin/staging`**（見 [`FEATURE-DONE.md`](FEATURE-DONE.md)）
 7. 跨層 — 開 ticket，**Peter 親簽** `Crosses`（見 `AGENTS.md` §3）
 
 ---
