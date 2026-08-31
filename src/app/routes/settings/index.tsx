@@ -15,7 +15,7 @@ import { useState } from 'react';
 import { ReportListItem } from '@/app/screens/ReportButton';
 import { TabBar } from '@/app/screens/TabBar';
 import { BackgroundsLayer } from '@/features/backgrounds';
-import { HistoryBudgetLayer } from '@/features/chat';
+import { LengthLimitsLayer } from '@/features/chat';
 import { Screen } from '@/shared/ui/Screen';
 
 export const Route = createFileRoute('/settings/')({ component: SettingsPage });
@@ -33,10 +33,13 @@ function SettingsPage() {
   //    ② `design/screens.json` 是 `gate:screens` 的正本，多開一個 route 要先改設計正本。
   //    ⚠️ 這裡**不傳 `chatId`** ⇒ 只有「全域」分頁，沒有「這段對話」——在設定頁沒有對話可談。
   const [bg, setBg] = useState(false);
-  // 🔴 A2/GAP-37（跨層票 2026-08-31，Peter 已簽）：對話歷史上限——同背景那顆，
-  // 走全螢層而不是第四個路由，理由跟上面 `bg` 那句一致。實際的 UI／文案在
-  // `HistoryBudgetLayer.tsx`（H1，`src/features/chat/**`），這裡只是入口。
-  const [histBudget, setHistBudget] = useState(false);
+  // 🔴 A2/GAP-37 ＋ B5（跨層票 2026-08-31，Peter 已簽）：對話歷史上限＋回應上限
+  // ——同背景那顆，走全螢層而不是第四個路由，理由跟上面 `bg` 那句一致。
+  // **兩個設定併在同一個入口**（甲案，理由見 `LengthLimitsLayer.tsx` 檔頭）：
+  // 送出去的歷史多大、收回來的一則多長，方向相反，並排才講得清楚關係。
+  // 實際的 UI／文案在 `LengthLimitsLayer.tsx`（H1，`src/features/chat/**`），
+  // 這裡只是入口。
+  const [lengthLimits, setLengthLimits] = useState(false);
 
   return (
     <Screen title="設定" footer={<TabBar active="settings" />}>
@@ -90,11 +93,11 @@ function SettingsPage() {
 
         <Divider component="li" />
 
-        <ListItemButton onClick={() => setHistBudget(true)}>
+        <ListItemButton onClick={() => setLengthLimits(true)}>
           <ListItemIcon>
             <HistoryOutlinedIcon />
           </ListItemIcon>
-          <ListItemText primary="對話歷史上限" secondary="長對話什麼時候開始被丟掉、丟多少" />
+          <ListItemText primary="長度與上限" secondary="送出去的歷史多大、AI 回來的一則多長" />
           <ChevronRightIcon color="disabled" />
         </ListItemButton>
 
@@ -105,7 +108,7 @@ function SettingsPage() {
         <ReportListItem />
       </List>
       <BackgroundsLayer open={bg} onClose={() => setBg(false)} />
-      <HistoryBudgetLayer open={histBudget} onClose={() => setHistBudget(false)} />
+      <LengthLimitsLayer open={lengthLimits} onClose={() => setLengthLimits(false)} />
     </Screen>
   );
 }

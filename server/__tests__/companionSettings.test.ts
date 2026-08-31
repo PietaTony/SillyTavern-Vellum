@@ -1,4 +1,4 @@
-import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
+import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -136,6 +136,87 @@ describe('PATCH /api/settings/history-budget', () => {
       method: 'PATCH',
       headers: H,
       body: JSON.stringify({ bytes: '五千' }),
+    });
+    expect(r.status).toBe(400);
+  });
+});
+
+/**
+ * B5：這一輪最多回多長，使用者可調——**方向跟歷史上限相反**（那支管送出去的歷史，
+ * 這支管收回來的一則）。2026-08-31 收斂票：持久化改走 `settings.json`（X3），
+ * 跟 `historyByteBudget` 同一處——所以這裡跟歷史上限那組測試一樣斷言
+ * `settings.json` 本身的內容，不再另外開一個 `maxResponseSettings.json`。
+ */
+const MAX_RESPONSE_PATH = '/api/settings/max-response';
+
+describe('GET /api/settings/max-response', () => {
+  it('舊資料（沒設過）讀進來是預設值 4096，isCustom 是 false', async () => {
+    const a = await app();
+    const r = await get(a, MAX_RESPONSE_PATH);
+    expect(r.status).toBe(200);
+    expect(await r.json()).toEqual({ tokens: 4096, isCustom: false, default: 4096, min: 256, max: 65_536 });
+  });
+
+  it('🔴 2026-08-31 收斂票：一份真的存在、但沒有 maxOutputTokens 鍵的 settings.json（模擬收斂前的舊使用者）——讀進來仍是預設值 4096，不是丟例外或當成 0', async () => {
+    writeFileSync(join(root, 'settings.json'), JSON.stringify({ activeProvider: 'google' }));
+    const a = await app();
+    const r = await get(a, MAX_RESPONSE_PATH);
+    expect(r.status).toBe(200);
+    expect(await r.json()).toEqual({ tokens: 4096, isCustom: false, default: 4096, min: 256, max: 65_536 });
+  });
+});
+
+describe('PATCH /api/settings/max-response', () => {
+  it('改成 8000：GET 讀回來是 8000、isCustom 變 true，而且真的寫進 settings.json（2026-08-31 收斂票，跟 historyByteBudget 同一份檔）；重整仍是 8000', async () => {
+    const a = await app();
+    const r = await a.request(MAX_RESPONSE_PATH, {
+      method: 'PATCH',
+      headers: H,
+      body: JSON.stringify({ tokens: 8000 }),
+    });
+    expect(r.status).toBe(200);
+    expect(await r.json()).toEqual({ tokens: 8000, isCustom: true, default: 4096, min: 256, max: 65_536 });
+
+    const raw = JSON.parse(readFileSync(join(root, 'settings.json'), 'utf8')) as {
+      maxOutputTokens: number;
+    };
+    expect(raw.maxOutputTokens).toBe(8000);
+
+    // 🔴 已收斂：不再有獨立的 maxResponseSettings.json —— 收斂之後這個檔不該被建出來。
+    expect(existsSync(join(root, 'maxResponseSettings.json'))).toBe(false);
+
+    const reloaded = await app();
+    expect(((await (await get(reloaded, MAX_RESPONSE_PATH)).json()) as { tokens: number }).tokens).toBe(
+      8000,
+    );
+  });
+
+  it('🔴 低於下限（255）要 400，不能靜默存進去', async () => {
+    const a = await app();
+    const r = await a.request(MAX_RESPONSE_PATH, {
+      method: 'PATCH',
+      headers: H,
+      body: JSON.stringify({ tokens: 255 }),
+    });
+    expect(r.status).toBe(400);
+  });
+
+  it('🔴 高於上限（65537）要 400', async () => {
+    const a = await app();
+    const r = await a.request(MAX_RESPONSE_PATH, {
+      method: 'PATCH',
+      headers: H,
+      body: JSON.stringify({ tokens: 65_537 }),
+    });
+    expect(r.status).toBe(400);
+  });
+
+  it('🔴 壞 body（不是數字）回 400，不是靜默存一個 NaN', async () => {
+    const a = await app();
+    const r = await a.request(MAX_RESPONSE_PATH, {
+      method: 'PATCH',
+      headers: H,
+      body: JSON.stringify({ tokens: '八千' }),
     });
     expect(r.status).toBe(400);
   });

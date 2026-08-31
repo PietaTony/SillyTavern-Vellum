@@ -28,6 +28,8 @@ export function useChatStream(
    * 於是 `<UpdateVariable><JSONPatch>…` 會原封印在畫面上直到下次重讀。
    */
   onDone?: () => Promise<unknown>,
+  // B5：使用者調過的 AI 回應上限——呼叫端已經拿好值（理由見 `useMaxResponseTokens.ts`）。
+  maxOutputTokens?: number,
 ) {
   const [local, setLocal] = useState<Message[] | null>(null);
   const [streaming, setStreaming] = useState<string | null>(null);
@@ -43,7 +45,6 @@ export function useChatStream(
   const { usage, clear: clearUsage, record: recordUsage } = useGenerationUsage();
   const abortRef = useRef<AbortController | null>(null);
   const { failureBanner, setFailure } = useFailureRetry(retry);
-
   const messages = local ?? fromServer ?? [];
 
   /**
@@ -67,6 +68,7 @@ export function useChatStream(
       chatId,
       makeRunEventHandler({ base, onDone, acc, setters, recordUsage }),
       ac.signal,
+      maxOutputTokens,
     ).catch((e: unknown) => {
       /*
        * 🔴 **不 await 就必須自己接住例外。** 在此之前是 `await`，例外會冒到
@@ -121,13 +123,11 @@ export function useChatStream(
     setFailure(null);
     run(base);
   }
-  // 重送失敗當下的 local，真的重送，不只清橫幅（GAP-54）
   function retry() {
-    regenerate(messages);
+    regenerate(messages); // 重送失敗當下的 local，真的重送，不只清橫幅（GAP-54）
   }
   /** 丟掉樂觀暫存，改讀伺服器那份。**切候選成功之後一定要叫它**（見檔頭 B1）。 */
   const reset = () => setLocal(null);
-
   const stop = () => abortRef.current?.abort(); // 停止生成（跨層票 H1／H6）：交給 catch 分支處理。
 
   /*
