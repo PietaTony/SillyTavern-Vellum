@@ -1,6 +1,6 @@
 import Stack from '@mui/material/Stack';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { createFileRoute } from '@tanstack/react-router';
+import { createFileRoute, useNavigate } from '@tanstack/react-router';
 import { useBack } from '@/app/screens/useBack';
 import { fetchNetwork, NetworkCard, PasswordCard, setNetwork } from '@/features/network';
 import { Screen } from '@/shared/ui/Screen';
@@ -10,6 +10,7 @@ export const Route = createFileRoute('/settings/network')({ component: NetworkPa
 
 function NetworkPage() {
   const onBack = useBack();
+  const nav = useNavigate();
   const qc = useQueryClient();
   const q = useQuery({ queryKey: ['network'], queryFn: fetchNetwork, retry: false });
   const m = useMutation({
@@ -28,6 +29,7 @@ function NetworkPage() {
         <PasswordCard
           state={q.data}
           onChanged={() => void qc.invalidateQueries({ queryKey: ['auth'] })}
+          onLoggedOut={() => void nav({ to: '/login' })}
         />
       </Stack>
     </Screen>

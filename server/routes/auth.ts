@@ -7,8 +7,19 @@
  * 🔴 **`DELETE /password` 在 `exposeNetwork` 開著時一律 400** —— 跟 UI 禁用移除鈕
  * 同一句話；只擋前端會再出現「開了遠端卻沒密碼」的說谎開關。
  * ⚠️ **rate limit 在記憶體** —— 重啟清零；夠擋 casual 暴力破解，不是 enterprise WAF。
+ *
+ * 🔴 **登出不會讓 token 失效**（2026-08-31 補上文件，行為原本就是這樣）——
+ * session 是 stateless 的 HMAC 簽章 cookie（見 `authStore.ts`），`/logout` 只回
+ * 清空用的 `Set-Cookie`；瀏覽器丟掉它之後這條路就走不通了，但**舊 cookie 本身
+ * 直到過期都還是能通過 `sessionValid()`**——重放它一樣 200。要讓 server
+ * 端真的撤銷，需要一張 session 表（GAP-115 之後的決定），這一輪不做。
+ * ⚠️ **cookie 沒有 `Secure` 屬性**——這是取捨，不是漏掉。整條鏈路是明文 HTTP
+ * （Tailscale／區網，沒有 TLS 終端），加了 `Secure` 瀏覽器會直接不送這個
+ * cookie，登入會整個失效。之後如果幫 Vellum 接上 TLS，這個決定要跟著重新做。
  */
+import type { Context } from 'hono';
 import { Hono } from 'hono';
+import { getConnInfo } from '@hono/node-server/conninfo';
 import { z } from 'zod';
 import {
   changePassword,
@@ -26,8 +37,31 @@ const attempts = new Map<string, { n: number; until: number }>();
 const MAX = 5;
 const WINDOW_MS = 15 * 60 * 1000;
 
-function clientKey(ip: string | undefined): string {
-  return ip ?? 'unknown';
+/**
+ * rate-limit 的 key —— **真實連線位址，不是 `x-forwarded-for`**（2026-08-31 修，
+ * 原本讀那個 header）。
+ *
+ * 🔴 這台伺服器前面沒有反向代理清洗 header：`x-forwarded-for` 是請求方自己
+ * 填的任意字串。實測過原本的寫法——固定同一個偽造值連續打 6 次錯密碼會在
+ * 第 6 次 429，但**每次換一個偽造值打 8 次，全部只回 401，429 從未出現**。
+ * 暴力破解防護等於沒有，而這支功能存在的唯一理由就是擋外人硬闖。
+ * ⇒ 改讀 TCP socket 的 `remoteAddress`（`@hono/node-server` 的 `getConnInfo`）——
+ * 那是連線本身的屬性，請求的任何 header 內容都改不了它。
+ *
+ * ⚠️ `getConnInfo` 要吃 `c.env.incoming`，那是 `serve()`（`@hono/node-server`）
+ * 起服務時才會塞進去的東西；**正式環境的每一個連線一定有**，不會退回
+ * 'unknown'。單元測試用 Hono 的 `app.request()` 直接呼叫 fetch handler、
+ * 沒有真正的 socket，這裡的 try/catch 落到共用的 'unknown' key **只在那種
+ * 測試情境**發生（測試會另外用第三個參數餵假的 `incoming.socket`，見
+ * `server/__tests__/auth.test.ts`）——不是「完全不帶 header 時大家互鎖」的
+ * 舊問題，那個問題是 header 版本才有的，真實連線幾乎不可能沒有 remoteAddress。
+ */
+function clientKey(c: Context): string {
+  try {
+    return getConnInfo(c).remote.address ?? 'unknown';
+  } catch {
+    return 'unknown';
+  }
 }
 
 function tooMany(key: string): boolean {
@@ -59,7 +93,7 @@ export const auth = new Hono()
   })
 
   .post('/login', async (c) => {
-    const key = clientKey(c.req.header('x-forwarded-for') ?? undefined);
+    const key = clientKey(c);
     if (tooMany(key)) return c.json({ error: '嘗試太多次，請稍後再試' }, 429);
     const body = z.object({ password: z.string().min(1) }).safeParse(await c.req.json());
     if (!body.success) return c.json({ error: '參數不合法' }, 400);

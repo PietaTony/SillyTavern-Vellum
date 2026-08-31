@@ -9,18 +9,25 @@ import { DraftField } from '@/shared/ui/DraftField';
 import { pushToast } from '@/shared/ui/toastStore';
 import type { NetworkState } from '../api';
 import { removeAccessPassword, setAccessPassword } from '../authApi';
+import { LogoutButton } from './LogoutButton';
 
 /**
  * 「存取密碼」—— 跟「允許其他裝置」同一頁，因為密碼要解的就是遠端暴露問題。
  *
  * 🔴 開放連線前必須先設密碼；已開放時不能移除密碼（後端也擋）。
+ * 🔴 **登出按鈕就在這裡**（`LogoutButton`，2026-08-31 補——原本 `logout()`
+ * 前端零呼叫端，整個 app 沒有登出入口）。放這裡而不是新開一個畫面：這張卡
+ * 本來就是「目前登入狀態」的正本，`onLoggedOut` 由呼叫端決定登出後要導去哪。
  */
 export function PasswordCard({
   state,
   onChanged,
+  onLoggedOut,
 }: {
   state: NetworkState | undefined;
   onChanged: () => void;
+  /** 登出成功後呼叫（通常是導去 `/login`）。 */
+  onLoggedOut: () => void;
 }) {
   const qc = useQueryClient();
   const [current, setCurrent] = useState('');
@@ -61,7 +68,12 @@ export function PasswordCard({
   return (
     <Paper variant="outlined" sx={{ p: 2, mt: 2 }}>
       <Stack spacing={1.5}>
-        <Typography variant="subtitle2">存取密碼</Typography>
+        <Stack direction="row" spacing={1} sx={{ alignItems: 'center' }}>
+          <Typography variant="subtitle2" sx={{ flexGrow: 1 }}>
+            存取密碼
+          </Typography>
+          {has ? <LogoutButton onLoggedOut={onLoggedOut} /> : null}
+        </Stack>
         <Typography variant="body2" color="text.secondary">
           {has
             ? '已設定。用手機或平板連進來時要先輸入這組密碼。'

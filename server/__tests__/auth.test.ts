@@ -22,6 +22,15 @@ async function app() {
 type App = Awaited<ReturnType<typeof app>>;
 const H = { host: 'localhost:8521', 'content-type': 'application/json' };
 
+/**
+ * 🔴 `getConnInfo`（`server/routes/auth.ts` 的 `clientKey`）讀的是
+ * `c.env.incoming.socket.remoteAddress`——那個 shape 只有 `@hono/node-server`
+ * 的 `serve()` 真的起服務時才會塞進去。`app.request()` 是 Hono 內建的測試捷徑，
+ * 直接呼叫 fetch handler、沒有真正的 TCP 連線，所以這裡自己造一個假的塞進
+ * `request()` 的第三個參數（它會變成 `c.env`），模擬「這個請求來自哪條連線」。
+ */
+const conn = (remoteAddress: string) => ({ incoming: { socket: { remoteAddress } } });
+
 const cookieHeader = (setCookie: string | null): Record<string, string> => ({
   ...H,
   cookie: setCookie?.split(';')[0] ?? '',
@@ -142,21 +151,66 @@ describe('存取密碼', () => {
     expect((await a.request('/api/settings/companion', { headers: H })).status).toBe(200);
   });
 
-  it('🔴 密碼錯誤五次後要 429', async () => {
+  it('🔴 密碼錯誤五次後要 429（同一個真實連線）', async () => {
     const a = await app();
     await setPassword(a, 'long-enough');
     for (let i = 0; i < 5; i += 1) {
-      await a.request('/api/auth/login', {
-        method: 'POST',
-        headers: { ...H, 'x-forwarded-for': '10.0.0.1' },
-        body: JSON.stringify({ password: 'wrong-one' }),
-      });
+      await a.request(
+        '/api/auth/login',
+        { method: 'POST', headers: H, body: JSON.stringify({ password: 'wrong-one' }) },
+        conn('10.0.0.1'),
+      );
     }
-    const blocked = await a.request('/api/auth/login', {
-      method: 'POST',
-      headers: { ...H, 'x-forwarded-for': '10.0.0.1' },
-      body: JSON.stringify({ password: 'long-enough' }),
-    });
+    const blocked = await a.request(
+      '/api/auth/login',
+      { method: 'POST', headers: H, body: JSON.stringify({ password: 'long-enough' }) },
+      conn('10.0.0.1'),
+    );
     expect(blocked.status).toBe(429);
+  });
+
+  /**
+   * 🔴 2026-08-31 補的迴歸測試——這台伺服器前面沒有反向代理清洗
+   * `x-forwarded-for`，那是請求方自己填的任意字串。真實審查跑過：
+   * 固定同一個偽造值連續打 6 次錯密碼會在第 6 次 429，但**每次換一個偽造值
+   * 打 8 次，全部只回 401，429 從未出現**——rate limit 形同虛設。
+   * ⇒ key 要看真實連線位址，header 內容不該有任何影響力。
+   */
+  it('🔴 換 8 個不同的 X-Forwarded-For 一樣要被同一個連線的鎖擋住', async () => {
+    const a = await app();
+    await setPassword(a, 'long-enough');
+    let lastStatus = 0;
+    for (let i = 0; i < 8; i += 1) {
+      const r = await a.request(
+        '/api/auth/login',
+        {
+          method: 'POST',
+          headers: { ...H, 'x-forwarded-for': `203.0.113.${i}` },
+          body: JSON.stringify({ password: 'wrong-one' }),
+        },
+        conn('10.0.0.9'), // 8 次都來自同一條真實連線
+      );
+      lastStatus = r.status;
+    }
+    expect(lastStatus).toBe(429);
+  });
+
+  it('不同真實連線不會互相鎖住——單純沒帶的舊 bug 也不該回來', async () => {
+    const a = await app();
+    await setPassword(a, 'long-enough');
+    for (let i = 0; i < 5; i += 1) {
+      await a.request(
+        '/api/auth/login',
+        { method: 'POST', headers: H, body: JSON.stringify({ password: 'wrong-one' }) },
+        conn('10.0.0.5'),
+      );
+    }
+    // 另一條連線（且沒帶 x-forwarded-for）不該被前面那條鎖到
+    const other = await a.request(
+      '/api/auth/login',
+      { method: 'POST', headers: H, body: JSON.stringify({ password: 'long-enough' }) },
+      conn('10.0.0.6'),
+    );
+    expect(other.status).toBe(204);
   });
 });
