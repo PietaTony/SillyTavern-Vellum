@@ -76,11 +76,75 @@ describe('useChatStream 的用量讀數', () => {
 
     // 這一輪不帶 usage（例如串流中途失敗，還沒到 done 就走 error 分支）
     vi.mocked(api.streamGenerate).mockImplementationOnce((_chatId, onEvent) => {
-      onEvent({ type: 'error', message: '壞了' });
+      onEvent({ type: 'error', message: '壞了', retryable: false });
       return Promise.resolve();
     });
     act(() => result.current.regenerate([msg('a')]));
     await waitFor(() => expect(result.current.failure).toBe('壞了'));
     expect(result.current.generation.usage).toBeNull();
+  });
+});
+
+/**
+ * 🔴 B6（跨層票，2026-08-31）：「重試」按下去要真的重試——不是只清錯誤訊息。
+ * **有前例**：`$chatId.tsx` 舊版的「重新送出上一句」曾經完全不重送任何東西、
+ * 只把橫幅關掉（GAP-54，見那支檔頭）。這裡直接數 `streamGenerate` 被呼叫的次數，
+ * 「清掉訊息但沒有第二次呼叫」的假重試會被這支測試抓到。
+ */
+describe('useChatStream.retry（跨層票 B6）', () => {
+  it('🔴 failureRetryable 跟著 SSE 的 retryable 走，不是固定值', async () => {
+    const api = await import('../api');
+    vi.mocked(api.streamGenerate).mockImplementationOnce((_chatId, onEvent) => {
+      onEvent({ type: 'error', message: '上游限流了', retryable: true });
+      return Promise.resolve();
+    });
+    const { result } = renderHook(() => useChatStream('c1', [msg('a')]));
+    act(() => result.current.regenerate([msg('a')]));
+    await waitFor(() => expect(result.current.failure).toBe('上游限流了'));
+    expect(result.current.failureRetryable).toBe(true);
+  });
+
+  it('🔴 按下 retry 真的再呼叫一次 streamGenerate（不是只清 failure）', async () => {
+    const api = await import('../api');
+    vi.mocked(api.streamGenerate).mockImplementationOnce((_chatId, onEvent) => {
+      onEvent({ type: 'error', message: '上游限流了', retryable: true });
+      return Promise.resolve();
+    });
+    const { result } = renderHook(() => useChatStream('c1', [msg('a')]));
+    act(() => result.current.regenerate([msg('a')]));
+    await waitFor(() => expect(result.current.failureRetryable).toBe(true));
+
+    const callsBefore = vi.mocked(api.streamGenerate).mock.calls.length;
+    vi.mocked(api.streamGenerate).mockImplementationOnce((_chatId, onEvent) => {
+      onEvent(done({ id: 'retried', role: 'model', text: '重試後成功', at: '2026-08-31' }));
+      return Promise.resolve();
+    });
+    act(() => result.current.retry());
+
+    // 真的多打了一次——這是「重試」跟「只清橫幅」唯一分得出來的地方。
+    expect(vi.mocked(api.streamGenerate).mock.calls.length).toBe(callsBefore + 1);
+    await waitFor(() => expect(result.current.failure).toBeNull());
+    expect(result.current.messages.map((m) => m.id)).toContain('retried');
+  });
+
+  it('retry() 重送的是失敗當下的那批 base，不是伺服器那份沒更新過的舊資料', async () => {
+    const api = await import('../api');
+    vi.mocked(api.streamGenerate).mockImplementationOnce((_chatId, onEvent) => {
+      onEvent({ type: 'error', message: '壞了', retryable: true });
+      return Promise.resolve();
+    });
+    const { result } = renderHook(() => useChatStream('c1', [msg('a'), msg('b')]));
+    act(() => result.current.regenerate([msg('x')])); // 失敗當下畫面上是 [x]，不是伺服器的 [a,b]
+    await waitFor(() => expect(result.current.failureRetryable).toBe(true));
+
+    let seenBase: Message[] = [];
+    vi.mocked(api.streamGenerate).mockImplementationOnce((_chatId, onEvent) => {
+      seenBase = [...result.current.messages];
+      onEvent(done({ id: 'y', role: 'model', text: 'y', at: '2026-08-31' }));
+      return Promise.resolve();
+    });
+    act(() => result.current.retry());
+    await waitFor(() => expect(result.current.failure).toBeNull());
+    expect(seenBase.map((m) => m.id)).toEqual(['x']);
   });
 });

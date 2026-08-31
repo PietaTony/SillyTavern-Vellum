@@ -4,8 +4,10 @@ import { describe, expect, it } from 'vitest';
 import { adapterFor, FORMATS } from '../providers/dispatch.ts';
 import { byId, isSelectable, PROVIDERS } from '../providers/registry.ts';
 import { anthropic } from '../providers/formats/anthropic.ts';
+import { cohere } from '../providers/formats/cohere.ts';
+import { gemini } from '../providers/formats/gemini.ts';
 import { openaiCompat } from '../providers/formats/openaiCompat.ts';
-import type { ProviderConfig } from '../providers/types.ts';
+import { retryableFromStatus, type ProviderConfig } from '../providers/types.ts';
 
 // 🔴 用 cwd 不用 import.meta.url —— vitest 下後者被打包器改寫，會解出假路徑
 // （實測解成 `/server/index.ts`，然後 readdir 一個不存在的目錄）。
@@ -123,6 +125,53 @@ describe('A5 正規化事件', () => {
   it('認不得的事件回空陣列，不會炸也不會亂吐', () => {
     expect(anthropic.parse({ type: 'ping' })).toEqual([]);
     expect(openaiCompat.parse({})).toEqual([]);
+  });
+});
+
+/**
+ * 🔴 B6：四支適配器各自的 `retryable` 分類——**兩個方向都要測**，不是只測 true
+ * 那一半。挖空其中一支的分類（讓它一律回 false）⇒ 只有那一支這裡的測試會紅。
+ *
+ * 真打驗證（見票頭）：
+ * - Google 全家 API 共用 `google.rpc.Status`：`error.code` 是數字 HTTP 狀態碼。
+ * - OpenAI 相容：`error.code` 是數字 ⇒ gateway 型供應商（OpenRouter）把內層真實
+ *   vendor 的 HTTP status 正規化過來；是字串 ⇒ 原生供應商（OpenAI／DeepSeek）自家碼。
+ * - Cohere：錯誤信封一律 `{id, message}`，沒有可判的欄位（4 次真打情境驗證過），
+ *   這裡守的是「不會被誤判成 true」，不是漏測——理由見 `cohere.ts` 該行的檔頭。
+ */
+describe('B6：四支適配器的 retryable 分類（兩個方向）', () => {
+  it('Gemini：429／5xx 可重試，其餘（含這個 400）不是', () => {
+    expect(gemini.parse({ error: { code: 429, message: '限流' } })[0]).toMatchObject({ retryable: true });
+    expect(gemini.parse({ error: { code: 503, message: '過載' } })[0]).toMatchObject({ retryable: true });
+    expect(gemini.parse({ error: { code: 400, message: '壞金鑰' } })[0]).toMatchObject({ retryable: false });
+  });
+
+  it('OpenAI 相容：code 是數字 429／5xx 可重試（gateway 型），是字串就不猜', () => {
+    expect(openaiCompat.parse({ error: { code: 429, message: '限流' } })[0]).toMatchObject({ retryable: true });
+    expect(openaiCompat.parse({ error: { code: 500, message: '過載' } })[0]).toMatchObject({ retryable: true });
+    expect(openaiCompat.parse({ error: { code: 'invalid_api_key', message: '壞金鑰' } })[0]).toMatchObject({
+      retryable: false,
+    });
+  });
+
+  it('Cohere：沒有可判的結構化欄位 ⇒ 一律 false，不會被誤判成 true', () => {
+    expect(cohere.parse({ message: '限流了，稍後再試' })[0]).toMatchObject({ retryable: false });
+    expect(cohere.parse({ message: 'Incorrect API key provided' })[0]).toMatchObject({ retryable: false });
+  });
+
+  /**
+   * 🔴 這是「連同適配器一起做」的另一半——大多數真實的 429／5xx 拒絕發生在
+   * **串流開始之前**（真打驗證：4 家壞金鑰全部走標準 HTTP status，見票頭），
+   * 走不到 `adapter.parse()`；這把尺（`server/routes/generate.ts` 的 `!upstream.ok`
+   * 分支）才是四家實際上大多數時候真的判得出 retryable 的地方。
+   */
+  it('🔴 retryableFromStatus：429／5xx 可重試，其餘 4xx（金鑰／模型／內容）不是', () => {
+    expect(retryableFromStatus(429)).toBe(true);
+    expect(retryableFromStatus(500)).toBe(true);
+    expect(retryableFromStatus(529)).toBe(true);
+    expect(retryableFromStatus(400)).toBe(false);
+    expect(retryableFromStatus(401)).toBe(false);
+    expect(retryableFromStatus(404)).toBe(false);
   });
 });
 

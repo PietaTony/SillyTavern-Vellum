@@ -80,7 +80,7 @@ export type StreamEvent =
   | { type: 'thinking'; text: string }
   /** 🔴 `usage` 可能是空物件（供應商沒回任何用量）——省略欄位，不要硬塞 `{}`。 */
   | { type: 'done'; message: Message; finishReason: string; usage?: Usage | undefined }
-  | { type: 'error'; message: string };
+  | { type: 'error'; message: string; retryable: boolean }; // 分類只住在後端；缺欄位一律當 false
 
 /**
  * 把一段 SSE 文字切成完整事件，回傳事件與「還沒收完的殘餘」。
@@ -104,6 +104,7 @@ export function parseSse(buffer: string): { events: StreamEvent[]; rest: string 
       message?: Message | string;
       finishReason?: string;
       usage?: Usage;
+      retryable?: boolean;
     };
     if (name === 'delta') events.push({ type: 'delta', text: payload.text ?? '' });
     else if (name === 'thinking') events.push({ type: 'thinking', text: payload.text ?? '' });
@@ -115,8 +116,10 @@ export function parseSse(buffer: string): { events: StreamEvent[]; rest: string 
         // 🔴 後端一律送（可能是 `{}`）——只有真的有欄位才往上傳，空物件不算「有用量」。
         ...(payload.usage && Object.keys(payload.usage).length ? { usage: payload.usage } : {}),
       });
-    else if (name === 'error')
-      events.push({ type: 'error', message: String(payload.message ?? '未知錯誤') });
+    else if (name === 'error') {
+      const msg = String(payload.message ?? '未知錯誤');
+      events.push({ type: 'error', message: msg, retryable: payload.retryable === true });
+    }
   }
   return { events, rest };
 }
