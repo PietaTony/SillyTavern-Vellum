@@ -56,6 +56,22 @@ describe('EntryEditor：插入位置下拉選單', () => {
     expect(screen.getByRole('option', { name: '範例對話之後（尚未接線）' })).toBeTruthy();
   });
 
+  /**
+   * 🔴 outlet（2026-08-31 補）：跟前四個桶成因不同（`fields.ts` 檔頭查證），
+   * 但畫面上用同一套標示——標題也要帶「尚未接線」，不留舊文案承諾的
+   * `{{outlet::名稱}}` 巨集字樣。
+   */
+  it('outlet 選項標題帶「尚未接線」，不再是舊文案的「不自動進場」', () => {
+    render(
+      <ThemeProvider theme={theme}>
+        <EntryEditor value={entry()} onChange={vi.fn()} />
+      </ThemeProvider>,
+    );
+    openPositionSelect();
+    expect(screen.getByRole('option', { name: 'Outlet（尚未接線）' })).toBeTruthy();
+    expect(screen.queryByRole('option', { name: /不自動進場/ })).toBeNull();
+  });
+
   it('有消費者的選項不帶「尚未接線」', () => {
     render(
       <ThemeProvider theme={theme}>
@@ -78,5 +94,21 @@ describe('EntryEditor：插入位置下拉選單', () => {
     // 🔴 選到的值本身也會顯示「尚未接線」（選單顯示文字＋ helperText 兩處都有），
     // 用 getAllByText 而不是 getByText —— 這裡要的是「至少講了一次」，不是唯一一處。
     expect(screen.getAllByText(/尚未接線/).length).toBeGreaterThan(0);
+  });
+
+  /**
+   * 🔴 outlet（position 7）**沒展開下拉選單**就先驗——這是票要求特別確認的：
+   * 收合狀態剛好選到 outlet 時，使用者不用點開選單也要看得到「尚未接線」，
+   * 而不是舊文案那句假的巨集承諾。
+   */
+  it('收合狀態剛好選到 outlet 時，不必展開選單就看得到「尚未接線」，看不到舊的假巨集承諾', () => {
+    render(
+      <ThemeProvider theme={theme}>
+        <EntryEditor value={entry({ position: 7 })} onChange={vi.fn()} />
+      </ThemeProvider>,
+    );
+    // 沒有呼叫 openPositionSelect()：驗的就是收合狀態。
+    expect(screen.getAllByText(/尚未接線/).length).toBeGreaterThan(0);
+    expect(screen.queryByText(/{{outlet::/)).toBeNull();
   });
 });

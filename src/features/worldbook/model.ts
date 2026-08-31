@@ -53,8 +53,11 @@ export const POSITION_GROUP: Record<number, { title: string; hint: string }> = {
     hint: '🔴 尚未接線 —— 我們還沒有「範例對話」這個概念，存起來不會遺失，但這段文字目前不會送進 prompt（GAP-53）',
   },
   [WI_POSITION.outlet]: {
-    title: 'Outlet（不自動進場）',
-    hint: '要在 system prompt 或區塊順序裡寫 {{outlet::名稱}} 才會被放進去',
+    title: 'Outlet（尚未接線）',
+    // 🔴 舊文案承諾「寫 {{outlet::名稱}} 就會被放進去」——這個巨集全 repo 零消費端
+    // （fields.ts 檔頭有查證：wiInject.ts 把 outlet 直接丟進 plan.unplaced，
+    // 沒有任何地方讀過那個桶，也沒有任何巨集實作去接它）。改成不承諾做不到的事。
+    hint: '🔴 尚未接線 —— 這個位置需要具名插槽機制，但我們的引擎沒有實作，存起來不會遺失，但這段文字目前不會送進 prompt（GAP-53）',
   },
 };
 
