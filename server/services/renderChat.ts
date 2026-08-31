@@ -16,16 +16,25 @@ import { substitute } from '../lib/macro.ts';
 import { applyRules, type OutputRule } from '../lib/outputRules.ts';
 import { loadSettings } from './settings.ts';
 
-/** 深度＝從最新一則往回數（`maxDepth=2` 的開場頁靠它生效）。 */
+/**
+ * 深度＝從最新一則往回數（`maxDepth=2` 的開場頁靠它生效）。
+ *
+ * 🔴 **顯示（這支）與送進模型（`buildTurn.ts`）共用同一套算法**（D1 擴充，
+ * Peter 2026-08-31）——同一條 `minDepth`／`maxDepth` 規則，兩條路徑算出的深度只要
+ * 有一絲不同，就會套用在不同的幾則訊息上；而使用者只看得到顯示那邊，
+ * prompt 那邊算錯了不會有任何畫面告訴他。**改這支一定要同時檢查 `buildTurn.ts` 的呼叫端。**
+ */
+export const depthFromEnd = (index: number, total: number): number => total - 1 - index;
+
 export function renderMessages(
   messages: Message[],
   rules: OutputRule[],
   names: { char: string; user: string },
 ): Message[] {
-  const last = messages.length - 1;
   return messages.map((m, i) => {
     if (m.role !== 'model') return m;
-    const ruled = rules.length ? applyRules(m.text, rules, { target: 'display', depth: last - i }) : m.text;
+    const depth = depthFromEnd(i, messages.length);
+    const ruled = rules.length ? applyRules(m.text, rules, { target: 'display', depth }) : m.text;
     // 🔴 `{{user}}` 沒替換掉會直接印在畫面上 —— 使用者看到大括號只會覺得壞了。
     /**
      * 🔴 **M13 第一期起不再壓平成純文字。**
@@ -57,12 +66,11 @@ export function renderMessages(
  * 有最後一擊**：使用者的通用規則（例如「所有 OOC 都拿掉」）先清過一輪，卡片自己認得的格式
  * （它自己的狀態欄、它自己的標記）最後再精修一次，不會被使用者寫的一條通用規則意外吃掉。
  *
- * ⚠️ **只做顯示路徑**（`renderMessages` 的 `target: 'display'`）。`target: 'prompt'` 的規則
- * 目前**沒有任何呼叫端把它套進送給模型的文字**——`services/buildTurn.ts` 直接送
- * `chat.messages` 的原文，沒有呼叫 `applyRules`。這是既有缺口（`buildTurn.ts` 不在這張票
- * 的鎖定清單裡，不屬於這次改動），不是這裡新引入的行為；`target='prompt'` 的規則現在
- * 對顯示沒有作用（正確：只有 display／both 套進畫面），對送出去的文字也沒有作用
- * （維持原狀：等於沒套用，而不是套用到不該套用的地方）。
+ * 🔴 **兩條路徑共用這一支**，不要各寫一份合併邏輯（Peter 2026-08-31 補的裁定：
+ * 這個 repo 已經有三次「同一個坑、多條平行路徑，只補了一條」）——
+ * `renderMessages`（這支檔案）套 `target: 'display'`／`'both'` 進畫面；
+ * `services/buildTurn.ts` 用同一份合併結果套 `target: 'prompt'`／`'both'` 進送給模型的文字。
+ * 合併的優先序（誰先跑、誰有最後一擊）兩邊完全相同，因為兩邊拿到的是同一個陣列。
  *
  * 🔴 **async**：要讀 `settings.json` 才知道使用者自建了哪些規則。唯一呼叫端
  * （`routes/chats.ts` 的 `GET /:id`）已經是 `async` handler，多一個 `await` 不改變它是否寫檔——
