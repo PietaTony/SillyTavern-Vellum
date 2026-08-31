@@ -32,6 +32,18 @@ const RULES: [RegExp, number][] = [
   // 對話檔同理：長期對話的 JSONL 動輒數 MB。
   [/^\/api\/chats\/import$/, 64 * MB],
   /**
+   * 我們自己格式的匯回（`chatImport.ts` 的 `/import/vellum`）——上面那條 JSONL
+   * 匯入的姊妹路徑，扛的是同一種東西（一整段對話），只是格式不同。
+   * 🔴 **量出來的數字，不是猜的**（`INBOX/20260831-bodylimit-413-becomes-500.md`
+   * 順帶要求）：500 輪來回（1000 則訊息，每則 assistant 帶 3 個候選、含 usage）
+   * 序列化後 2.4 MB；拉到 2000 輪（4000 則訊息，同一種長度）就到 **9.67 MB**——
+   * 已經超過 `DEFAULT` 8 MB。長期經營的角色扮演對話動輒上千則訊息，
+   * 8 MB 撐不住；`writeNativeChat()` 又是 `JSON.stringify(..., null, 2)` 的
+   * pretty-print（比同內容的 JSONL 肥），沒有理由給它比姊妹路徑更小的上限。
+   * ⇒ 比照 `/api/chats/import` 同給 64 MB。
+   */
+  [/^\/api\/chats\/import\/vellum$/, 64 * MB],
+  /**
    * 背景圖：ST 內建那 23 張裡最大一張 2.3 MB，
    * 而使用者自己抓的 4K 桌布動輒 10 MB 以上。
    */
