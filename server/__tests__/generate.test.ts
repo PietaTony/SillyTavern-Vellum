@@ -12,19 +12,26 @@ import type { Chat } from '../services/chatModel.ts';
  * 🔴 走真正的 `/api/generate`（真的 Hono route，不是直接呼叫某個內部函式）——
  * 只測 `raceReadIdle` 本身測不出「`generate.ts` 真的接了它」這種錯。
  * 🔴 用**真的計時器**、不用 `vi.useFakeTimers()`：把 `IDLE_TIMEOUT_MS` 用環境變數
- * 調到 50ms，測試幾十毫秒內就跑完，不需要跟 SSE 串流的非同步時序搏鬥。
+ * 調到 50ms（可由呼叫端覆寫，見 `app()`），測試幾十毫秒內就跑完，不需要跟 SSE
+ * 串流的非同步時序搏鬥。
+ *
+ * 🔴 **PR #46 獨立驗收退回過一次**：「尺沒壞的證明」那支原本的 mock 在 `start(ctrl)`
+ * 裡**同步**呼叫 `enqueue()`＋`close()`，`reader.read()` 走 microtask 立刻 resolve，
+ * 任何 macrotask 計時器都贏不了它——那支測試無論 `IDLE_TIMEOUT_MS` 調多小都不可能紅，
+ * 守不到任何東西。修法：mock 一律用 `delayedStream()`，靠真正的 `setTimeout` 延遲
+ * 才 enqueue，這樣才是跟 idle timeout 同一個時間軸上的真賽跑。
  */
 let root: string;
 
-async function app() {
+/** `idleMs` 預設 `'50'`——大多數測試要的是「這個值不重要，只要夠短」。 */
+async function app(idleMs = '50') {
   vi.resetModules();
   process.env['VELLUM_DATA'] = root;
-  process.env['VELLUM_GENERATE_IDLE_TIMEOUT_MS'] = '50';
+  process.env['VELLUM_GENERATE_IDLE_TIMEOUT_MS'] = idleMs;
   const { Hono } = await import('hono');
   const { generate } = await import('../routes/generate.ts');
   return new Hono().route('/api/generate', generate);
 }
-
 
 const CH: Character = {
   id: 'char1',
@@ -61,6 +68,28 @@ function hangingUpstream(): Response {
   const stream = new ReadableStream<Uint8Array>({ start() {} });
   return new Response(stream, { status: 200 });
 }
+
+/**
+ * 🔴 **真異步**的正常回應：`delayMs` 之後才用 `setTimeout` enqueue＋close，
+ * 不是在 `start()` 裡同步做完。同步版本會讓 `reader.read()` 走 microtask，
+ * 搶在任何 idle timeout 的 macrotask 之前 resolve——那支測試就永遠測不出東西
+ * （PR #46 獨立驗收抓到，見檔頭）。
+ */
+function delayedStream(dataLine: string, delayMs: number): Response {
+  const enc = new TextEncoder();
+  const stream = new ReadableStream<Uint8Array>({
+    start(ctrl) {
+      setTimeout(() => {
+        ctrl.enqueue(enc.encode(dataLine));
+        ctrl.close();
+      }, delayMs);
+    },
+  });
+  return new Response(stream, { status: 200 });
+}
+
+const OK_LINE =
+  'data: {"candidates":[{"content":{"parts":[{"text":"嗨"}]},"finishReason":"STOP"}]}\n\n';
 
 beforeEach(async () => {
   root = mkdtempSync(join(tmpdir(), 'vellum-generate-'));
@@ -104,7 +133,8 @@ describe('POST /api/generate 的 idle timeout（A6）', () => {
     const stream = new ReadableStream<Uint8Array>({
       start(ctrl) {
         // 先吐一段正文，然後**再也不吐、也不關閉**——跟真實案例一樣，
-        // 差別只在使用者已經看到了一部分字。
+        // 差別只在使用者已經看到了一部分字。這一段就算同步 enqueue 也沒關係：
+        // 逾時要測的是「之後」那個永遠不會來的第二個 chunk，不是這一段本身。
         ctrl.enqueue(
           enc.encode('data: {"candidates":[{"content":{"parts":[{"text":"半"}]}}]}\n\n'),
         );
@@ -131,19 +161,8 @@ describe('POST /api/generate 的 idle timeout（A6）', () => {
   });
 
   it('尺沒壞的證明：正常吐完、正常關閉連線的請求不會被誤判成逾時', async () => {
-    const enc = new TextEncoder();
-    const stream = new ReadableStream<Uint8Array>({
-      start(ctrl) {
-        ctrl.enqueue(
-          enc.encode(
-            'data: {"candidates":[{"content":{"parts":[{"text":"嗨"}]},"finishReason":"STOP"}]}\n\n',
-          ),
-        );
-        ctrl.close();
-      },
-    });
-    vi.stubGlobal('fetch', vi.fn(async () => new Response(stream, { status: 200 })));
-    const a = await app();
+    vi.stubGlobal('fetch', vi.fn(async () => delayedStream(OK_LINE, 20)));
+    const a = await app(); // idleMs=50，20ms 的延遲遠遠沒到，不該被判逾時
     const res = await a.request('/api/generate', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
@@ -153,5 +172,38 @@ describe('POST /api/generate 的 idle timeout（A6）', () => {
     expect(body).toContain('event: done');
     expect(body).toContain('"finishReason":"STOP"');
     expect(body).not.toContain('TIMEOUT');
+  });
+
+  /**
+   * 🔴 上一支的對照組——**沒有這一支，上一支測試不可能證明自己真的在跟時間賽跑**。
+   * 同一段最終會抵達的資料、同一個 20ms 延遲，只把 idle timeout 調到比延遲短：
+   * 就算資料最終會到，也應該被判逾時。這支紅了才代表上一支真的守得住東西。
+   */
+  it('🔴 idle timeout 比資料延遲還短 ⇒ 就算資料最終會到，也要判逾時', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => delayedStream(OK_LINE, 20)));
+    const a = await app('1'); // 1ms ≪ 20ms 延遲
+    const res = await a.request('/api/generate', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ chatId: CHAT.id }),
+    });
+    const body = await readAll(res);
+    expect(body).toContain('event: error');
+    expect(body).toContain('供應商逾時');
+  });
+});
+
+/**
+ * 二 · **60 秒這個預設值在此之前零測試覆蓋**（PR #46 獨立驗收抓到）：
+ * `grep -rn "IDLE_TIMEOUT_MS"` 命中三處——定義、`generate.ts` 使用、以及這支測試檔——
+ * 而這支測試檔對每一支測試都無條件覆寫成 `'50'`。沒有任何測試在「不設這個環境變數」
+ * 的情況下驗過常數本身等於 60000，只測了可覆寫的那條路。
+ */
+describe('IDLE_TIMEOUT_MS 的預設值', () => {
+  it('🔴 沒設環境變數時預設 60 秒，不是只有被覆寫成 50ms 那條路有測到', async () => {
+    delete process.env['VELLUM_GENERATE_IDLE_TIMEOUT_MS'];
+    vi.resetModules();
+    const { IDLE_TIMEOUT_MS } = await import('../services/commitPartialTurn.ts');
+    expect(IDLE_TIMEOUT_MS).toBe(60_000);
   });
 });
