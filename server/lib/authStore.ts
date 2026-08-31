@@ -15,6 +15,19 @@
  * 重啟後全部登出是可接受的；少一個要遷移的狀態檔。
  * ⚠️ **變更密碼不主動踢舊 session**（Phase 1）—— 只有一台裝置在改密碼的話夠用；
  * 若要「改密碼後全部重登」是 Phase 2（rotate `sessionSecret`）。
+ *
+ * 🔴 **`/logout` 撤銷靠的正是上面那句話裡提到的 Phase 2 手法，只是觸發點換成
+ * 登出**（2026-08-31 A5，見 `auth.ts` 檔頭）：`revokeSession()` 直接輪替
+ * `sessionSecret` 並寫回 `auth.json`。舊 cookie 的簽章是用舊 secret 算的，
+ * `sessionValid()` 一律拿**當下**的 secret 重新驗簽 ⇒ 舊 cookie 立刻簽章對不上，
+ * 不需要另外維護一張 session 表、也不需要在 cookie payload 裡加欄位。
+ * ⇒ **副作用**：單一使用者、單一共享密碼的模型下，這會讓「這台 instance 當下
+ * 所有裝置的 session」一起失效，不是只登出按下按鈕的那一台——跟 ST 用同一個
+ * 帳號版本雜湊讓所有 session 一起失效是同一個取捨（見 `users.js:993-1001`），
+ * 對單人 app 是可接受、甚至更符合「登出」語意的行為。
+ * ⇒ **重啟後仍然有效**：新 secret 寫進 `auth.json`（磁碟），不是記憶體內的
+ * 撤銷清單——跟 rate limit 那份「重啟就清零」的取捨不同類，這裡重啟不會讓
+ * 舊 cookie 復活。
  */
 import { createHmac, randomBytes, scrypt, timingSafeEqual } from 'node:crypto';
 import { promisify } from 'node:util';
@@ -88,6 +101,18 @@ export async function makeSessionCookie(): Promise<string> {
 
 export const clearSessionCookie = (): string =>
   `${COOKIE}=; Path=/; HttpOnly; SameSite=Strict; Max-Age=0`;
+
+/**
+ * 登出撤銷：輪替 `sessionSecret`，讓所有用舊 secret 簽出的 cookie 立刻簽章失效
+ * ——不需要記住是哪一張 cookie，因為單人 app 只有一把共享 secret（見檔頭）。
+ * 沒設過密碼（沒有 `passwordHash`／`sessionSecret`）時是 no-op：沒有 session
+ * 可撤銷，也不該無中生有寫出一個孤兒 secret。
+ */
+export async function revokeSession(): Promise<void> {
+  const a = await load();
+  if (!a.passwordHash || !a.sessionSecret) return;
+  await save({ ...a, sessionSecret: randomBytes(32).toString('base64') });
+}
 
 export async function sessionValid(cookieHeader: string | undefined): Promise<boolean> {
   const a = await load();
