@@ -90,10 +90,11 @@ describe('依注入位置分組（C2 最容易做錯的地方）', () => {
 });
 
 /**
- * 🔴 A1（GAP-53）：四個位置的**標題本身**要帶「尚未接線」——不是只有選了以後
- * 才在 helperText 裡講。使用者在下拉選單裡就要看得出來，不然選錯了都不知道自己選錯了。
+ * 🔴 A1（GAP-53）：五個位置（含 2026-08-31 補上的 outlet）的**標題本身**
+ * 要帶「尚未接線」——不是只有選了以後才在 helperText 裡講。使用者在下拉選單裡
+ * 就要看得出來，不然選錯了都不知道自己選錯了。
  */
-describe('POSITION_GROUP：未接線的四個位置標題與 hint 要說清楚', () => {
+describe('POSITION_GROUP：未接線的五個位置標題與 hint 要說清楚', () => {
   it.each([...POSITION_UNIMPLEMENTED])('position %s 的標題帶「尚未接線」', (p) => {
     expect(POSITION_GROUP[p]?.title).toContain('尚未接線');
     expect(POSITION_GROUP[p]?.hint).toContain('尚未接線');
@@ -103,6 +104,17 @@ describe('POSITION_GROUP：未接線的四個位置標題與 hint 要說清楚',
     expect(POSITION_GROUP[WI_POSITION.beforeChar]?.title).not.toContain('尚未接線');
     expect(POSITION_GROUP[WI_POSITION.afterChar]?.title).not.toContain('尚未接線');
     expect(POSITION_GROUP[WI_POSITION.atDepth]?.title).not.toContain('尚未接線');
+  });
+
+  /**
+   * 🔴 outlet 專屬：舊文案承諾「寫 {{outlet::名稱}} 就會被放進去」，那句話是假的
+   * （全 repo 零消費端，見 `fields.ts` 檔頭查證）。這裡鎖**具體內容**，不是只驗
+   * 「不等於舊字串」——只驗非某值的斷言換成另一個錯的值也會過。
+   */
+  it('outlet 標題精確等於「Outlet（尚未接線）」，hint 不再承諾 {{outlet::…}} 巨集', () => {
+    expect(POSITION_GROUP[WI_POSITION.outlet]?.title).toBe('Outlet（尚未接線）');
+    expect(POSITION_GROUP[WI_POSITION.outlet]?.hint).not.toContain('{{outlet::');
+    expect(POSITION_GROUP[WI_POSITION.outlet]?.hint).toContain('GAP-53');
   });
 });
 

@@ -96,13 +96,26 @@ describe('總則五：引擎不理的欄位', () => {
  * `emTop`／`emBottom` 分別綁死在「Author's Note」與「範例對話」這兩個我們完全沒有的
  * 概念上（`fields.ts` 檔頭附了行號），不能瞎猜一個位置頂上去 —— 選乙案：畫面上明說。
  *
- * 這裡守的是**事實表本身**：四個桶、不多不少。畫面測試（`EntryEditor.test.tsx`）
+ * 🔴 `outlet`（7）2026-08-31 補（`INBOX/20260831-outlet-hint-is-false.md`）：
+ * 成因跟前四個不一樣——不是「算出來沒人讀」，是 `wiInject.ts` 的 `switch` 落
+ * `default` 直接丟進 `plan.unplaced`（刻意拒絕，不猜語意），而且舊 UI hint 承諾的
+ * `{{outlet::名稱}}` 巨集全 repo 零消費端（`fields.ts` 檔頭查證）。**但對使用者
+ * 而言後果一樣**：選了、存了、文字不會出現在 prompt 裡——所以沿用同一顆
+ * `isPositionImplemented` 開關，不發明第二套標示。
+ *
+ * 這裡守的是**事實表本身**：五個桶、不多不少。畫面測試（`EntryEditor.test.tsx`）
  * 守的是「事實表有沒有真的被拿去畫出來」——兩層都要有，任一層被挖空都要紅。
  */
-describe('插入位置：四個桶算出來、沒有消費者（GAP-53）', () => {
-  it('未接線的清單剛好是 anTop／anBottom／emTop／emBottom 四個，不多不少', () => {
+describe('插入位置：五個桶到最後都進不了 prompt（GAP-53，含 outlet）', () => {
+  it('未接線的清單剛好是 anTop／anBottom／emTop／emBottom／outlet 五個，不多不少', () => {
     expect(POSITION_UNIMPLEMENTED).toEqual(
-      new Set([WI_POSITION.anTop, WI_POSITION.anBottom, WI_POSITION.emTop, WI_POSITION.emBottom]),
+      new Set([
+        WI_POSITION.anTop,
+        WI_POSITION.anBottom,
+        WI_POSITION.emTop,
+        WI_POSITION.emBottom,
+        WI_POSITION.outlet,
+      ]),
     );
   });
 
@@ -112,10 +125,11 @@ describe('插入位置：四個桶算出來、沒有消費者（GAP-53）', () =
     expect(isPositionImplemented(WI_POSITION.atDepth)).toBe(true);
   });
 
-  it('四個未接線的位置都標成 false', () => {
+  it('五個未接線的位置都標成 false', () => {
     expect(isPositionImplemented(WI_POSITION.anTop)).toBe(false);
     expect(isPositionImplemented(WI_POSITION.anBottom)).toBe(false);
     expect(isPositionImplemented(WI_POSITION.emTop)).toBe(false);
     expect(isPositionImplemented(WI_POSITION.emBottom)).toBe(false);
+    expect(isPositionImplemented(WI_POSITION.outlet)).toBe(false);
   });
 });

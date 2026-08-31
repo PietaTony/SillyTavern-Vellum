@@ -58,25 +58,39 @@ function rawExt(e: { raw?: Record<string, unknown> }): Record<string, unknown> {
 }
 
 /**
- * 🔴 **插入位置裡，四個桶算出來了、但沒有消費者**（GAP-53／A1 2026-08-31）。
+ * 🔴 **插入位置裡，五個桶到最後都不會出現在 prompt 裡**（GAP-53／A1 2026-08-31／
+ * outlet 補於 2026-08-31，見 `INBOX/20260831-outlet-hint-is-false.md`）。
  *
- * 對照 ST 原碼查證過，這四個位置**都是相對某個我們沒有的東西定位的**，不是隨便選錯數字：
- * - `anTop`／`anBottom`（2／3）：ST 把它們接在「作者備註（Author's Note）」本文前後
- *   （`world-info.js:5149-5152`：`ANTopEntries + originalAN + ANBottomEntries`），
- *   而且只在 AN 的 interval 機制決定「這一則要插」時才真的進場
- *   （`authors-note.js` 的 `shouldWIAddPrompt`，AN 沒開／還沒輪到時整組被丟掉，
- *   連 ST 自己都不是「永遠有效」）。**我們沒有 Author's Note 這個功能**——
- *   `server/lib/personaPrompt.ts:30-34` 處理 persona 自己的 `top_an`／`bottom_an`
- *   時已經講過同一句話。沒有 AN 就沒有「AN 前」「AN 後」的錨點，插哪裡都是瞎猜。
- * - `emTop`／`emBottom`（5／6）：ST 把它們接在角色卡「範例對話」（`mes_example`）
- *   陣列的頭尾（`script.js:4580-4595`）。**我們整支 server 完全沒有範例對話這個概念**
- *   （`grep -rn mes_example server` 零命中）——不是位置算錯，是錨點本身不存在。
+ * 這五個**成因分兩種，不要混為一談**：
  *
- * 兩邊都查過 ST 能不能回答「沒有錨點時插哪裡」：**不能**，ST 的實作本身就假設
- * 錨點永遠存在（AN 是空字串也還是有位置／depth／role 可用）。不猜一個位置出來，
- * 維持「算出來、不接線」，畫面上明說，好過假裝接上了。
+ * 1）`anTop`／`anBottom`（2／3）／`emTop`／`emBottom`（5／6）——**算出來了、沒人讀**。
+ *    `wiInject.ts` 把它們裝進 `InjectionPlan` 對應的桶子，桶子是真的算出來的，
+ *    只是 `promptWorld.ts` 從沒讀過那四個欄位。對照 ST 原碼查證過，這四個位置
+ *    **都是相對某個我們沒有的東西定位的**：
+ *    - `anTop`／`anBottom`：ST 接在「作者備註（Author's Note）」本文前後
+ *      （`world-info.js:5149-5152`），且只在 AN 的 interval 機制判定要插時才進場
+ *      （`authors-note.js` 的 `shouldWIAddPrompt`）。**我們沒有 Author's Note**——
+ *      `server/lib/personaPrompt.ts:30-34` 處理 persona 的 `top_an`／`bottom_an`
+ *      時已經講過同一句話。沒有 AN 就沒有錨點，插哪裡都是瞎猜。
+ *    - `emTop`／`emBottom`：ST 接在角色卡「範例對話」（`mes_example`）陣列頭尾
+ *      （`script.js:4580-4595`）。**我們整支 server 沒有範例對話這個概念**
+ *      （`grep -rn mes_example server` 零命中）——不是位置算錯，是錨點本身不存在。
+ *
+ * 2）`outlet`（7）——**引擎根本沒有把它裝進任何桶**。`wiInject.ts` 的
+ *    `switch (e.position)` 走到 `outlet` 時直接落 `default`，原樣塞進 `plan.unplaced`
+ *    （見該檔 `// outlet: 7 要具名插槽，我們沒有那個概念；不猜、不亂塞，原樣回報`）——
+ *    這是**刻意拒絕**，不是「算出來了漏讀」。而且舊版 UI hint 承諾「寫
+ *    `{{outlet::名稱}}` 就會被放進去」是**假的**：全 repo 零命中同名巨集
+ *    （`server/lib/macro.ts` 沒有、`promptWorld.ts` 沒有讀過 `plan.unplaced`）。
+ *    `plans/ui/06-worldbook.md` 寫「引擎（`assemble.ts`）早就收集 outlets 了」——
+ *    **這支 `assemble.ts`在這個 repo 裡不存在**，那句話是規劃文件先寫、引擎後來
+ *    沒照著做出來，不是我們漏看了什麼。
+ *
+ * 兩種成因不同，但**使用者看到的後果一樣**：選了這個位置，文字進 `raw` 不遺失，
+ * 但**不會出現在 prompt 裡**，而且沒有任何錯誤訊息。同一句「尚未接線」對使用者
+ * 是誠實的；至於「為什麼」，上面兩段分開講。
  */
-export const POSITION_UNIMPLEMENTED = new Set<number>([2, 3, 5, 6]); // anTop, anBottom, emTop, emBottom
+export const POSITION_UNIMPLEMENTED = new Set<number>([2, 3, 5, 6, 7]); // anTop, anBottom, emTop, emBottom, outlet
 
 /** `POSITION_UNIMPLEMENTED` 的判斷式版本，給 UI 元件用。 */
 export const isPositionImplemented = (position: number): boolean =>
