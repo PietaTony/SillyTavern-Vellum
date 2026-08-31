@@ -20,6 +20,14 @@ export type Message = {
    * 沒有值＝完整回覆。
    */
   partial?: boolean;
+  /**
+   * 🔴 **這一則回覆花了多少（H1 落地票，2026-08-31）。** 形狀照抄 `server/services/chatModel.ts`
+   * 的 `UsageSchema` —— 兩邊是同一份資料的兩端。
+   * 🔴 **沒有這個欄位 ≠ 花費是 0**——是「這一則落地的時候我們還沒開始記」（此欄位加入
+   * 之前的舊訊息、或供應商那次沒回任何用量欄位）。畫面要用「不畫」表達，不是「畫 0」
+   * ——同一個判準見 `usageFormat.ts` 檔頭。
+   */
+  usage?: Usage;
 };
 export type Chat = {
   id: string;

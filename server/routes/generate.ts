@@ -14,11 +14,11 @@ import { safeId } from '../lib/ids.ts';
 import { readJson } from '../adapters/storage.ts';
 import { adapterFor } from '../providers/dispatch.ts';
 import { byId, isSelectable } from '../providers/registry.ts';
-import type { Chat } from '../services/chatModel.ts';
+import type { Chat, Message } from '../services/chatModel.ts';
 import { buildTurn } from '../services/buildTurn.ts';
 import { getActiveProvider, getProviderModel } from '../services/settings.ts';
 import { commitTurn } from '../services/applyVarUpdate.ts';
-import { applyProviderEvents, closeQuietly, finishGenerateStream } from '../services/finishGenerateStream.ts';
+import { applyProviderEvents, closeQuietly, finishGenerateStream, persistUsage } from '../services/finishGenerateStream.ts';
 import { handleIdleTimeout, IDLE_TIMEOUT_MS, raceReadIdle } from '../services/commitPartialTurn.ts';
 
 const Body = z.object({
@@ -125,8 +125,9 @@ export const generate = new Hono().post('/', async (c) => {
           await handleIdleTimeout({ ctrl, enc, sse, controller, full: state.full, chatId, chat, usage: state.usage });
         } else {
           // 落地：訊息進檔案，順便把這一輪的 `<UpdateVariable>` 套進變數（見 `commitTurn`）。
-          const msg = await commitTurn(chatId, chat, state.full);
+          const msg: Message = await commitTurn(chatId, chat, state.full);
           const finishReason = state.finish ?? 'STOP';
+          await persistUsage(chatId, chat, msg, state.usage); // usage 落地——理由見 persistUsage 檔頭
           ctrl.enqueue(enc.encode(sse('done', { message: msg, finishReason, usage: state.usage })));
         }
       } catch (e) {
