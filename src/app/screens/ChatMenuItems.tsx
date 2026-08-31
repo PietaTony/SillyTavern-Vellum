@@ -3,6 +3,7 @@ import DataObjectOutlinedIcon from '@mui/icons-material/DataObjectOutlined';
 import ExtensionOutlinedIcon from '@mui/icons-material/ExtensionOutlined';
 import PersonOutlineIcon from '@mui/icons-material/PersonOutlined';
 import PetsOutlinedIcon from '@mui/icons-material/PetsOutlined';
+import RuleOutlinedIcon from '@mui/icons-material/RuleOutlined';
 import SmartToyOutlinedIcon from '@mui/icons-material/SmartToyOutlined';
 import WallpaperOutlinedIcon from '@mui/icons-material/WallpaperOutlined';
 import ListItemIcon from '@mui/material/ListItemIcon';
@@ -93,6 +94,13 @@ export function ChatMenuItems({
           <PetsOutlinedIcon fontSize="small" />
         </ListItemIcon>
         <ListItemText primary="桌寵" secondary="開關全站的桌寵" />
+      </MenuItem>
+      {/* D1（Peter 2026-08-31）：使用者自建的輸出規則，全域生效、不綁這張卡。 */}
+      <MenuItem onClick={() => open('outputRules')}>
+        <ListItemIcon>
+          <RuleOutlinedIcon fontSize="small" />
+        </ListItemIcon>
+        <ListItemText primary="輸出規則" secondary="自訂文字取代，全站生效" />
       </MenuItem>
       {/* 🔴 回報要在他發現問題的當下按得到 —— 埋在設定裡的話他得先離開這段對話，
           而他要講的往往就是「剛剛這段對話怎麼了」。

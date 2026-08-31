@@ -1,7 +1,21 @@
-import { describe, expect, it } from 'vitest';
+import { mkdtempSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import type { Message } from '../services/chatModel.ts';
 import type { OutputRule } from '../lib/outputRules.ts';
 import { renderMessages, rulesOf } from '../services/renderChat.ts';
+import { writeJson } from '../adapters/storage.ts';
+
+let root: string;
+beforeEach(() => {
+  root = mkdtempSync(join(tmpdir(), 'vellum-renderchat-'));
+  process.env['VELLUM_DATA'] = root;
+});
+afterEach(() => {
+  rmSync(root, { recursive: true, force: true });
+  delete process.env['VELLUM_DATA'];
+});
 
 const msg = (o: Partial<Message>): Message => ({ id: 'm', role: 'model', text: '', at: 'now', ...o });
 const names = { char: '何某', user: '你' };
@@ -38,9 +52,35 @@ describe('顯示層渲染', () => {
     expect(m?.text).toBe('純文字');
   });
 
-  it('rulesOf 對缺欄位／壞型別都回空陣列，不丟例外', () => {
-    expect(rulesOf(null)).toEqual([]);
-    expect(rulesOf({})).toEqual([]);
-    expect(rulesOf({ outputRules: undefined })).toEqual([]);
+  it('rulesOf 對缺欄位／壞型別都回空陣列，不丟例外（也沒有 settings.json 可讀）', async () => {
+    expect(await rulesOf(null)).toEqual([]);
+    expect(await rulesOf({})).toEqual([]);
+    expect(await rulesOf({ outputRules: undefined })).toEqual([]);
+  });
+
+  it('D1：合併順序是「全域先、卡片後」——對齊 ST engine.js 的 SCRIPT_TYPES 順序', async () => {
+    const globalRule = rule({ name: '全域', find: '/a/g', replace: 'X' });
+    await writeJson('settings.json', { globalOutputRules: [globalRule] });
+    const cardRule = rule({ name: '卡片', find: '/b/g', replace: 'Y' });
+    const merged = await rulesOf({ outputRules: [cardRule] });
+    expect(merged.map((r) => r.name)).toEqual(['全域', '卡片']);
+  });
+
+  it('D1：卡片規則跑在全域之後，所以覆蓋同一段文字時卡片贏', async () => {
+    // 全域：把 A 換成 B；卡片：把 B 換成 C —— 依序套用的話最終結果是 C。
+    await writeJson('settings.json', {
+      globalOutputRules: [rule({ name: '全域', find: '/A/g', replace: 'B' })],
+    });
+    const cardRule = rule({ name: '卡片', find: '/B/g', replace: 'C' });
+    const merged = await rulesOf({ outputRules: [cardRule] });
+    const out = renderMessages([msg({ text: 'A' })], merged, names);
+    expect(out[0]?.text).toBe('C');
+  });
+
+  it('D1：舊 settings.json（沒有 globalOutputRules 這個鍵）讀進來要是空陣列，不是丟例外', async () => {
+    await writeJson('settings.json', { activeProvider: 'google' });
+    expect(await rulesOf({ outputRules: [rule({ name: '卡片' })] })).toEqual([
+      rule({ name: '卡片' }),
+    ]);
   });
 });

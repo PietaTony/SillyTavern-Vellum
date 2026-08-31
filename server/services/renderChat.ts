@@ -14,6 +14,7 @@
 import type { Message } from './chatModel.ts';
 import { substitute } from '../lib/macro.ts';
 import { applyRules, type OutputRule } from '../lib/outputRules.ts';
+import { loadSettings } from './settings.ts';
 
 /** 深度＝從最新一則往回數（`maxDepth=2` 的開場頁靠它生效）。 */
 export function renderMessages(
@@ -39,6 +40,36 @@ export function renderMessages(
   });
 }
 
-/** 從角色紀錄拿規則。存進去時是 `unknown[]`（zod 不驗內容），這裡收斂型別。 */
-export const rulesOf = (c: { outputRules?: unknown[] | undefined } | null): OutputRule[] =>
-  Array.isArray(c?.outputRules) ? (c.outputRules as OutputRule[]) : [];
+/**
+ * 這段對話真正要套用的規則表 —— **兩個來源的合併**（D1，Peter 2026-08-31 跨層票）。
+ * ① 卡片內嵌（`c.outputRules`，來自 `extensions.regex_scripts` → `deriveConfig.ts`）
+ * ② 使用者自己建的（`settings.json` 的 `globalOutputRules`，**全域、不綁角色** ——
+ *    綁角色會把使用者的個人規則寫進卡片檔，匯出卡片時一起帶走，那可能是他不想分享的東西）。
+ *
+ * 🔴 **順序：全域先、卡片後 —— 這是查證過的 ST 行為，不是我們自己選的。**
+ * `SillyTavern-Reference/public/scripts/extensions/regex/engine.js:11-16`：
+ * `SCRIPT_TYPES = { GLOBAL: 0, SCOPED: 1, PRESET: 2 }`，註解寫死
+ * `// ORDER MATTERS: defines the regex script priority`；`getRegexScripts()` 用這個順序
+ * `flatMap`——GLOBAL（我們的「使用者自建」）永遠排在 SCOPED（我們的「卡片內嵌」）前面。
+ *
+ * `applyRules` 是**依序套用、後一條吃前一條的輸出**（`outputRules.ts` 檔頭）——
+ * 順序不只是「誰先跑」，是「誰的輸出是最終結果」。全域先跑、卡片後跑 ⇒ **卡片作者的規則
+ * 有最後一擊**：使用者的通用規則（例如「所有 OOC 都拿掉」）先清過一輪，卡片自己認得的格式
+ * （它自己的狀態欄、它自己的標記）最後再精修一次，不會被使用者寫的一條通用規則意外吃掉。
+ *
+ * ⚠️ **只做顯示路徑**（`renderMessages` 的 `target: 'display'`）。`target: 'prompt'` 的規則
+ * 目前**沒有任何呼叫端把它套進送給模型的文字**——`services/buildTurn.ts` 直接送
+ * `chat.messages` 的原文，沒有呼叫 `applyRules`。這是既有缺口（`buildTurn.ts` 不在這張票
+ * 的鎖定清單裡，不屬於這次改動），不是這裡新引入的行為；`target='prompt'` 的規則現在
+ * 對顯示沒有作用（正確：只有 display／both 套進畫面），對送出去的文字也沒有作用
+ * （維持原狀：等於沒套用，而不是套用到不該套用的地方）。
+ *
+ * 🔴 **async**：要讀 `settings.json` 才知道使用者自建了哪些規則。唯一呼叫端
+ * （`routes/chats.ts` 的 `GET /:id`）已經是 `async` handler，多一個 `await` 不改變它是否寫檔——
+ * `loadSettings()` 只讀不寫（`adapters/storage.ts` 的 `readJson`），GET 仍然不動 `settings.json`。
+ */
+export async function rulesOf(c: { outputRules?: unknown[] | undefined } | null): Promise<OutputRule[]> {
+  const card = Array.isArray(c?.outputRules) ? (c.outputRules as OutputRule[]) : [];
+  const global = (await loadSettings()).globalOutputRules;
+  return [...(Array.isArray(global) ? (global as OutputRule[]) : []), ...card];
+}
