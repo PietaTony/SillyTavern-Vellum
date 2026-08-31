@@ -23,7 +23,9 @@
  *
  * ⚠️ **另一個已知限制（獨立驗收 PR #55 抓到，這一輪不修）**：`buildTurn.ts` 先
  * `truncateHistory()` 才 `worldForChat()`——這支只管歷史本身的 12000 bytes，
- * 世界書注入（`promptWorld.ts` 的 `DEFAULT_WI_BUDGET`，字元數，約 60000）
+ * 世界書注入（`promptWorld.ts` 的 `DEFAULT_WI_BUDGET`，**位元組數**，60_000，
+ * PR #53／`e934d7726` 把它從字元數換成 UTF-8 位元組數之後的數字，跟這裡的
+ * `HISTORY_BYTE_BUDGET` 是同一套判準，兩邊單位一致、可以直接相加比較）
  * **完全沒被算進這個預算**，兩份預算各自為政、互不知情，加起來仍可能超出
  * 真實 context window。要修要嘛兩邊共用同一個總預算、要嘛先量總量再各自
  * 按比例分攤，兩者都會動到 `promptWorld.ts`（H3），不在這張票的單層範圍內。
