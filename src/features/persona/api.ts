@@ -1,4 +1,4 @@
-import { get, patch, post, put } from '@/shared/lib/http';
+import { del, get, patch, post, put } from '@/shared/lib/http';
 
 /** persona ＝ **我方**。角色卡是對方。`name` 驅動 `{{user}}`，`description` 進 prompt。 */
 export type Persona = {
@@ -37,6 +37,23 @@ export const updatePersona = (
   patch<Persona & { renamed: boolean }>(`/api/personas/${id}`, d);
 export const setDefaultPersona = (id: string): Promise<{ defaultPersonaId: string }> =>
   put<{ defaultPersonaId: string }>(`/api/personas/default/${id}`, {});
+
+/**
+ * 誰正在引用這個 persona —— 對應後端 `referencedBy()`（`server/routes/personas.ts`）。
+ * `removed === false` 時 `refs` 就是「為什麼不能真的刪」的答案，畫面要能講出這句話。
+ */
+export type DeletePersonaResult = {
+  removed: boolean;
+  archived: boolean;
+  refs: { chats: number; friends: number; isDefault: boolean };
+};
+/**
+ * 🔴 **`removed: false` 不是失敗** —— 後端規格 §4.3「甲」：被引用中的只封存不刪
+ * （理由見 `server/routes/personas.ts` 檔頭）。呼叫端一定要看 `removed`／`refs`，
+ * 不能只看這支 Promise 有沒有 resolve 就當作「刪掉了」。
+ */
+export const deletePersona = (id: string): Promise<DeletePersonaResult> =>
+  del<DeletePersonaResult>(`/api/personas/${id}`);
 
 /** 這一段對話生效中的 persona 來自哪一層。🔴 看得出哪層生效，使用者才不會以為壞了（C4）。 */
 export type PersonaLayer = 'chat' | 'friend' | 'group' | 'global' | 'none';

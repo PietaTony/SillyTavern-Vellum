@@ -7,6 +7,7 @@ import { createFileRoute, useNavigate } from '@tanstack/react-router';
 import { useState } from 'react';
 import {
   createPersona,
+  DeletePersonaSection,
   fetchPersonas,
   PERSONA_DRAFT,
   type PersonaDraft,
@@ -89,6 +90,28 @@ function MePage() {
           saving={save.isPending}
           renamed={renamed}
           onSave={() => save.mutate(value)}
+        />
+      ) : null}
+      {/*
+       * 🔴 **首次設定流程不給刪**（`setup` 為 true）：那時候多半連第一個 persona
+       * 都還沒存，刪的意義不明。刪除只在「我自己」這個常態入口出現。
+       */}
+      {!setup ? (
+        <DeletePersonaSection
+          persona={current}
+          onResult={(r) => {
+            // 🔴 兩種結果都要重新抓清單——`archived` 也會讓它從 `GET /api/personas`
+            // 的預設結果消失，畫面不該還停在刪除前那份快照。
+            void qc.invalidateQueries({ queryKey: ['personas'] });
+            // 🔴 只有真的刪掉才清空草稿：封存時 `value` 的 fallback 會落回
+            // `readDraft(...)`，清掉草稿等於把使用者原本打到一半的內容也沒收，
+            // 而那份內容其實還沒消失——只是不再是「目前的預設」而已。
+            if (r.removed) {
+              clearDraftPrefix('vellum.draft.persona.');
+              setDraft(null);
+              setRenamed(false);
+            }
+          }}
         />
       ) : null}
       {/* 🔴 **必須可以跳過**（驗收 C1）：還沒開始用就先填表單是勸退的形狀。 */}
