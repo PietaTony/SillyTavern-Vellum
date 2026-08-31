@@ -28,6 +28,27 @@ describe('SSE 解析', () => {
     const { events } = parseSse('event: error\ndata: {"message":"炸了"}\n\n');
     expect(events[0]).toEqual({ type: 'error', message: '炸了' });
   });
+
+  /**
+   * 🔴 B4：後端 `generate.ts` 一直都在 `done` 事件裡送 `usage`
+   * （`sse('done', { message, finishReason, usage })`），但這裡以前沒有這個分支
+   * ⇒ `parseSse` 默默把它丟掉，跟 `thinking` 事件在此之前的坑是同一個形狀。
+   */
+  it('🔴 B4：done 帶的 usage 要被解析出來，不能被丟掉', () => {
+    const { events } = parseSse(
+      'event: done\ndata: {"message":{"id":"1","role":"model","text":"嗨","at":"t"},' +
+        '"finishReason":"STOP","usage":{"inputTokens":12,"outputTokens":34}}\n\n',
+    );
+    expect(events[0]).toMatchObject({ usage: { inputTokens: 12, outputTokens: 34 } });
+  });
+
+  it('🔴 B4：空的 usage 物件（供應商沒回任何用量）不要當成「有用量」', () => {
+    const { events } = parseSse(
+      'event: done\ndata: {"message":{"id":"1","role":"model","text":"嗨","at":"t"},' +
+        '"finishReason":"STOP","usage":{}}\n\n',
+    );
+    expect(events[0]).not.toHaveProperty('usage');
+  });
 });
 
 describe('Enter 送出的判斷（中文輸入法）', () => {

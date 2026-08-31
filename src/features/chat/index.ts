@@ -13,7 +13,7 @@ export {
 } from './api';
 export { type ChatFailureInfo, failureOf } from './failureOf';
 export { byRecency, lastActivityAt, latestChatOf, previewOf, relativeTime } from './list';
-export { type Chat, type Message, parseSse, type StreamEvent } from './model';
+export { type Chat, type Message, parseSse, type StreamEvent, type Usage } from './model';
 export { dropUnknownSwipeIndex } from './swipeDisplay';
 export { ChatList, type ChatListItem } from './ui/ChatList';
 export { CompanionLayer } from './ui/CompanionLayer';
@@ -23,6 +23,7 @@ export type { FrontendRenderer } from './ui/MessageContent';
 export { OutputRulesLayer } from './ui/OutputRulesLayer';
 export { SwipePicker } from './ui/SwipePicker';
 export { Thread } from './ui/Thread';
+export { UsageReadout } from './ui/UsageReadout';
 export { VariablesLayer } from './ui/VariablesLayer';
 export { useChatStream } from './useChatStream';
 export type { MessageActions } from './useRowActions';

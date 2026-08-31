@@ -43,6 +43,20 @@ export type Chat = {
   variables?: Record<string, unknown>;
 };
 
+/**
+ * 🔴 **B4：供應商層早就算好了，前端連型別都沒有**（`grep -rni "usage" src` 命中 0）。
+ * 形狀照抄 `server/providers/types.ts` 的 `Usage` —— 兩邊是同一份資料的兩端，
+ * 欄位對不上前端就得再猜一次「後端到底送了什麼」。
+ * `exactOptionalPropertyTypes` 開著：沒回的欄位就是 `undefined`，不寫 `| undefined`
+ * 組不進來（同一個判準見後端那份檔頭）。
+ */
+export type Usage = {
+  inputTokens?: number | undefined;
+  outputTokens?: number | undefined;
+  cacheRead?: number | undefined;
+  cacheWrite?: number | undefined;
+};
+
 export type StreamEvent =
   | { type: 'delta'; text: string }
   /**
@@ -56,7 +70,8 @@ export type StreamEvent =
    * 這裡只拿它當「還活著、而且在想」的訊號。
    */
   | { type: 'thinking'; text: string }
-  | { type: 'done'; message: Message; finishReason: string }
+  /** 🔴 `usage` 可能是空物件（供應商沒回任何用量）——省略欄位，不要硬塞 `{}`。 */
+  | { type: 'done'; message: Message; finishReason: string; usage?: Usage | undefined }
   | { type: 'error'; message: string };
 
 /**
@@ -80,6 +95,7 @@ export function parseSse(buffer: string): { events: StreamEvent[]; rest: string 
       text?: string;
       message?: Message | string;
       finishReason?: string;
+      usage?: Usage;
     };
     if (name === 'delta') events.push({ type: 'delta', text: payload.text ?? '' });
     else if (name === 'thinking') events.push({ type: 'thinking', text: payload.text ?? '' });
@@ -88,6 +104,8 @@ export function parseSse(buffer: string): { events: StreamEvent[]; rest: string 
         type: 'done',
         message: payload.message,
         finishReason: payload.finishReason ?? 'STOP',
+        // 🔴 後端一律送（可能是 `{}`）——只有真的有欄位才往上傳，空物件不算「有用量」。
+        ...(payload.usage && Object.keys(payload.usage).length ? { usage: payload.usage } : {}),
       });
     else if (name === 'error')
       events.push({ type: 'error', message: String(payload.message ?? '未知錯誤') });
