@@ -23,6 +23,16 @@
  *    （比沒有更糟，CLAUDE.md 已經點名這個坑）。所以這三類只要求「正本模組還在、
  *    沒被清空、真的在講這個持久化面」，不假裝已有六題；`requireSixQuestions: true`
  *    的四類（有六題慣例在跑）才用原本「必須含『六題』字樣」的嚴格判準。
+ *    ⚠️ 2026-08-31 複驗線抓到的數字錯誤（已更正）：全 repo `git grep 六題` 命中的是
+ *    **12 個檔**，不是「4 個檔」—— 拆開來看：**4 個**是真正定義六題區塊的正本模組
+ *    （settingsModel.ts／authStore.ts／character.ts／chatModel.ts）；**3 個**只是指回
+ *    那批正本的一行引用（chatVariables.ts／globalWorlds.ts／src/features/chat/model.ts，
+ *    各一句「見 xxx 的六題」）；其餘 **5 個**是治理文件在講「六題」這個詞本身
+ *    （platform.md／PR 模板／FEATURE-DONE.md／gap-index.md／這支檔案自己）。
+ *    上面「四類」指的是那 4 個正本模組，不是「六題只出現在 4 個檔」——
+ *    `persona.ts`／`charWorld.ts`／`secrets.ts` 沒有被任何一個六題區塊指到，
+ *    這件事本身沒有變，只是範圍講法要對齊 12 個檔的事實，不要讓下一個人自己
+ *    grep 出 12 個之後懷疑這段判準是不是過期了。
  */
 import { execSync } from 'node:child_process';
 import {
