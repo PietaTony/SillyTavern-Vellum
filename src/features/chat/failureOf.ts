@@ -4,8 +4,13 @@
  * 是最乾淨可以整塊搬走的一塊，不影響同檔案其餘（`parseSse`／`shouldSubmitOnKey`）。
  * `src/features/chat/**` 是 glob 擁有權，這裡抽檔不會撞 gate:ownership。
  */
-/** 生成失敗時該顯示什麼。`setupKey` ＝ 後端說「缺金鑰」，畫面要給得出那個出口。 */
-export type ChatFailureInfo = { text: string; setupKey: boolean };
+/**
+ * 生成失敗時該顯示什麼。`setupKey` ＝ 後端說「缺金鑰」，畫面要給得出那個出口。
+ * 🔴 `retryable`（跨層票 B6，2026-08-31）：只給 `api.ts` 的 `!res.ok` 早退分支用——
+ * 那條路回的是整包 JSON（`server/routes/generate.ts` 的 `retryable`／`status`／`error`
+ * 三個欄位），要跟 `text`／`setupKey` 一起從同一段原文解出來，不重複 parse 一次。
+ */
+export type ChatFailureInfo = { text: string; setupKey: boolean; retryable: boolean };
 
 /**
  * 把後端回來的錯誤 **body 原文**翻成人看的一句話（Peter 2026-08-27 實機踩到）。
@@ -24,15 +29,19 @@ export type ChatFailureInfo = { text: string; setupKey: boolean };
  */
 export function failureOf(raw: string): ChatFailureInfo {
   const t = raw.trim();
-  if (!t) return { text: '送不出去', setupKey: false };
+  if (!t) return { text: '送不出去', setupKey: false, retryable: false };
   if (t.startsWith('{')) {
     try {
-      const o = JSON.parse(t) as { error?: unknown; action?: unknown };
+      const o = JSON.parse(t) as { error?: unknown; action?: unknown; retryable?: unknown };
       if (typeof o.error === 'string' && o.error.trim())
-        return { text: o.error, setupKey: o.action === 'setup-key' };
+        return {
+          text: o.error,
+          setupKey: o.action === 'setup-key',
+          retryable: o.retryable === true,
+        };
     } catch {
       // 不是完整的 JSON（例如被 slice(300) 切掉尾巴）⇒ 落回原文。
     }
   }
-  return { text: t, setupKey: false };
+  return { text: t, setupKey: false, retryable: false };
 }

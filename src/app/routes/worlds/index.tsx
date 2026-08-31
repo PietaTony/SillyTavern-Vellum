@@ -3,21 +3,18 @@ import Button from '@mui/material/Button';
 import CircularProgress from '@mui/material/CircularProgress';
 import Stack from '@mui/material/Stack';
 import Typography from '@mui/material/Typography';
-import { useMutation, useQuery } from '@tanstack/react-query';
+import { useQuery } from '@tanstack/react-query';
 import { createFileRoute, useNavigate } from '@tanstack/react-router';
-import { useState } from 'react';
 import { TabBar } from '@/app/screens/TabBar';
 import {
   AddWorldPanel,
   BLANK,
-  createGlobalWorld,
-  deleteGlobalWorld,
   fetchGlobalWorlds,
   fetchWorldPresets,
   GlobalWorldIntro,
   GlobalWorldList,
-  importGlobalWorld,
   UnofficialWarning,
+  useGlobalWorldMutations,
 } from '@/features/worldbook';
 import { Screen } from '@/shared/ui/Screen';
 import { pushToast } from '@/shared/ui/toastStore';
@@ -40,11 +37,9 @@ export const Route = createFileRoute('/worlds/')({ component: WorldsPage });
  */
 function WorldsPage() {
   const nav = useNavigate();
-  const [busyId, setBusyId] = useState<string | null>(null);
   const q = useQuery({ queryKey: ['globalWorlds'], queryFn: fetchGlobalWorlds });
   // 🔴 樣板庫單獨一支 query，且壞掉不擋主畫面：讀不到只是少一個捷徑，既有的書照樣列得出來。
   const presets = useQuery({ queryKey: ['worldPresets'], queryFn: fetchWorldPresets });
-  const [pendingKey, setPendingKey] = useState<string | null>(null);
 
   // 建好／匯入好之後共通的下一步：重新讀清單、報一句、直接開那本書。
   const afterCreate = async (w: { id: string }, text: string) => {
@@ -52,26 +47,9 @@ function WorldsPage() {
     pushToast({ severity: 'success', text });
     void nav({ to: '/worlds/$worldId', params: { worldId: w.id } });
   };
-  const add = useMutation({
-    mutationFn: (preset?: string) => createGlobalWorld(preset),
-    onSettled: () => setPendingKey(null),
-    onSuccess: (w) => afterCreate(w, `已加入「${w.name}」，條目都先關著`),
-    onError: (e: Error) => pushToast({ severity: 'warning', text: e.message }),
-  });
-  const del = useMutation({
-    mutationFn: (id: string) => deleteGlobalWorld(id),
-    onMutate: setBusyId,
-    onSettled: () => setBusyId(null),
-    onSuccess: () => void q.refetch(),
-    onError: (e: Error) => pushToast({ severity: 'warning', text: e.message }),
-  });
-  // 🔴 與 `add` 不同：條目照檔案原樣，toast 不能講「先關著」。
-  const importMut = useMutation({
-    mutationFn: (text: string) => importGlobalWorld(text),
-    onSuccess: (w) =>
-      afterCreate(w, `已匯入「${w.name}」（開著 ${w.enabledCount}/${w.entryCount}）`),
-    onError: (e: Error) => pushToast({ severity: 'warning', text: e.message }),
-  });
+  // 建／刪／改名／匯入四顆操作抽在 `useGlobalWorldMutations`（純搬家，理由見那支檔頭）。
+  const { busyId, pendingKey, setPendingKey, add, del, rename, importMut } =
+    useGlobalWorldMutations(() => q.refetch(), afterCreate);
   const items = q.data?.items ?? [];
 
   return (
@@ -127,6 +105,7 @@ function WorldsPage() {
           busyId={busyId}
           onOpen={(id) => void nav({ to: '/worlds/$worldId', params: { worldId: id } })}
           onDelete={(w) => del.mutate(w.id)}
+          onRename={(w, name) => rename.mutate({ id: w.id, name })}
         />
       ) : null}
 

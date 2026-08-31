@@ -1,5 +1,6 @@
 import { del, get, patch, post } from '@/shared/lib/http';
 import type { VarSchema } from '@/shared/types/varSchema';
+import { failureOf } from './failureOf';
 import { type Chat, type Message, parseSse, type StreamEvent } from './model';
 
 /**
@@ -10,7 +11,6 @@ export const fetchCompanionEnabled = (): Promise<{ enabled: boolean }> =>
   get('/api/settings/companion');
 export const setCompanionEnabled = (enabled: boolean): Promise<{ enabled: boolean }> =>
   patch('/api/settings/companion', { enabled });
-
 export const fetchChats = (): Promise<Chat[]> => get<Chat[]>('/api/chats');
 export const fetchChat = (id: string): Promise<Chat> => get<Chat>(`/api/chats/${id}`);
 /**
@@ -23,7 +23,6 @@ export const createChat = (characterId: string, greetingIndex?: number): Promise
     characterId,
     ...(greetingIndex === undefined ? {} : { greetingIndex }),
   });
-
 /**
  * 切換某則訊息的候選。
  * 🔴 **回傳帶 `lore`**：開場白切換會連帶重算世界書開關（驗收 B3），
@@ -51,7 +50,6 @@ export const patchChatVariables = (
   vars: Record<string, unknown>,
 ): Promise<{ variables: Record<string, unknown> }> =>
   patch(`/api/chats/${chatId}/variables`, { patch: vars });
-
 /**
  * 卡片**宣告**了哪些變數 —— D2 面板缺的另一半（值走 `fetchChat`，這支只讀 schema）。
  * 唯讀，端點見 `server/routes/cardVariables.ts:56-67`。
@@ -131,7 +129,10 @@ export async function streamGenerate(
   });
   if (!res.ok || !res.body) {
     const t = await res.text();
-    onEvent({ type: 'error', message: t.slice(0, 300) || `HTTP ${res.status}` });
+    const message = t.slice(0, 300) || `HTTP ${res.status}`;
+    // 🔴 retryable（跨層票 B6）：這條路收的是整包 JSON（`error`／`status`／`retryable`），
+    // 重用 `failureOf` 一起解——同一段原文，不要在這裡再猜一次它的形狀。
+    onEvent({ type: 'error', message, retryable: failureOf(message).retryable });
     return;
   }
   const reader = res.body.getReader();

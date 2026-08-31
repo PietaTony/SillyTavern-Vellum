@@ -44,7 +44,7 @@ function ChatPage() {
   const [showGreetings, setShowGreetings] = useState(false);
   const maxResp = useMaxResponseTokensQuery();
   // 🔴 生成完要重讀（理由見 `useChatStream` 的 `onDone`）。B5 那顆值見 `useMaxResponseTokens.ts`。
-  const { messages, streaming, generation, failure, setFailure, send, regenerate, reset, stop } =
+  const { messages, streaming, generation, failureBanner, send, regenerate, reset, stop } =
     useChatStream(chatId, q.data?.messages, () => q.refetch(), maxResp.data?.tokens);
   const swipe = useSwipeMessage(chatId, () => q.refetch(), reset);
 
@@ -92,7 +92,7 @@ function ChatPage() {
       // ⇒ 擺在 children 裡會被擠出容器、疊到輸入框上（Peter 2026-08-27 的截圖）。
       footer={
         <>
-          {failure ? <ChatFailure message={failure} onDismiss={() => setFailure(null)} /> : null}
+          {failureBanner ? <ChatFailure {...failureBanner} /> : null}
           <UsageReadout usage={generation.usage} />
           <Composer chatId={chatId} busy={streaming !== null} onSend={send} />
         </>

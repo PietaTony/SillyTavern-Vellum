@@ -154,6 +154,58 @@ describe('A3：worldForChat 真的把 budget 傳給 planInjection', () => {
 });
 
 /**
+ * 🔴 B8：`server/lib/wiLayers.ts` 的 `orderLayers()` 完整支援三種 `CHAR_STRATEGY`
+ * （evenly／characterFirst／globalFirst），但過去全 repo 唯一的生產呼叫端
+ * （`worldForChat`）沒有傳 `strategy` 給它 ⇒ 永遠吃參數預設值 `evenly`，
+ * 三種策略選了也沒差。
+ *
+ * 🔴 **為什麼要用「同 order」的資料**：`wiInject.ts` 的 `planInjection()` 事後又對
+ * `activated` 做一次全域 `order` 排序（`byOrderDesc`），如果 global／character
+ * 兩條的 `order` 不同，那次全域排序會直接蓋掉 `orderLayers()` 決定的層序，
+ * 讓「策略有沒有接上」在最終輸出上完全看不出差異。兩條給**同一個 order**，
+ * 讓 `planInjection` 內部的排序落回「穩定排序＝保留輸入順序」，
+ * `orderLayers()` 決定的先後才會真的滲透到最終文字順序——這正是這支測試
+ * 要驗的「同一份資料、不同策略，輸出順序不同」。
+ *
+ * 🔴 **推導出來的具體順序**（`wiInject.ts` 的 unshift 陷阱：處理順序會被反過來）：
+ * `CHAR_STRATEGY.characterFirst` 讓 `orderLayers()` 吐出 `[character, global]`，
+ * 經過 `planInjection` 的 unshift 反轉後，最終 `afterChar` 是 `[global內容, character內容]`。
+ * 挖空（`promptWorld.ts` 改回不傳 `DEFAULT_WI_STRATEGY`）會落回 `evenly`，
+ * `orderLayers()` 吐出 `[global, character]`（同 order 時 `evenly` 保留這個串接順序），
+ * 反轉後變成 `[character內容, global內容]`——跟 wired 版本的順序**相反**，
+ * 這裡的斷言會紅。
+ */
+describe('B8：worldForChat 真的把 strategy 傳給 orderLayers（不再永遠是 evenly）', () => {
+  it('🔴 global 與 character 用同一個 order 時，最終順序照 CHAR_STRATEGY.characterFirst 排——不是預設的 evenly', async () => {
+    const { worldForChat, writeJson } = await fresh();
+
+    const character = wbEntry({ uid: 'char-entry', content: '角色書內容', order: 100 });
+    await writeJson(`worlds/char1.json`, {
+      version: 1,
+      characterId: 'char1',
+      entries: [character],
+      origin: { cardId: '', cardVersion: '', createDate: '', importedAt: '', entries: {} },
+    });
+
+    const globalBook = wbEntry({ uid: 'global-entry', content: '全域書內容', order: 100 });
+    await writeJson(`worlds/global1.json`, {
+      version: 1,
+      characterId: 'global1',
+      entries: [globalBook],
+      origin: { cardId: '', cardVersion: '', createDate: '', importedAt: '', entries: {} },
+    });
+    await writeJson('settings.json', { globalWorlds: [{ id: 'global1', name: '全域書' }] });
+
+    const outcome = await worldForChat(chat('char1'), null, []);
+
+    expect(outcome.activated).toBe(2);
+    // 🔴 這就是本次要補的洞：characterFirst ⇒ 反轉後全域內容排在角色內容之前。
+    // 挖空（不傳 strategy，落回 evenly）會變成 ['角色書內容', '全域書內容']——順序相反，斷言會紅。
+    expect(outcome.plan.afterChar).toEqual(['全域書內容', '角色書內容']);
+  });
+});
+
+/**
  * 🔴 A1（GAP-53）：`anTop`／`anBottom`／`emTop`／`emBottom` 四個桶算出來了、
  * 沒有消費者。`worldForChat` 要把這件事攤在 `WorldOutcome.unconsumedPositions`，
  * 不能只靠 `activated` —— 那個數字混著這些條目，看起來像「有進場」。
