@@ -124,10 +124,18 @@ export const globalWorlds = new Hono()
     return c.json({ ok: true });
   })
 
-  /** 改書名。🔴 名字存在設定裡，**不動書檔**（理由見 `settings.ts` 的六題）。 */
+  /**
+   * 改書名。🔴 名字存在設定裡，**不動書檔**（理由見 `settings.ts` 的六題）。
+   * 🔴 **`.trim()` 一定要在 `.min(1)` 之前**（2026-08-31 敵意驗收實測抓到）：
+   * `z.string().min(1)` 只檢查**原始字串**長度，純空白 `"   "` 長度是 3、
+   * 直接通過驗證 ⇒ 後端會存出一本清單上「看起來是空白」的書，前端
+   * `GlobalWorldList.tsx` 的 `draft.trim()` 是唯一防線——UI 邏輯的漏洞
+   * 或有人直接打 API 就繞過去了。`.trim()` 讓 `min(1)` 驗證的是**去頭尾空白後**
+   * 的長度，同時存進去的 `body.data.name` 也已經是 trim 過的版本。
+   */
   .patch('/:id', async (c) => {
     const id = safeId(c.req.param('id'));
-    const body = z.object({ name: z.string().min(1).max(80) }).safeParse(await c.req.json());
+    const body = z.object({ name: z.string().trim().min(1).max(80) }).safeParse(await c.req.json());
     if (!body.success) return c.json({ error: '參數不合法' }, 400);
     const s = await loadSettings();
     const list = s.globalWorlds ?? [];

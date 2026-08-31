@@ -39,6 +39,34 @@ export const CHAR_STRATEGY = { evenly: 0, characterFirst: 1, globalFirst: 2 } as
  * - 這裡先照 ST 的**預設值**把門打開（`characterFirst`），跟 ST 開箱時的行為一致；
  *   可調版本待 X3 票，跟 `promptWorld.ts` 的 `DEFAULT_WI_BUDGET` 同一種
  *   「先補洞、可調的部分留給下一張票」處理方式。
+ *
+ * 🔴 **這是行為變更，不是純粹補洞**：預設值從（未接線時等效的）`evenly` 換成
+ *   `characterFirst`，任何「global 與 character 兩層有條目 `order` 相同」的既有
+ *   世界書，注入順序會反過來。同 order 在使用者手動調過 order 欄位、或兩層剛好都
+ *   沒改過預設值時很容易發生（predicate 見下方限制）。
+ *
+ * 🔴🔴 **這個策略只在 global／character 兩層有條目 `order` 相同（tie）時才影響
+ *   最終順序**——2026-08-31 驗收線實測抓到：`wiInject.ts` 的 `planInjection()`
+ *   在插入前又對 `activated` 做一次**全域** `sort(byOrderDesc)`（不分層），
+ *   只要兩層的 `order` 不同，這次全域排序就完全決定最終順序，`orderLayers()`
+ *   排出來的層序會被整個蓋掉——策略選了也沒差。**只有 order 相同時**，JS 的
+ *   穩定排序（stable sort）才會保留 `orderLayers()` 決定的相對順序，策略才看
+ *   得出差異。
+ *
+ * ⚠️ **這不是我們架構獨有的洞，是 ST 自己的真實行為，逐行對得上**：
+ *   ST 的 `getSortedEntries()`（`world-info.js:4478-4527`）用策略把 global／
+ *   character 兩層個別排序後串接（跟這支檔案的 `orderLayers()` 做的事一樣）；
+ *   但 ST 自己在插入前（`world-info.js:5083`）也對**全部**已啟用條目做
+ *   `[...allActivatedEntries.values()].sort(sortFn)`——`sortFn`
+ *   （`world-info.js:88`）就是 `(a, b) => b.order - a.order`，跟這裡的
+ *   `byOrderDesc` 定義完全相同。ST 的 `character_strategy` 一樣只在
+ *   `order` 相同時才透過 stable sort 保留層序——**這是 ST 的既有設計**：
+ *   `order` 是主鍵，`character_strategy` 只是同 order 時的 tie-breaker，
+ *   不是「策略決定順序、order 只決定層內順序」。判斷（驗收線要的）：
+ *   ⇒ **不是 `wiInject.ts` 的排序蓋掉層序這件事本身是 bug**——照抄 ST 的真實
+ *   行為，是忠實的移植（port）。**是「策略」這個詞給人的直覺（跟 order 平起平坐地決定
+ *   順序）跟 ST 的真實語意（策略只是 tie-breaker）本來就不一致**，這個落差
+ *   ST 自己也有，不是我們這次引進的新洞。
  */
 export const DEFAULT_WI_STRATEGY: number = CHAR_STRATEGY.characterFirst;
 
