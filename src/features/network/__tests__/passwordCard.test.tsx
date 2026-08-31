@@ -1,6 +1,7 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { fireEvent, render, waitFor } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { useToasts } from '@/shared/ui/toastStore';
 import type { NetworkState } from '../api';
 import { PasswordCard } from '../ui/PasswordCard';
 
@@ -75,5 +76,30 @@ describe('PasswordCard 的登出按鈕', () => {
 
     await waitFor(() => expect(onLoggedOut).toHaveBeenCalledTimes(1));
     expect(calls).toContain('/api/auth/logout');
+  });
+
+  /**
+   * 🔴 2026-08-31 A5：Peter 裁定「登出＝這台 instance 當下所有裝置一起登出」
+   * 行為不變（單人 app、合理預期），但意外的副作用（別台裝置也被踢）要用
+   * 文案講清楚——不能只說「已登出」，要讓使用者知道其他裝置也要重新登入。
+   * 斷言比對**完整字串**，不是「有沒有出現 toast」：只驗「有 toast」擋不住
+   * 文案被換成另一句同樣『看起來有 toast』但沒講清楚的錯字（這個 repo 已經
+   * 抓過四次這種假斷言）。
+   */
+  it('🔴 登出後的 toast 要明講「其他裝置也會被登出」，不是只說「已登出」', async () => {
+    useToasts.setState({ items: [] });
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(() => Promise.resolve(new Response(null, { status: 204 }))),
+    );
+    const { getByRole } = renderCard({ ...base, hasPassword: true });
+
+    fireEvent.click(getByRole('button', { name: '登出' }));
+
+    await waitFor(() =>
+      expect(useToasts.getState().items.at(-1)?.text).toBe(
+        '已登出，其他裝置也會一起登出，需要重新輸入密碼',
+      ),
+    );
   });
 });
