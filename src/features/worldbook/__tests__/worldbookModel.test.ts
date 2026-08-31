@@ -6,7 +6,9 @@ import {
   positionTitle,
   subtitleOf,
   WI_POSITION,
+  worldOwnerNote,
 } from '../model';
+import { GLOBAL_OWNER, IMPORTED_OWNER } from '../types';
 
 const e = (over: Partial<Parameters<typeof entryHint>[0]> = {}) => ({
   constant: false,
@@ -119,5 +121,54 @@ describe('全域世界書的擁有者標記', () => {
     expect(front.GLOBAL_OWNER).toBe(back.GLOBAL_OWNER);
     // 尺沒壞的證明：那個值真的存在、而且不是空字串。
     expect(front.GLOBAL_OWNER).toBe('__global__');
+  });
+});
+
+/**
+ * 🔴 同一種坑，換一個常數：匯入但還沒綁定的書不可以跟全域書共用同一個字面值，
+ * 不然 `$worldId/index.tsx` 會把它當成全域書，講出「套用到你所有對話」這句謊話。
+ */
+/**
+ * 🔴 三種擁有者的說明文字不能共用一句 —— 講錯任何一句都是對使用者說謊
+ * （全域書講成「只影響一位好友」、或匯入但沒綁定的書講成「已經是全域書」）。
+ */
+describe('worldOwnerNote：三種擁有者，三句不同的話', () => {
+  it('全域書：警告會套用到所有對話', () => {
+    const r = worldOwnerNote(GLOBAL_OWNER);
+    expect(r.title).toBe('全域世界書');
+    expect(r.note).toContain('所有');
+  });
+
+  it('🔴 匯入但還沒綁定：講「還沒套用」，不是「已經是全域」也不是「只影響一位好友」', () => {
+    const r = worldOwnerNote(IMPORTED_OWNER);
+    expect(r.title).not.toBe('全域世界書');
+    expect(r.note).toContain('還沒');
+    expect(r.note).not.toContain('所有');
+  });
+
+  /**
+   * 🔴 **實機測試 2026-08-31 抓到**：匯入的書綁給 persona 之後，`characterId`
+   * 仍然是 `IMPORTED_OWNER`（綁定關係存在 persona 那邊）—— 只看 `characterId`
+   * 會讓「已經在生效」的書繼續顯示「還沒套用到任何對話」，那是謊話。
+   */
+  it('🔴 匯入且已綁定（boundCount > 0）：講「已經生效」，不是「還沒套用」', () => {
+    const r = worldOwnerNote(IMPORTED_OWNER, 1);
+    expect(r.note).not.toContain('還沒');
+    expect(r.note).toContain('綁定');
+  });
+
+  it('好友的副本：講只影響這一位', () => {
+    const r = worldOwnerNote('some-character-id');
+    expect(r.note).toContain('只影響這一位好友');
+  });
+});
+
+describe('匯入但還沒綁定的書的擁有者標記', () => {
+  it('前端與後端同一個值，且與 GLOBAL_OWNER 不同', async () => {
+    const front = await import('../types');
+    const back = await import('../../../../server/lib/globalWorld.ts');
+    expect(front.IMPORTED_OWNER).toBe(back.IMPORTED_OWNER);
+    expect(front.IMPORTED_OWNER).toBe('__imported__');
+    expect(front.IMPORTED_OWNER).not.toBe(front.GLOBAL_OWNER);
   });
 });

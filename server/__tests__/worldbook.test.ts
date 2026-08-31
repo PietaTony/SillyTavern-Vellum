@@ -75,4 +75,13 @@ describe('世界書正規化', () => {
     expect(fromWorldFile({ entries: { abc: {} } })[0]!.uid).toBe('abc');
     expect(fromCharacterBook({ entries: [{}, {}] }).map((e) => e.uid)).toEqual(['0', '1']);
   });
+
+  /**
+   * 🔴 兩個來源的 `raw` 鍵名不同套（`worldFile` 沒有 extensions，`characterBook` 有）——
+   * `wiEdit.ts` 回寫時要看這個欄位選對照表，選錯會把兩套鍵名混在同一個 raw 裡。
+   */
+  it('🔴 rawSchema 要照來源標記，`wiEdit.ts` 靠它選對照表', () => {
+    expect(fromWorldFile({ entries: { '0': {} } })[0]!.rawSchema).toBe('worldFile');
+    expect(fromCharacterBook({ entries: [{}] })[0]!.rawSchema).toBe('characterBook');
+  });
 });
