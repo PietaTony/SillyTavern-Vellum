@@ -1,7 +1,7 @@
 // @vitest-environment node
 import { mkdtempSync, readdirSync, readFileSync, rmSync, statSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join, resolve } from 'node:path';
+import { join, relative, resolve } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { HTTPException } from 'hono/http-exception';
 
@@ -116,35 +116,73 @@ describe('全域 .onError', () => {
  * ⇒ 這裡補一支**普查**（不是新 `gate:*`，中控線 2026-09-01 裁定「補做，但用最輕的形態」，
  * 不動 `scripts/`／`package.json`）：數 `server/`（排除 `__tests__/`，那裡本來就住著探測路由
  * 與這支測試自己）裡有多少處
- *   ① 自己 `throw new HTTPException(...)`
+ *   ① 有地方在**建構** `new HTTPException(...)`
  *   ② import 了 Hono 內建或常見第三方的 auth／validation middleware
  *      （`hono/basic-auth`、`hono/bearer-auth`、`hono/jwt`、`hono/csrf`、
  *      `hono/oauth-providers`、`@hono/zod-validator`、`@hono/valibot-validator`、
  *      `@hono/typebox-validator`——這些都是「會自己組訊息丟 HTTPException」的常見來源）。
+ *   ③ 有哪些檔案 import 了 `hono/http-exception` 這個模組本身（不管取什麼別名）——
+ *      唯一被允許的 import 者是 `server/app.ts` 自己（它要接住 `HTTPException` 才需要）。
  *
- * 目前兩者都是 0（唯一的 `HTTPException` 來源是 `hono/body-limit` 內建的那個，
- * 見 `server/app.ts` 檔頭的說明；`server/` 裡沒有任何檔案 import 上面那份清單）。
+ * 🔴 **第二輪複驗線動手埋了三種真的會外洩、但完全不需要惡意規避意圖的寫法，
+ * 第一版的尺（逐字比對 `'throw new HTTPException'`）三種全部漏放**：
+ *   - **改 import 別名**：`import { HTTPException as VellumErr } from 'hono/http-exception'`
+ *     ⇒ 字面 `HTTPException` 這個識別字沒被拿來 `throw`，逐字比對抓不到；
+ *       而且舊版 `RISKY_IMPORTS` 清單本來就沒列 `hono/http-exception` 自己，
+ *       所以連 import 那把尺也抓不到。⇒ 現在改成③：**看模組路徑，不看識別字名字**。
+ *   - **跨行**：`throw new\n  HTTPException(...)` ⇒ `'throw new HTTPException'`
+ *     要求連續字元含固定的單一空格，換行就不是同一個子字串。
+ *     ⇒ 現在改成①：`/new\s+HTTPException\b/`，`\s` 本身就吃得下換行，
+ *     而且**不要求前面接 `throw`**——helper 包裝與跨行兩種都涵蓋。
+ *   - **包一層 helper**：`function makeError(s, m) { return new HTTPException(s, m); }`
+ *     ⇒ 建構那行是 `return new HTTPException`，`throw` 那行是 `throw makeError(...)`，
+ *     兩者都不含 `'throw new HTTPException'`。⇒ 同樣被①的新寫法覆蓋
+ *     （只認「有地方在建構」，不要求那行同時也是 `throw`；抓到之後由人工確認
+ *     它是否真的被 `throw` 出去、`err.message` 是否安全）。
  *
- * 🔴 **判準用逐字子字串比對（`String.split(needle).length - 1`），不用正則。**
- * 中控線今天自己踩過 `git grep -lE "a\|b\|c"` 的坑——`-E` 模式下 `\|` 是字面的
- * `|` 不是 alternation，假性零命中剛好符合預期，差點就這樣報出去。子字串比對沒有
- * 這一整類「跳脫符號寫錯、尺看起來在跑但其實沒在比對」的風險。
+ * 目前①②③都符合預期基準（①②是 0；③只有 `server/app.ts` 一個 import 者——
+ * 見 `server/app.ts` 檔頭的說明；`server/` 裡沒有任何檔案 import `RISKY_IMPORTS`
+ * 那份清單，也沒有 `server/app.ts` 以外的檔案 import `hono/http-exception`）。
+ *
+ * 🔴 **判準能用逐字子字串比對的地方（②③）就用逐字子字串（`String.split(needle)
+ * .length - 1`），只有①（建構偵測）需要正則來吃跨行，用 `/new\s+HTTPException\b/`——
+ * 沒有 alternation（`|`），不落入中控線今天踩過的 `-E` 模式 `\|` 是字面 `|` 那個坑。**
+ *
+ * 🔴🔴 **「計數為 0／import 者只有 app.ts」是這把尺認得的寫法之內沒有新來源，
+ * 不是窮舉式的安全保證。** 這把尺是機械字串／正則比對，天生有盲區——
+ * 例如完全動態拼接的 import（`await import('hono/' + 'http-exception')`）、
+ * 或用 `globalThis['HTTP' + 'Exception']` 之類的方式取得建構子，都不會被這裡的
+ * 任何一條計數抓到。**綠燈的意思是「沒有人用目前已知的寫法寫出新來源」，
+ * 不是「這個 repo 裡不可能有新來源」。** 真正的底線仍然是 code review 看得懂
+ * 「這個 `HTTPException` 的 `message` 最後會不會原樣回給使用者」這件事本身。
  *
  * 🔴 **這支測試以後一定會紅**——有人合法地新增一個 HTTPException 來源時就會
- * （例如接 `hono/bearer-auth`、或自己 `throw` 一個帶著檔案路徑／密碼的 `HTTPException`）。
+ * （例如接 `hono/bearer-auth`、或自己建構一個帶著檔案路徑／密碼的 `HTTPException`）。
  * **紅了不是這支測試壞了**，是在要求你：回頭看那個新來源丟出的 `err.message`
  * 會不會帶敏感內容——會的話，`server/app.ts` 的 `.onError` 現在的寫法會原樣回傳給
  * 呼叫端（就是上面「釘住現狀」那支測試證明的行為）。確認過（訊息本身乾淨，
- * 或已經在 `.onError` 加了針對它的處理）之後，才把下面的期望值改成新數字，
+ * 或已經在 `.onError` 加了針對它的處理）之後，才把下面的期望值／允許清單改成新的，
  * 並在這條註解旁邊記一筆：新來源是什麼、為什麼訊息安全。
  * **不看那條 pinning test 就把數字改大讓它變綠，等於這支測試不存在。**
  */
 describe('server/ 的 HTTPException 來源普查（不是新 gate，只是一支 vitest）', () => {
   const SERVER_DIR = resolve(process.cwd(), 'server');
 
-  /** 逐字子字串計數——理由見上面檔頭：不用正則，避開跳脫符號寫錯的那一整類坑。 */
+  /** 逐字子字串計數——理由見上面檔頭：能用逐字比對的地方就不用正則。 */
   function countNeedle(text: string, needle: string): number {
     return text.split(needle).length - 1;
+  }
+
+  /**
+   * 數「建構」而非「throw」——這樣涵蓋得到跨行與 helper 包裝兩種繞法（見上面檔頭）。
+   * `\s` 本身吃得下換行；不要求前面接 `throw`，抓到就是「有地方在建構
+   * `HTTPException`」，由人工確認它是否真的被丟出去、`err.message` 安不安全。
+   * 別名建構（`new VellumErr(...)`）這個 regex 抓不到——那一種靠下面的
+   * import 來源比對（看模組路徑，不看識別字名字）來抓。
+   */
+  function countConstruction(text: string): number {
+    const matches = text.match(/new\s+HTTPException\b/g);
+    return matches ? matches.length : 0;
   }
 
   /** 遞迴列出 `server/` 底下所有 `.ts`，排除 `__tests__`（探測路由與這支測試自己住的地方）。 */
@@ -173,7 +211,10 @@ describe('server/ 的 HTTPException 來源普查（不是新 gate，只是一支
     '@hono/typebox-validator',
   ];
 
-  it('🔴 尺要先自證①：countNeedle 的計數方式，先餵一個已知答案的樣本', () => {
+  /** 唯一准許 import `hono/http-exception` 的檔——`app.ts` 要接住 `HTTPException` 才需要它。 */
+  const ALLOWED_HTTP_EXCEPTION_IMPORTERS = [join('server', 'app.ts')];
+
+  it('🔴 尺要先自證①：countNeedle 對已知樣本斷言', () => {
     const sample = "a throw new HTTPException(1); b throw new HTTPException(2); c 'hono/jwt' d";
     expect(countNeedle(sample, 'throw new HTTPException')).toBe(2);
     expect(countNeedle(sample, 'hono/jwt')).toBe(1);
@@ -186,16 +227,47 @@ describe('server/ 的 HTTPException 來源普查（不是新 gate，只是一支
     expect(files.some((f) => f.endsWith(join('server', 'app.ts')))).toBe(true);
   });
 
-  it('🔴 HTTPException 來源普查：目前只有一種來源（見上方檔頭「紅了要做什麼」）', () => {
+  /**
+   * 🔴 尺要先自證③：`countConstruction` 對第二輪複驗線埋的三種繞法各餵一個已知樣本——
+   * 跨行、helper 包裝要被抓到；別名建構這個函式**本來就抓不到**（刻意驗證這件事，
+   * 不是漏測——別名要靠下一支自證測試裡的 import 來源比對抓）。
+   */
+  it('🔴 尺要先自證③：countConstruction 認得跨行與 helper 包裝，別名建構交給 import 比對', () => {
+    const multiline = "throw new\n  HTTPException(401, { message: 'MULTILINE_BYPASS_SECRET_db_password' });";
+    expect(countConstruction(multiline)).toBe(1);
+
+    const helper =
+      "function makeError(status, message) {\n" +
+      "  return new HTTPException(status, { message });\n" +
+      "}\n" +
+      "throw makeError(401, 'FACTORY_BYPASS_SECRET_db_password');";
+    expect(countConstruction(helper)).toBe(1);
+
+    const alias =
+      "import { HTTPException as VellumErr } from 'hono/http-exception';\n" +
+      "throw new VellumErr(401, { message: 'ALIAS_BYPASS_SECRET_db_password' });";
+    expect(countConstruction(alias)).toBe(0); // 別名建構：這支函式本來就抓不到
+    expect(countNeedle(alias, 'hono/http-exception')).toBe(1); // 別名要靠這裡抓
+  });
+
+  it('🔴 HTTPException 建構普查：目前沒有任何地方用已知寫法建構它（見上方檔頭「紅了要做什麼」與「盲區聲明」）', () => {
     const files = listTsFiles(SERVER_DIR);
-    let throwCount = 0;
+    let constructionCount = 0;
     let riskyImportCount = 0;
     for (const file of files) {
       const text = readFileSync(file, 'utf8');
-      throwCount += countNeedle(text, 'throw new HTTPException');
+      constructionCount += countConstruction(text);
       for (const needle of RISKY_IMPORTS) riskyImportCount += countNeedle(text, needle);
     }
-    expect(throwCount).toBe(0);
+    expect(constructionCount).toBe(0);
     expect(riskyImportCount).toBe(0);
+  });
+
+  it('🔴 hono/http-exception 的 import 來源普查：唯一准許的 import 者是 app.ts 自己（別名不影響這條）', () => {
+    const files = listTsFiles(SERVER_DIR);
+    const importers = files
+      .filter((f) => countNeedle(readFileSync(f, 'utf8'), 'hono/http-exception') > 0)
+      .map((f) => relative(process.cwd(), f));
+    expect(importers).toEqual(ALLOWED_HTTP_EXCEPTION_IMPORTERS);
   });
 });
