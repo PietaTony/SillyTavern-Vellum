@@ -36,12 +36,32 @@ export type BudgetOpts = {
   /** 預算上限。省略＝不裁。 */
   budget?: number;
   /**
-   * 怎麼算長度。🔴 **預設是「字元數」不是 token**——本專案還沒有 tokenizer，
-   * 拿 `chars/4` 之類的估算去當 token 是一把假的尺。要真的守 token 預算，
-   * 由呼叫端傳一個真的計數器進來。
+   * 怎麼算長度。🔴 **預設是 UTF-8 位元組數，不是 token、也不是字元數**
+   * （2026-08-31 換尺，見 `promptWorld.ts` `DEFAULT_WI_BUDGET` 的完整推導）：
+   *
+   * - 本專案還沒有 tokenizer，拿 `chars/4` 之類的估算去當 token 是一把假的尺，
+   *   這裡不假裝算出 token 數，`count` 量的就是位元組，不多不少。
+   * - 換成位元組而不是字元數，是因為**字元數對中文特別不準**：UTF-8 下英文字母
+   *   1 byte、中文字（BMP 內的 CJK）3 bytes，而多數 tokenizer 對中文的
+   *   token/字元比也遠高於英文（中文常接近或超過 1 token/字，英文約 0.25）
+   *   ⇒ 用字元數當尺，中文為主的內容會被嚴重低估用量。位元組數會隨語言
+   *   自動加權，雖然還是粗估，但方向對了。
+   * - 🔴 **沒有抄 ST `tokenizers.js` 的 `BYTES_PER_TOKEN = 3.35`**（`byteLength / 3.35`
+   *   換算成「估計 token 數」）：那個常數是 ST 針對**它自己**的內容分布（多半是
+   *   英文為主的 chat completion）校準出來的，我們的內容分布不一樣，抄一個
+   *   別人的魔術數字只是把「位元組數」偽裝成「token 數」，換來一種假精確，
+   *   不換來真準度。單位就留在「位元組」，不假裝是 token。
+   *   要真的守 token 預算，由呼叫端傳一個真的計數器進來。
    */
   count?: (text: string) => number;
 };
+
+/**
+ * `BudgetOpts.count` 的預設實作：UTF-8 位元組數（`Buffer.byteLength`，
+ * 跟 ST `tokenizers.js` `guesstimate()` 用的 `TextEncoder().encode(str).length`
+ * 算出來的數字相同，只是 Node 這邊用 `Buffer` 這個等價 API）。
+ */
+export const byteLength = (text: string): number => Buffer.byteLength(text, 'utf8');
 
 const empty = (): InjectionPlan => ({
   beforeChar: [],
@@ -71,7 +91,7 @@ function intoDepth(plan: InjectionPlan, e: WbEntry, content: string): void {
  * 這支只負責同層 `order` 排序與之後的事。
  */
 export function planInjection(activated: WbEntry[], opts: BudgetOpts = {}): InjectionPlan {
-  const count = opts.count ?? ((t: string) => t.length);
+  const count = opts.count ?? byteLength;
   const plan = empty();
   const sorted = [...activated].sort(byOrderDesc);
 
