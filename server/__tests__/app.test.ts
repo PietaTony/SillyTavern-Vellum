@@ -152,7 +152,22 @@ describe('全域 .onError', () => {
  * 不是窮舉式的安全保證。** 這把尺是機械字串／正則比對，天生有盲區——
  * 例如完全動態拼接的 import（`await import('hono/' + 'http-exception')`）、
  * 或用 `globalThis['HTTP' + 'Exception']` 之類的方式取得建構子，都不會被這裡的
- * 任何一條計數抓到。**綠燈的意思是「沒有人用目前已知的寫法寫出新來源」，
+ * 任何一條計數抓到。
+ *
+ * 🔴🔴 **更值得記住的一種盲區，完全不需要任何規避技巧**（複驗線 2026-09-01
+ * 第四輪實測）：**這把尺假設所有相關程式碼都住在 `server/` 底下**（`SERVER_DIR`
+ * 寫死指向這裡）。把會建構 `HTTPException` 的 helper 抽到 `server/` **以外**
+ * （例如 repo 根目錄一支共用的 error 工具檔），再從 `server/` 裡 import 進來用——
+ * 那一行 `new HTTPException` 與那一行 `import ... 'hono/http-exception'` 都不在
+ * `listTsFiles(SERVER_DIR)` 列出的清單裡，**不是比對失敗，是根本沒被看見**。
+ * 這跟前面三種繞法（換別名、跨行、包 helper）性質不同——那三種還算「用了某種
+ * 寫法規避掃描」，這一種只是「把檔案放到別的資料夾」，是很常見、無惡意的重構
+ * 動作。中控線 2026-09-01 裁定不擴大掃描根（會牽扯排除 `node_modules`／`src/`／
+ * `dist` 等一長串、反而拉高誤報前端 code 的風險，且 `AGENTS.md` 也沒有定義
+ * server 端共用程式碼可以合法住在 `server/` 以外），**這一層本來就交給 code
+ * review 兜底，不是這支普查宣稱涵蓋的範圍。**
+ *
+ * **綠燈的意思是「沒有人用目前已知的寫法、放在目前掃得到的位置，寫出新來源」，
  * 不是「這個 repo 裡不可能有新來源」。** 真正的底線仍然是 code review 看得懂
  * 「這個 `HTTPException` 的 `message` 最後會不會原樣回給使用者」這件事本身。
  *
