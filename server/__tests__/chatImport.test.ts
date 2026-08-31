@@ -164,3 +164,90 @@ describe('POST /api/chats/import', () => {
     expect(res.status).toBe(400);
   });
 });
+
+/**
+ * 🔴 這張票要補的洞（`INBOX/20260831-native-chats-no-export.md`）：原生建立、
+ * 從沒匯入過的對話（沒有 `chats/<id>.jsonl` 原文）也要匯得出去、匯得回來。
+ * 走 `writeJson` 直接造一段對話，刻意**不**建那份 `.jsonl`，模擬「從頭聊出來」。
+ */
+describe('原生對話的匯出／匯回（我們自己的格式）', () => {
+  const nativeChat = async (a: Awaited<ReturnType<typeof app>>) => {
+    await seed();
+    const { writeJson } = await import('../adapters/storage.ts');
+    const chat: Chat = {
+      id: 'native1',
+      characterId: CH.id,
+      characterName: CH.name,
+      createdAt: '2026-08-31T00:00:00.000Z',
+      messages: [
+        { id: 'm1', role: 'user', text: '嗨', at: '2026-08-31T00:00:00.000Z' },
+        {
+          id: 'm2',
+          role: 'model',
+          text: '第二個候選',
+          at: '2026-08-31T00:00:01.000Z',
+          swipes: ['第一個候選', '第二個候選'],
+          swipeIndex: 1,
+          usage: { inputTokens: 88 },
+        },
+        { id: 'm3', role: 'model', text: '腰斬', at: '2026-08-31T00:00:02.000Z', partial: true },
+      ],
+    };
+    await writeJson(`chats/${chat.id}.json`, chat);
+    void a;
+    return chat;
+  };
+
+  it('🔴 既有的 .jsonl 匯出路徑對原生對話仍然是 404（沒有原文可重建，不是被弄壞）', async () => {
+    const a = await app();
+    const chat = await nativeChat(a);
+    const res = await a.request(`/api/chats/${chat.id}/export.jsonl`);
+    expect(res.status).toBe(404);
+    expect((await res.json()) as { error: string }).toEqual({ error: '這段對話不是匯入的' });
+  });
+
+  it('🔴 挖空會紅：原生對話從新格式端點匯得出檔案', async () => {
+    const a = await app();
+    const chat = await nativeChat(a);
+    const res = await a.request(`/api/chats/${chat.id}/export.vellum.json`);
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as { version: number; characterName: string; messages: unknown[] };
+    expect(body.version).toBe(1);
+    expect(body.characterName).toBe('測試卡A');
+    expect(body.messages).toHaveLength(3);
+  });
+
+  it('🔴 round-trip：匯出再用 /import/vellum 匯回，訊息內容（含 swipes/swipeIndex/partial/usage）一致', async () => {
+    const a = await app();
+    const chat = await nativeChat(a);
+    const exported = await a.request(`/api/chats/${chat.id}/export.vellum.json`);
+    const text = await exported.text();
+
+    const imported = await a.request(`/api/chats/import/vellum?characterId=${CH.id}`, {
+      method: 'POST',
+      body: text,
+    });
+    expect(imported.status).toBe(201);
+    const body = (await imported.json()) as Chat;
+    expect(body.id).not.toBe(chat.id); // 新對話有自己的 id
+    expect(body.messages).toEqual(chat.messages); // 但訊息（含 id）逐項一致
+    expect(body.characterName).toBe('測試卡A');
+  });
+
+  it('版本不符或缺 characterId → 400／404，不是 500', async () => {
+    const a = await app();
+    await seed();
+    const noCid = await a.request('/api/chats/import/vellum', { method: 'POST', body: '{}' });
+    expect(noCid.status).toBe(400);
+    const noCh = await a.request('/api/chats/import/vellum?characterId=nope', {
+      method: 'POST',
+      body: '{}',
+    });
+    expect(noCh.status).toBe(404);
+    const badBody = await a.request(`/api/chats/import/vellum?characterId=${CH.id}`, {
+      method: 'POST',
+      body: '這不是 JSON',
+    });
+    expect(badBody.status).toBe(400);
+  });
+});

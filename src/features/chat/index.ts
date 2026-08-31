@@ -11,6 +11,7 @@ export {
   streamGenerate,
   swipeMessage,
 } from './api';
+export { downloadChatExport } from './exportChat';
 export { type ChatFailureInfo, failureOf } from './failureOf';
 export { byRecency, lastActivityAt, latestChatOf, previewOf, relativeTime } from './list';
 export { type Chat, type Message, parseSse, type StreamEvent, type Usage } from './model';
