@@ -80,7 +80,7 @@ describe('useChatStream 的用量讀數', () => {
       return Promise.resolve();
     });
     act(() => result.current.regenerate([msg('a')]));
-    await waitFor(() => expect(result.current.failure).toBe('壞了'));
+    await waitFor(() => expect(result.current.failureBanner?.message).toBe('壞了'));
     expect(result.current.generation.usage).toBeNull();
   });
 });
@@ -100,8 +100,8 @@ describe('useChatStream.retry（跨層票 B6）', () => {
     });
     const { result } = renderHook(() => useChatStream('c1', [msg('a')]));
     act(() => result.current.regenerate([msg('a')]));
-    await waitFor(() => expect(result.current.failure).toBe('上游限流了'));
-    expect(result.current.failureRetryable).toBe(true);
+    await waitFor(() => expect(result.current.failureBanner?.message).toBe('上游限流了'));
+    expect(result.current.failureBanner?.retryable).toBe(true);
   });
 
   it('🔴 按下 retry 真的再呼叫一次 streamGenerate（不是只清 failure）', async () => {
@@ -112,18 +112,18 @@ describe('useChatStream.retry（跨層票 B6）', () => {
     });
     const { result } = renderHook(() => useChatStream('c1', [msg('a')]));
     act(() => result.current.regenerate([msg('a')]));
-    await waitFor(() => expect(result.current.failureRetryable).toBe(true));
+    await waitFor(() => expect(result.current.failureBanner?.retryable).toBe(true));
 
     const callsBefore = vi.mocked(api.streamGenerate).mock.calls.length;
     vi.mocked(api.streamGenerate).mockImplementationOnce((_chatId, onEvent) => {
       onEvent(done({ id: 'retried', role: 'model', text: '重試後成功', at: '2026-08-31' }));
       return Promise.resolve();
     });
-    act(() => result.current.retry());
+    act(() => result.current.failureBanner?.onRetry());
 
     // 真的多打了一次——這是「重試」跟「只清橫幅」唯一分得出來的地方。
     expect(vi.mocked(api.streamGenerate).mock.calls.length).toBe(callsBefore + 1);
-    await waitFor(() => expect(result.current.failure).toBeNull());
+    await waitFor(() => expect(result.current.failureBanner).toBeNull());
     expect(result.current.messages.map((m) => m.id)).toContain('retried');
   });
 
@@ -135,7 +135,7 @@ describe('useChatStream.retry（跨層票 B6）', () => {
     });
     const { result } = renderHook(() => useChatStream('c1', [msg('a'), msg('b')]));
     act(() => result.current.regenerate([msg('x')])); // 失敗當下畫面上是 [x]，不是伺服器的 [a,b]
-    await waitFor(() => expect(result.current.failureRetryable).toBe(true));
+    await waitFor(() => expect(result.current.failureBanner?.retryable).toBe(true));
 
     let seenBase: Message[] = [];
     vi.mocked(api.streamGenerate).mockImplementationOnce((_chatId, onEvent) => {
@@ -143,8 +143,8 @@ describe('useChatStream.retry（跨層票 B6）', () => {
       onEvent(done({ id: 'y', role: 'model', text: 'y', at: '2026-08-31' }));
       return Promise.resolve();
     });
-    act(() => result.current.retry());
-    await waitFor(() => expect(result.current.failure).toBeNull());
+    act(() => result.current.failureBanner?.onRetry());
+    await waitFor(() => expect(result.current.failureBanner).toBeNull());
     expect(seenBase.map((m) => m.id)).toEqual(['x']);
   });
 });

@@ -42,7 +42,7 @@ export function useChatStream(
   // B4：這一輪用量（理由與「只留最近一輪」的判準見 `useGenerationUsage.ts`）。
   const { usage, clear: clearUsage, record: recordUsage } = useGenerationUsage();
   const abortRef = useRef<AbortController | null>(null);
-  const { failure, failureRetryable, setFailure } = useFailureRetry();
+  const { failureBanner, setFailure } = useFailureRetry(retry);
 
   const messages = local ?? fromServer ?? [];
 
@@ -121,7 +121,10 @@ export function useChatStream(
     setFailure(null);
     run(base);
   }
-  const retry = () => regenerate(messages); // 重送失敗當下的 local，真的重送，不只清橫幅（GAP-54）
+  // 重送失敗當下的 local，真的重送，不只清橫幅（GAP-54）
+  function retry() {
+    regenerate(messages);
+  }
   /** 丟掉樂觀暫存，改讀伺服器那份。**切候選成功之後一定要叫它**（見檔頭 B1）。 */
   const reset = () => setLocal(null);
 
@@ -137,12 +140,9 @@ export function useChatStream(
     messages,
     streaming,
     generation: { thinking, usage },
-    failure,
-    failureRetryable,
-    setFailure,
+    failureBanner,
     send,
     regenerate,
-    retry,
     reset,
     stop,
   };
