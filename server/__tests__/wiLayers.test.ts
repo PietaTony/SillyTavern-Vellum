@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { CHAR_STRATEGY, orderLayers } from '../lib/wiLayers.ts';
+import { CHAR_STRATEGY, DEFAULT_WI_STRATEGY, orderLayers } from '../lib/wiLayers.ts';
 import type { WbEntry } from '../lib/worldbook.ts';
 
 const e = (uid: string, order: number): WbEntry =>
@@ -44,5 +44,15 @@ describe('四層層序', () => {
     const rows = [e('a', 1), e('b', 9)];
     orderLayers({ global: rows });
     expect(ids(rows)).toEqual(['a', 'b']);
+  });
+
+  /**
+   * 🔴 B8：`DEFAULT_WI_STRATEGY` 是 `promptWorld.ts` 唯一的生產呼叫端會傳的值——
+   * 釘住它等於 ST 的開箱預設（`world_info_character_strategy` 預設
+   * `character_first`，`world-info.js:80`），不是任意值。改掉這裡要通過
+   * review，不能悄悄變回別的策略。
+   */
+  it('🔴 DEFAULT_WI_STRATEGY 照 ST 的開箱預設是 characterFirst', () => {
+    expect(DEFAULT_WI_STRATEGY).toBe(CHAR_STRATEGY.characterFirst);
   });
 });
