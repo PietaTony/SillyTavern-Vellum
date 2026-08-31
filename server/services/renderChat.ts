@@ -75,6 +75,14 @@ export function renderMessages(
  * 🔴 **async**：要讀 `settings.json` 才知道使用者自建了哪些規則。唯一呼叫端
  * （`routes/chats.ts` 的 `GET /:id`）已經是 `async` handler，多一個 `await` 不改變它是否寫檔——
  * `loadSettings()` 只讀不寫（`adapters/storage.ts` 的 `readJson`），GET 仍然不動 `settings.json`。
+ *
+ * ⚠️ **兩個來源存進去時都只是 `unknown[]`，內容沒有人驗過**——這裡的 `as OutputRule[]`
+ * 是收斂型別，不是驗證：卡片那份在 `character.ts` 只用 `z.array(z.unknown())`（zod 不檢查
+ * 裡面每一條的形狀）；全域這份的 `Settings`（`settingsModel.ts`）根本沒有 zod schema，
+ * `loadSettings()` 只是 `readJson` 加一個 TS cast。下游 `applyRules`／`regexFrom` 對缺欄位、
+ * 錯型別的容忍度已經寫在 `outputRules.ts` 自己的檔頭（看不懂的正則回 `null`、不炸掉），
+ * 這裡才敢就這樣把陣列串起來——**看到 `as OutputRule[]` 不是偷懶，是這兩個來源本來就沒有
+ * 更強的型別可以要。**
  */
 export async function rulesOf(c: { outputRules?: unknown[] | undefined } | null): Promise<OutputRule[]> {
   const card = Array.isArray(c?.outputRules) ? (c.outputRules as OutputRule[]) : [];
