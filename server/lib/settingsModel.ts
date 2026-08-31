@@ -137,8 +137,8 @@ export type Settings = {
   companionEnabled?: boolean | undefined;
   /** D1（Peter 2026-08-31 跨層票）：使用者自建、不綁角色的輸出規則（`OutputRule`＋`id`）——形狀／合併順序/CRUD 見 `renderChat.ts`／`companionSettings.ts`。舊檔沒有此鍵 ⇒ 空陣列，行為不變。**此檔已頂 150 行上限，其餘說明搬去那兩支，不在這裡重複**。 */
   globalOutputRules?: unknown[] | undefined;
+  /** A2/GAP-37（跨層票 2026-08-31，Peter 已簽）：使用者可調的歷史位元組上限——單位／預設值／超過會怎樣／跟世界書預算的關係，唯一正本在 `historyTruncation.ts`，這裡不重複。舊檔沒有此鍵 ⇒ 沿用 `DEFAULT_HISTORY_BYTE_BUDGET`，行為不變。 */ historyByteBudget?: number | undefined;
 };
-
 /**
  * 圖片縮放模式，**照抄 ST 的五個**（`public/css/backgrounds.css:2-38`）。
  * 🔴 `classic` 與 `cover` **不一樣**，不是重複選項：

@@ -1,6 +1,14 @@
 import { Hono } from 'hono';
 import { z } from 'zod';
-import { getCompanionEnabled, setCompanionEnabled, loadSettings, saveSettings } from '../services/settings.ts';
+import {
+  getCompanionEnabled,
+  setCompanionEnabled,
+  getHistoryByteBudget,
+  setHistoryByteBudget,
+  loadSettings,
+  saveSettings,
+} from '../services/settings.ts';
+import { MAX_HISTORY_BYTE_BUDGET, MIN_HISTORY_BYTE_BUDGET } from '../lib/historyTruncation.ts';
 import { regexFrom } from '../lib/outputRules.ts';
 import { safeId } from '../lib/ids.ts';
 
@@ -22,6 +30,11 @@ import { safeId } from '../lib/ids.ts';
  * `ChatMenu*` 與 `features/chat/**`，沒有 `server/app.ts`，也沒有授權新增 `server/routes/`
  * 的檔名（`routes/` 跟 `lib/`／`services/` 一樣是逐檔列名，不能自己判斷加檔）。這支已經掛在
  * `/api/settings`、已經是我名下的檔案 —— 加在同一條 Hono 鏈上，`app.ts` 完全不用動。
+ *
+ * 🔴 A2/GAP-37（跨層票 2026-08-31，Peter 已簽）：對話歷史上限（`/history-budget`）
+ * 也掛在這裡，同一個理由——那張票的 `Locks` 只給了 `historyTruncation.ts`／
+ * `buildTurn.ts`／`settingsModel.ts`／`services/settings.ts`／設定頁畫面檔，沒有
+ * `server/app.ts`，這支已經是 `/api/settings` 前綴、已經是我名下的檔案。
  */
 const RuleBody = z.object({
   name: z.string().min(1).max(120),
@@ -49,6 +62,21 @@ export const companionSettings = new Hono()
     if (!body.success) return c.json({ error: '參數不合法' }, 400);
     await setCompanionEnabled(body.data.enabled);
     return c.json({ enabled: body.data.enabled });
+  })
+
+  .get('/history-budget', async (c) => c.json(await getHistoryByteBudget()))
+  .patch('/history-budget', async (c) => {
+    const body = z
+      .object({ bytes: z.number().int().min(MIN_HISTORY_BYTE_BUDGET).max(MAX_HISTORY_BYTE_BUDGET) })
+      .safeParse(await c.req.json());
+    if (!body.success) {
+      return c.json(
+        { error: `位元組數要是 ${MIN_HISTORY_BYTE_BUDGET}～${MAX_HISTORY_BYTE_BUDGET} 之間的整數` },
+        400,
+      );
+    }
+    await setHistoryByteBudget(body.data.bytes);
+    return c.json(await getHistoryByteBudget());
   })
 
   .get('/output-rules', async (c) => c.json({ items: (await loadSettings()).globalOutputRules ?? [] }))
