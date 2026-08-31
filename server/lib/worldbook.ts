@@ -116,7 +116,15 @@ export function fromCharacterBook(book: unknown): WbEntry[] {
   return rows.map((raw, i) => {
     const e = bag(raw);
     const x = bag(e['extensions']);
-    const pos = typeof e['position'] === 'string' ? V3_POSITION[e['position']] : undefined;
+    // 🔴 GAP-52：`extensions.position` 才是真值，字串欄位只是 ST 匯出時寫的 fallback
+    // （ST 自己只會寫 before_char／after_char，撐不住 at_depth 等其他四種）。
+    // ST 自己匯入時的判準（`world-info.js` `convertCharacterBook`）：
+    //   `entry.extensions?.position ?? (entry.position === 'before_char' ? before : after)`
+    // 也就是 **extensions 贏，字串只在 extensions 缺席時墊底**。
+    // 曾經寫反成「字串贏」，會把所有 ST 匯出卡的 at_depth 壓平成 afterChar。
+    const extPos = typeof x['position'] === 'number' && Number.isFinite(x['position']) ? x['position'] : undefined;
+    const strPos = typeof e['position'] === 'string' ? V3_POSITION[e['position']] : undefined;
+    const pos = extPos ?? strPos;
     return {
       uid: String(e['id'] ?? i),
       keys: list(e['keys']),
@@ -129,7 +137,7 @@ export function fromCharacterBook(book: unknown): WbEntry[] {
       selective: bool(e['selective'], false),
       selectiveLogic: num(x['selectiveLogic'], 0),
       order: num(e['insertion_order'], 100),
-      position: pos ?? num(x['position'], WI_POSITION.beforeChar),
+      position: pos ?? WI_POSITION.beforeChar,
       depth: num(x['depth'], 4),
       role: typeof x['role'] === 'number' ? x['role'] : null,
       caseSensitive: bool(x['case_sensitive'], false),

@@ -23,6 +23,22 @@ describe('世界書正規化', () => {
     expect(ext.map((e) => e.position)).toEqual([WI_POSITION.afterChar, WI_POSITION.atDepth]);
   });
 
+  it('🔴 GAP-52：extensions.position 才是真值，字串欄位只是 ST 自己的 fallback —— extensions 存在時要贏過字串', () => {
+    // ST 匯出時字串欄位只會寫 before_char／after_char 兩種，真正的 at_depth 藏在 extensions.position。
+    // ST 自己匯入（world-info.js convertCharacterBook）用 `entry.extensions?.position ?? (字串 fallback)`。
+    const [e] = fromCharacterBook({
+      entries: [{ position: 'before_char', extensions: { position: WI_POSITION.atDepth } }],
+    });
+    expect(e!.position).toBe(WI_POSITION.atDepth);
+  });
+
+  it('沒有 extensions.position 時仍要讀字串欄位（fallback 沒被誤刪）', () => {
+    const [e] = fromCharacterBook({ entries: [{ position: 'after_char' }] });
+    expect(e!.position).toBe(WI_POSITION.afterChar);
+    const [e2] = fromCharacterBook({ entries: [{ position: 'after_char', extensions: {} }] });
+    expect(e2!.position).toBe(WI_POSITION.afterChar);
+  });
+
   it('🔴 after 是 1、atDepth 是 4（規格曾把這兩個寫反）', () => {
     expect(WI_POSITION.afterChar).toBe(1);
     expect(WI_POSITION.atDepth).toBe(4);
