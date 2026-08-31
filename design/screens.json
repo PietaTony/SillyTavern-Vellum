@@ -1,5 +1,5 @@
 {
-  "_readme": "設計畫面 ↔ 路由的對照正本。畫面正本在 AI Agent 家的 plans/ui/prototype/proto/screens/ 與 docs/design/v1/SPEC.md。gate:screens 只檢查 active 里程碑。",
+  "_readme": "設計畫面 ↔ 路由的對照正本。畫面正本在 AI Agent 家的 plans/ui/prototype/proto/screens/ 與 docs/design/v1/SPEC.md。gate:screens 只檢查 active 里程碑。🔴 GAP-124：每張畫面的 id 應以極淡色差文字嵌在畫面上，供 AI 從高畫質截圖辨識（詳見 _gaps.124）。",
   "active": "M2",
   "milestones": {
     "M2": {
@@ -128,5 +128,27 @@
     "Import-And-Archive--3 刻意沒有返回鍵：進行中狀態，已有『取消』"
   ],
   "_note_deferred": "M2b-import 尚未做：Peter 2026-08-25 指定先做 Gemini 主線到「聊天室看到 AI 說第一句話」。active 只指向 M2。",
-  "_back_source": "返回落點抄自設計正本 plans/ui/prototype/back.json。back 為 null ＝ 刻意沒有返回（GAP-25 的三個真實入口：好友列表／首次啟動第一步／匯入中）。🔴 chat/$chatId 的正確落點是好友列表（Friends-And-Cards--1），M3 才有，現在暫代成 add-friend。"
+  "_back_source": "返回落點抄自設計正本 plans/ui/prototype/back.json。back 為 null ＝ 刻意沒有返回（GAP-25 的三個真實入口：好友列表／首次啟動第一步／匯入中）。🔴 chat/$chatId 的正確落點是好友列表（Friends-And-Cards--1），M3 才有，現在暫代成 add-friend。",
+  "_gaps": {
+    "124": {
+      "title": "畫面色差隱藏 ID —— 截圖給 AI 辨識設計畫面",
+      "status": "deferred",
+      "raised": "2026-08-28",
+      "raisedBy": "Peter",
+      "backlog": "plans/90-BACKLOG.md（Agent 家正本）；程式庫內計劃：design/GAP-124-plan.md",
+      "symptom": "Peter 丟一張實機截圖給 AI，AI 無法可靠回答「現在是 design/screens.json 的哪一張畫面」（例如 First-Run--3b 金鑰頁·測試失敗）。id 只存在於本檔與程式註解，DOM 裡沒有。",
+      "vision": "像點讀筆：在畫面固定角落（待訂）以極淡、與背景幾乎同色但 vision model 讀得到的文字，嵌入 milestones.*.screens[].id。人眼幾乎看不出，1080p+ 截圖上 AI 視覺能穩定讀出。",
+      "notThis": "不是 DOM data-* 屬性；不是開發者工具才看得到的 debug overlay；不是把 id 寫在 title 或 aria-label 裡冒充無障礙。",
+      "canonicalId": "本檔 milestones.*.screens[].id 是唯一正本。同一 route 多個視覺狀態（如 First-Run--3／3a／3b／3c）各自有不同的 id，水印必須跟著「目前呈現的狀態」變，不能只標 route。",
+      "doneWhen": [
+        "active 里程碑內每個可達到的 screen 狀態，實機畫面上都渲染對應 id 水印",
+        "1080p 以上截圖上，vision model（或等效 OCR）連續 10 次測試 ≥9 次讀出正確 id",
+        "深／淺色主題、backdrop 半透明、有背景圖三種情況下仍可讀",
+        "新增 gate（或擴 gate:screens）驗「有 id 的畫面必須渲染水印」，含 --selftest",
+        "水印不影響 gate:no-hex（用 theme token / alpha，不硬寫色碼）"
+      ],
+      "owner": "X1 開 ticket（Screen 外殼／theme token／shared 元件）；gate 歸 P1（scripts/gate-screens-vs-routes.ts 或新 gate）",
+      "seams": "src/shared/ui/Screen.tsx 是 X1；各 route 決定「現在是哪個 -- 變體」仍歸各 feature owner。實作時需要 cross-layer ticket。"
+    }
+  }
 }
