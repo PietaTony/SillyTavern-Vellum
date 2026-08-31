@@ -6,16 +6,20 @@ import { createFileRoute, useNavigate } from '@tanstack/react-router';
 import { useState } from 'react';
 import {
   applyLine,
+  downloadWorld,
   EntryList,
   fetchLines,
   fetchWorld,
-  GLOBAL_OWNER,
+  fetchWorlds,
   groupByPosition,
+  IMPORTED_OWNER,
   setEntryEnabled,
   type WiLine,
   WorldBookHead,
+  worldOwnerNote,
 } from '@/features/worldbook';
 import { Screen } from '@/shared/ui/Screen';
+import { pushToast } from '@/shared/ui/toastStore';
 
 export const Route = createFileRoute('/worlds/$worldId/')({ component: WorldPage });
 
@@ -66,15 +70,31 @@ function WorldPage() {
 
   const entries = q.data?.entries ?? [];
   const enabled = entries.filter((e) => e.enabled).length;
+  const isImported = q.data?.characterId === IMPORTED_OWNER;
   /**
-   * 🔴 **全域書與好友那一份副本，說明文字完全相反 —— 不可以共用一句。**
-   * 這一頁原本寫死「改動只影響這一位好友」；套到全域書上就是一句謊
-   * （它影響的是**所有**對話）。判準用書檔自己的 `characterId`，不必多打一次 API。
+   * 🔴 **匯入的書「有沒有生效」不能只看 `characterId`**——綁定關係存在 persona
+   * 那邊，不是這本書自己（`worldOwnerNote` 檔頭）。只在需要時才多打這支 API，
+   * 好友／全域書不必為了這句話多一次請求。
    */
-  const isGlobal = q.data?.characterId === GLOBAL_OWNER;
+  const worldsQ = useQuery({ queryKey: ['worlds'], queryFn: fetchWorlds, enabled: isImported });
+  const boundCount = worldsQ.data?.find((w) => w.id === worldId)?.usedBy.length ?? 0;
+  const owner = worldOwnerNote(q.data?.characterId ?? '', boundCount);
+
+  const download = useMutation({
+    mutationFn: () => downloadWorld(worldId),
+    onError: (e: Error) => pushToast({ severity: 'warning', text: e.message }),
+  });
 
   return (
-    <Screen title={isGlobal ? '全域世界書' : '世界書'} onBack={() => void nav({ to: '/worlds' })}>
+    <Screen
+      title={owner.title}
+      onBack={() => void nav({ to: '/worlds' })}
+      action={
+        <Button size="small" loading={download.isPending} onClick={() => download.mutate()}>
+          匯出
+        </Button>
+      }
+    >
       {q.isPending ? <CircularProgress size={24} /> : null}
       {q.isError ? (
         <Alert
@@ -103,15 +123,9 @@ function WorldPage() {
           <WorldBookHead
             total={entries.length}
             enabled={enabled}
-            /*
-             * 🔴 **說清楚改的是誰的**。不說的話，使用者合理會以為自己在改一份共用設定
-             * ——而那正是 ST 讓人踩到的陷阱（在一段對話關掉，全部對話一起關）。
-             */
-            note={
-              isGlobal
-                ? '🔴 這是全域世界書 —— 開著的條目會套用到你「所有」的對話，不是只有某一位好友。'
-                : '改動只影響這一位好友，不會動到卡片本身，也不會影響用同一張卡的其他好友。'
-            }
+            // 🔴 說清楚改的是誰的。不說的話，使用者合理會以為自己在改一份共用設定
+            // ——而那正是 ST 讓人踩到的陷阱（在一段對話關掉，全部對話一起關）。
+            note={owner.note}
             lines={linesQ.data?.lines ?? []}
             busyKey={busyKey}
             onApply={(l) => apply.mutate(l)}

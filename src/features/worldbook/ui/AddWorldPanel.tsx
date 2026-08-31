@@ -6,6 +6,7 @@ import Paper from '@mui/material/Paper';
 import Stack from '@mui/material/Stack';
 import Typography from '@mui/material/Typography';
 import type { WorldPresetInfo } from '../api';
+import { ImportWorldButton } from './ImportWorldButton';
 
 /**
  * 「新增一本」整塊 —— 內建樣板清單 ＋ 建空白的。
@@ -30,12 +31,17 @@ export function AddWorldPanel({
   onRetry,
   onAdd,
   pendingKey,
+  onImport,
+  importBusy = false,
 }: {
   presets: WorldPresetInfo[];
   failed: boolean;
   onRetry: () => void;
   onAdd: (key: string | undefined) => void;
   pendingKey: string | null;
+  /** 從 ST 匯出的世界書檔匯入成一本全域書。不帶就不顯示這個入口。 */
+  onImport?: (text: string) => void;
+  importBusy?: boolean;
 }) {
   const busy = pendingKey !== null;
   return (
@@ -104,6 +110,20 @@ export function AddWorldPanel({
       >
         建一本空白的
       </Button>
+
+      {onImport ? (
+        <Paper variant="outlined" sx={{ p: 1.5 }}>
+          {/*
+           * 🔴 **這裡的條目照檔案原樣，不是「先關著」** —— 跟上面兩顆按鈕不一樣，
+           * 要在按鈕旁邊講清楚，不要等按下去才用 toast 說（跟樣板／空白同一個判準）。
+           */}
+          <ImportWorldButton
+            busy={importBusy}
+            onFile={onImport}
+            helperText="從 ST 匯出的世界書檔（.json）匯入一本全域書 —— 條目狀態照檔案原樣，不會先關著"
+          />
+        </Paper>
+      ) : null}
     </Stack>
   );
 }
