@@ -424,6 +424,48 @@ jobs:
   #    同一組失敗，留言；找不到（新的失敗模式，或上一張已經被關掉）才開新的。
   #    不用「同標籤的第一張」這種粗略去重：不同 job／step 失敗是不同的事，
   #    各自留痕才查得到，也才關得掉。
+  #    🔴 **這個 job 自己失敗，就回到原點**（2026-08-31 驗證時真的發生過一次，
+  #    run 33399546267：這個 repo 當時 Issues 功能是關的，`gh issue create` 直接
+  #    `the repository has disabled issues`，`notify-on-failure` 自己 `conclusion:
+  #    failure`）。這裡**沒有加第二層監控去看這個 job 有沒有跑成功**——加了只是
+  #    把「誰通知失敗沒被通知到」這個問題往後推一層，遞迴不會有終點。目前的立場
+  #    是接受這個殘留風險：這個 job 的失敗仍然會在 Actions 頁面本身留下紅燈，
+  #    只是不會像其他失敗一樣多一張 issue。判斷者：中控線驗收（2026-09-01），
+  #    Peter 認可維持現狀。
+  #
+  #    🔴 **去重簽章目前會被分支名污染，範圍很窄，記錄不修**：`guard` 是整支
+  #    workflow 裡唯一沒有寫 `name:` 的 step，GitHub 用 `run:` 腳本的第一行自動
+  #    命名，而那行腳本內嵌 `${{ github.ref }}`——腳本渲染後分支名就刻進了自動
+  #    產生的 step 名稱裡（實測：從 `p1/cd-failure-issue` 誤觸得到的 step 名稱是
+  #    `Run if [ "refs/heads/p1/cd-failure-issue" != "refs/heads/main" ]; then`）。
+  #    這個名稱會進到下面的「job → step」簽章，所以**不同分支誤觸 `workflow_
+  #    dispatch` 導致的 guard 失敗，彼此的去重簽章不同，不會互相合併**。
+  #    影響範圍僅止於此：`cd.yml` 其餘 job 的每個 `run:` 步驟都寫了固定字串的
+  #    `name:`，不受這個問題影響；而 `cd.yml` 真正的觸發路徑是 `push: [main]`，
+  #    那條路上 `github.ref` 恆為 `refs/heads/main`，guard 在正常路徑上不會因為
+  #    分支不同而產生不同簽章。不修的理由：`workflow_dispatch` 從非 main 分支
+  #    誤觸本來就是操作者自己按下去的，人已經在 Actions 頁面上，不靠 issue 才
+  #    看得到；真正需要去重的是無人在場的 push 路徑，那條不受影響。
+  #
+  #    🔴 **「成功的 CD 不會開 issue」這件事，沒有一次真正全綠的 `cd.yml` run
+  #    可以佐證，這裡誠實記下卡在哪，不要重新去踩**：
+  #    ① 想過用一支獨立的最小合成 workflow（只有 `if: failure()` 這個機制本身，
+  #       不牽動 `cd.yml` 的其他 job）零成本測，但 GitHub 的規則是**任何 workflow
+  #       檔的 `workflow_dispatch` 觸發，第一次啟用一定要先出現在 default branch
+  #       上**，新檔案只存在於功能分支時 `POST .../actions/workflows/<file>/
+  #       dispatches` 一律 404（`workflow <file> not found on the default branch`）
+  #       ——2026-08-31／09-01 兩次分別用檔名與 commit sha 當 `ref` 都得到同一個
+  #       404，`gh api repos/.../actions/workflows` 清單裡也從未出現過那支檔案，
+  #       `gh api "repos/.../actions/runs?branch=..."` 對那個分支也查不到任何一次
+  #       它的 run——不是「沒去按」，是這條路在功能分支上技術上按不到。
+  #    ② 讓 `cd.yml` 本身真的跑到全綠，會一路跑進 `release` job：那一步用正式
+  #       簽章憑證與 `GITHUB_TOKEN` 真的對外開一個 tag／GitHub Release。為了測
+  #       「不開 issue」而真的發一個測試版本，代價與風險都不成比例，判斷不做。
+  #    ⇒ 這條目前只有間接證據：`if: failure()` 是 GitHub 官方文件記載的既定
+  #      語意；本檔三次真實觸發的失敗 run 裡，所有非 `guard` 的下游 job 都停在
+  #      `skipped`（不是 `failure`），沒有一個誤觸發 `notify-on-failure` 的邏輯去
+  #      開 issue。真正「全綠、notify 被跳過」的第一手證據，要等這支 job 隨著一次
+  #      正常的 `staging → main` 發版一起跑過一次全綠的 `cd.yml` 才會出現。
   notify-on-failure:
     needs: [guard, version, gates, windows-smoke, windows-app, mac-app, release]
     if: failure()
