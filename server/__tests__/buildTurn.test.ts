@@ -30,10 +30,10 @@ afterEach(() => {
 
 async function fresh() {
   vi.resetModules();
-  const { buildTurn } = await import('../services/buildTurn.ts');
+  const { buildTurn, truncateHistory, HISTORY_BYTE_BUDGET } = await import('../services/buildTurn.ts');
   const { renderMessages, rulesOf } = await import('../services/renderChat.ts');
   const { writeJson } = await import('../adapters/storage.ts');
-  return { buildTurn, renderMessages, rulesOf, writeJson };
+  return { buildTurn, truncateHistory, HISTORY_BYTE_BUDGET, renderMessages, rulesOf, writeJson };
 }
 
 const baseChat = (messages: Chat['messages']): Chat => ({
@@ -129,5 +129,119 @@ describe('buildTurn：target:prompt／both 真的套進送給模型的文字', (
     const rules = await rulesOf(null);
     const displayed = renderMessages(chat.messages, rules, { char: '角色', user: '你' });
     expect(displayed.map((m) => m.text)).toEqual(turn.messages.map((m) => m.text));
+  });
+});
+
+/**
+ * A2（GAP-37）：對話歷史沒有截斷，會長到超出模型 context window、供應商回 400、
+ * **永久卡死**。見 `buildTurn.ts` 的 `HISTORY_BYTE_BUDGET`／`truncateHistory` 檔頭。
+ *
+ * 🔴 斷言一律用具體數字（裁掉幾則、留下哪幾則的 id／text），不是「有裁」或
+ * 「不是 0」——只驗「非某值」的斷言，換成另一個錯的數字也會過。
+ */
+describe('truncateHistory：純函式，具體數字', () => {
+  it('超出預算就整段從最舊的開始丟，留下連續最新一段', async () => {
+    const { truncateHistory, HISTORY_BYTE_BUDGET } = await fresh();
+    expect(HISTORY_BYTE_BUDGET).toBe(12_000);
+    const g = { id: 'g0', text: 'Hi!' }; // 3 bytes，開場白
+    const big = (id: string) => ({ id, text: 'a'.repeat(3000) }); // 3000 bytes／則
+    const messages = [g, big('m1'), big('m2'), big('m3'), big('m4'), big('m5')];
+    // 3 + 3000*3 = 9003 ≤ 12000 ≤ 12003 = 3 + 3000*4 —— m3/m4/m5 留得下，m2 放不下。
+    const { kept, droppedCount } = truncateHistory(messages, HISTORY_BYTE_BUDGET);
+    expect(droppedCount).toBe(2);
+    expect(kept.map((m) => m.id)).toEqual(['g0', 'm3', 'm4', 'm5']);
+  });
+
+  it('第 0 則（開場白）永遠留著，即使單獨一則就已經超出預算', async () => {
+    const { truncateHistory, HISTORY_BYTE_BUDGET } = await fresh();
+    const messages = [
+      { id: 'g0', text: 'x'.repeat(20_000) }, // 單獨就超出 12000
+      { id: 'm1', text: 'a'.repeat(100) },
+      { id: 'm2', text: 'b'.repeat(100) },
+    ];
+    const { kept, droppedCount } = truncateHistory(messages, HISTORY_BYTE_BUDGET);
+    expect(droppedCount).toBe(2);
+    expect(kept.map((m) => m.id)).toEqual(['g0']);
+  });
+
+  it('沒超過預算就完全不動——這是尺沒壞的證明，跟「超長會被裁」同等重要', async () => {
+    const { truncateHistory, HISTORY_BYTE_BUDGET } = await fresh();
+    const messages = [
+      { id: 'g0', text: '開場白' },
+      { id: 'm1', text: '第一句' },
+      { id: 'm2', text: '第二句' },
+    ];
+    const { kept, droppedCount } = truncateHistory(messages, HISTORY_BYTE_BUDGET);
+    expect(droppedCount).toBe(0);
+    expect(kept).toBe(messages); // 同一個參考，連新陣列都沒配置
+  });
+});
+
+describe('buildTurn：A2 歷史截斷真的接進送給模型的訊息（不是只有純函式裁得動）', () => {
+  it('對話超出 12000 bytes：turn.historyDropped 是具體數字，被裁掉的舊訊息不在 turn.messages 裡', async () => {
+    const { buildTurn } = await fresh();
+    const big = (id: string) => ({ id, role: 'model' as const, text: 'a'.repeat(3000), at: 'now' });
+    const chat = baseChat([
+      { id: 'g0', role: 'model', text: 'Hi!', at: 'now' },
+      big('m1'),
+      big('m2'),
+      big('m3'),
+      big('m4'),
+      big('m5'),
+    ]);
+    const turn = await buildTurn(chat);
+    expect(turn.historyDropped).toBe(2);
+    // 留下開場白 ＋ 連續最新三則（3000 bytes 的內容原樣送出，沒被規則或巨集動過）。
+    expect(turn.messages.map((m) => m.text)).toEqual(['Hi!', 'a'.repeat(3000), 'a'.repeat(3000), 'a'.repeat(3000)]);
+    // 存檔的原文完全不受影響——裁掉的只是「送給模型的這一份」。
+    expect(chat.messages).toHaveLength(6);
+  });
+
+  it('被裁掉不是靜默的：至少要有一行 console.warn，帶著對話 id 與裁掉的則數', async () => {
+    const { buildTurn } = await fresh();
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    const big = (id: string) => ({ id, role: 'model' as const, text: 'a'.repeat(3000), at: 'now' });
+    const chat = baseChat([{ id: 'g0', role: 'model', text: 'Hi!', at: 'now' }, big('m1'), big('m2'), big('m3'), big('m4'), big('m5')]);
+    await buildTurn(chat);
+    expect(warn).toHaveBeenCalledTimes(1);
+    const [line] = warn.mock.calls[0]!;
+    expect(String(line)).toContain('c1');
+    expect(String(line)).toContain('2');
+    warn.mockRestore();
+  });
+
+  it('第一則開場白永遠不被裁——裁掉會讓模型連「這是誰、什麼情境」都接不住', async () => {
+    const { buildTurn } = await fresh();
+    const big = (id: string) => ({ id, role: 'model' as const, text: 'a'.repeat(3000), at: 'now' });
+    const chat = baseChat([
+      { id: 'g0', role: 'model', text: '【開場白】只有這裡才知道背景設定', at: 'now' },
+      big('m1'),
+      big('m2'),
+      big('m3'),
+      big('m4'),
+      big('m5'),
+    ]);
+    const turn = await buildTurn(chat);
+    expect(turn.messages[0]?.text).toBe('【開場白】只有這裡才知道背景設定');
+  });
+
+  it('system prompt／角色描述不經過這支函式，裁歷史裁不到它們', async () => {
+    const { buildTurn } = await fresh();
+    const big = (id: string) => ({ id, role: 'model' as const, text: 'a'.repeat(3000), at: 'now' });
+    const chat = baseChat([{ id: 'g0', role: 'model', text: 'Hi!', at: 'now' }, big('m1'), big('m2'), big('m3'), big('m4'), big('m5')]);
+    const turn = await buildTurn(chat);
+    expect(turn.system).toContain('角色'); // baseChat 的 characterName
+  });
+
+  it('正常長度對話完全不受影響——尺沒壞的證明，跟「超長會被裁」同等重要', async () => {
+    const { buildTurn } = await fresh();
+    const chat = baseChat([
+      { id: 'g0', role: 'model', text: '開場白', at: 'now' },
+      { id: 'm1', role: 'user', text: '第一句', at: 'now' },
+      { id: 'm2', role: 'model', text: '第二句', at: 'now' },
+    ]);
+    const turn = await buildTurn(chat);
+    expect(turn.historyDropped).toBe(0);
+    expect(turn.messages.map((m) => m.text)).toEqual(['開場白', '第一句', '第二句']);
   });
 });
