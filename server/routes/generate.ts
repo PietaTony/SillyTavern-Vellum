@@ -76,7 +76,7 @@ export const generate = new Hono().post('/', async (c) => {
   );
   if (!upstream.ok || !upstream.body) {
     const raw = await upstream.text();
-    return c.json({ error: redact(raw, [key]).slice(0, 500), status: upstream.status }, 502);
+    return c.json({ retryable: upstream.status === 429 || upstream.status >= 500, status: upstream.status, error: redact(raw, [key]).slice(0, 500) }, 502);
   }
 
   const stream = new ReadableStream<Uint8Array>({

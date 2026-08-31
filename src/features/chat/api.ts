@@ -1,5 +1,6 @@
 import { del, get, patch, post } from '@/shared/lib/http';
 import type { VarSchema } from '@/shared/types/varSchema';
+import { failureOf } from './failureOf';
 import { type Chat, type Message, parseSse, type StreamEvent } from './model';
 
 /**
@@ -126,7 +127,10 @@ export async function streamGenerate(
   });
   if (!res.ok || !res.body) {
     const t = await res.text();
-    onEvent({ type: 'error', message: t.slice(0, 300) || `HTTP ${res.status}` });
+    const message = t.slice(0, 300) || `HTTP ${res.status}`;
+    // 🔴 retryable（跨層票 B6）：這條路收的是整包 JSON（`error`／`status`／`retryable`），
+    // 重用 `failureOf` 一起解——同一段原文，不要在這裡再猜一次它的形狀。
+    onEvent({ type: 'error', message, retryable: failureOf(message).retryable });
     return;
   }
   const reader = res.body.getReader();

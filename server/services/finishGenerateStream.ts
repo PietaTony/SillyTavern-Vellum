@@ -53,7 +53,9 @@ export function applyProviderEvents(
       if (ev.finishReason) state.finish = ev.finishReason;
       if (ev.usage) state.usage = { ...state.usage, ...ev.usage };
     } else {
-      ctrl.enqueue(enc.encode(sse('error', { message: redact(ev.message, [key]) })));
+      // 🔴 retryable 一路帶著走（跨層票 B6）：這是四支適配器 `parse()` 真的判出來的值，
+      // 不是這裡再猜一次——分類只住在後端這一份（同一個判準見 `lib/providerError.ts` 檔頭）。
+      ctrl.enqueue(enc.encode(sse('error', { message: redact(ev.message, [key]), retryable: ev.retryable })));
     }
   }
 }
@@ -81,7 +83,10 @@ export async function finishGenerateStream(opts: {
   } else if (!controller.signal.aborted) {
     const detail = error instanceof Error ? redact(error.message, [key]) : '串流中斷';
     try {
-      ctrl.enqueue(enc.encode(sse('error', { message: detail })));
+      // 🔴 這裡的 `retryable: true` 不是分類——已經開始串流（HTTP 已經 200）又中途炸掉
+      // 的，不是「金鑰錯／模型錯」那種會一直重現的設定問題（那種會在 `!upstream.ok`
+      // 就被擋下來，走不到這個 catch），是連線層級的中斷，本質上是暫時的。
+      ctrl.enqueue(enc.encode(sse('error', { message: detail, retryable: true })));
     } catch {
       /* 連線已經沒了，寫不進去不算另一個錯誤 */
     }

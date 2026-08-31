@@ -1,4 +1,5 @@
 import type { Dispatch, SetStateAction } from 'react';
+import type { Failure } from './failureRetry';
 import type { Message, StreamEvent, Usage } from './model';
 
 /**
@@ -18,7 +19,7 @@ export type RunSetters = {
   setThinking: (v: boolean) => void;
   setStreaming: (v: string | null) => void;
   setLocal: Dispatch<SetStateAction<Message[] | null>>;
-  setFailure: (v: string | null) => void;
+  setFailure: (v: Failure | null) => void;
 };
 
 export function makeRunEventHandler(opts: {
@@ -55,7 +56,7 @@ export function makeRunEventHandler(opts: {
     } else {
       setThinking(false);
       setStreaming(null);
-      setFailure(e.message);
+      setFailure({ message: e.message, retryable: e.retryable });
     }
   };
 }

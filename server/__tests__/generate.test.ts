@@ -374,3 +374,76 @@ describe('usage 落地（H1 落地票，2026-08-31）', () => {
     expect(last.text).toBe('嗨');
   });
 });
+
+/**
+ * 四 · **retryable 一路傳到 SSE payload**（跨層票 B6，2026-08-31）——`server/lib/providerError.ts`
+ * 的 header 講的是同一件事：分類只住在後端一份，前端不重判。
+ *
+ * 🔴 **突變證明**：把 `applyProviderEvents` 的 `sse('error', {message, retryable})`
+ * 改回 `sse('error', {message})`（拿掉 `retryable`），下面「HTTP 早退｜429 可重試」
+ * 那支還是綠的（它不吃這條路），但「中途錯誤事件帶 retryable」那支會紅——因為
+ * body 裡再也找不到 `"retryable":true` 這個子字串。
+ */
+describe('retryable 傳到 SSE payload（跨層票 B6）', () => {
+  it('🔴 HTTP 早退（!upstream.ok）｜429 判可重試，不是寫死 false', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => new Response(JSON.stringify({ error: { message: '限流了' } }), { status: 429 })),
+    );
+    const a = await app();
+    const res = await a.request('/api/generate', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ chatId: CHAT.id }),
+    });
+    const body = await res.text();
+    expect(res.status).toBe(502);
+    expect(body).toContain('"retryable":true');
+  });
+
+  it('🔴 HTTP 早退｜401（金鑰錯）判不可重試——誤判成可重試比沒有按鈕更糟', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => new Response(JSON.stringify({ error: { message: '金鑰不對' } }), { status: 401 })),
+    );
+    const a = await app();
+    const res = await a.request('/api/generate', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ chatId: CHAT.id }),
+    });
+    const body = await res.text();
+    expect(res.status).toBe(502);
+    expect(body).toContain('"retryable":false');
+  });
+
+  /** 🔴 已經開始串流（200）之後才出錯——走 `adapter.parse()` 判過的那條路，不是 HTTP 早退。 */
+  it('🔴 串流中途的 error 事件把 retryable 帶進 SSE payload，不是只有 message', async () => {
+    const enc = new TextEncoder();
+    const errLine = 'data: {"error":{"code":429,"message":"過載了"}}\n\n';
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(
+        async () =>
+          new Response(
+            new ReadableStream({
+              start(ctrl) {
+                ctrl.enqueue(enc.encode(errLine));
+                ctrl.close();
+              },
+            }),
+            { status: 200 },
+          ),
+      ),
+    );
+    const a = await app();
+    const res = await a.request('/api/generate', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ chatId: CHAT.id }),
+    });
+    const body = await readAll(res);
+    expect(body).toContain('event: error');
+    expect(body).toContain('"retryable":true');
+  });
+});

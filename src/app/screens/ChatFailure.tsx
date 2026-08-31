@@ -25,8 +25,23 @@ import { ReportButton } from './ReportButton';
  * 🔴 **按鈕擺在文字下面，不放 `Alert` 的 `action` 欄。**
  * `action` 是右側固定欄，訊息一長就把它擠成兩行、再擠出容器
  * —— Peter 那張截圖上「重新送出／上一句」就是這樣斷成兩截、疊到輸入框上的。
+ *
+ * 🔴 **`retryable` 是 props，不是從 `message` 猜的**（跨層票 B6，2026-08-31）：分類
+ * 只住在後端一份（見 `server/lib/providerError.ts` 檔頭同一個判準），`message` 對
+ * SSE 中途失敗那條路是純文字，`failureOf` 解不出結構——呼叫端（`useChatStream`）
+ * 已經把後端判好的值算進 `failureRetryable`，這裡直接收，不重判第二次。
  */
-export function ChatFailure({ message, onDismiss }: { message: string; onDismiss: () => void }) {
+export function ChatFailure({
+  message,
+  retryable = false,
+  onRetry,
+  onDismiss,
+}: {
+  message: string;
+  retryable?: boolean;
+  onRetry?: () => void;
+  onDismiss: () => void;
+}) {
   const [setup, setSetup] = useState(false);
   const f = failureOf(message);
 
@@ -38,6 +53,12 @@ export function ChatFailure({ message, onDismiss }: { message: string; onDismiss
           {f.setupKey ? (
             <Button size="small" variant="contained" onClick={() => setSetup(true)}>
               去設定金鑰
+            </Button>
+          ) : null}
+          {/* 🔴 只有後端判過可重試才長出來——金鑰錯／模型錯這種永遠重現的錯誤沒有這顆按鈕。 */}
+          {retryable && onRetry ? (
+            <Button size="small" variant="contained" onClick={onRetry}>
+              重試
             </Button>
           ) : null}
           {/*
