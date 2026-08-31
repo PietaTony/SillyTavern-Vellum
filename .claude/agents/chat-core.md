@@ -30,12 +30,15 @@ You own **H1 · Chat Core**. `AGENTS.md` holds the rules this file does not repe
   `maxResponseTokens.ts`
   🔴 B5（2026-08-31）新增：AI 回應上限的邊界常數（256／65536／4096，鏡射
   `generate.ts` Body schema——那支現在被 H5 借走，不能改，數字手動保持同步，
-  見該檔檔頭）。純常數、無 IO。
+  見該檔檔頭）。純常數、無 IO。**2026-08-31 收斂票**：持久化已經改走 X3
+  （`services/settings.ts`／`settingsModel.ts`＋`settingsLimits.ts`，見下方
+  `server/services/`），不再是獨立的 `maxResponseSettings.json`——這裡只留
+  三個邊界常數，那句舊註解「刻意不進 settings.json／X3」已經改掉，不是假的了。
 - `server/services/` — `chatModel.ts` `renderChat.ts` `buildTurn.ts` `greetingLore.ts`
   `landOpening.ts` `seedGreetingVars.ts` `commitPartialTurn.ts` `finishGenerateStream.ts`
-  `maxResponseSettings.ts` 🔴 B5（2026-08-31）新增：AI 回應上限的持久化，走自己的
-  `maxResponseSettings.json`——**刻意不進 `settings.json`／X3**（那兩支要跨層票），
-  同 `secrets.json`／`auth.json` 的模式：各自關心的東西各自一個檔。
+  🔴 B5 的 `getMaxResponseTokens()`／`setMaxResponseTokens()` 現在是 `services/settings.ts`
+  （X3，無主）裡的兩個 export，不是這裡任何一支檔案——那支跟 `settingsModel.ts`／
+  新的 `server/lib/settingsLimits.ts` 都不在本檔 §1，改它們要跨層票。
   🔴 These four (`chatModel.ts` … `finishGenerateStream.ts`) are in `services/`, not
   `lib/`. `services/` touches IO; `lib/` is pure.
 

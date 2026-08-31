@@ -27,16 +27,15 @@
  * （3.6-flash 實測 thinking 吃掉 514 tokens 才吐 6 個字，預設要留夠餘裕）——
  * 這張票不重新推導，只是把使用者原本調不到的既有上限變成調得到。
  *
- * 🔴 **持久化刻意不走 `services/settings.ts`／`settingsModel.ts`（X3）**：
- * 那兩支是「四個以上領域在讀」的共用設定檔（`AGENTS.md` §2），改它們的形狀
- * （新增欄位／新增 getter）要跨層票、要 Peter 簽——這張票的調度指示明講
- * 「要動 X3 就停下來回報」。這裡另開一個**專屬小檔案**
- * （`server/services/maxResponseSettings.ts`，走自己的 `maxResponseSettings.json`）：
- * 同一個模式，`secrets.json`／`auth.json` 已經在用（各自關心的東西各自一個檔，
- * 不是每加一個全域開關就得擠進同一包 `Settings`）。好處：這張票完全不用碰 X3、
- * 不用等簽名就能整支做完；代價：這個值不會跟著 `settings.json` 一起被讀，
- * 但仍然在 `VELLUM_DATA` 底下——備份＝複製整個 `data/` 資料夾，不是只複製
- * `settings.json`，搬機／備份不會漏掉它。
+ * 🔴 **持久化（2026-08-31 收斂票）走 `services/settings.ts`／`settingsModel.ts`（X3）**：
+ * 這張票原本為了避開跨層簽名，另開了獨立的 `server/services/maxResponseSettings.ts`
+ * ／`maxResponseSettings.json`（仿 `secrets.json`／`auth.json` 的模式）。Peter
+ * 2026-08-31 裁定收斂——它跟 `historyByteBudget`（歷史上限）是同一類「大小」設定，
+ * 不該分家：使用者設定畫面要讀兩個來源、備份與還原要記得兩件事。收斂之後
+ * `maxOutputTokens` 這個鍵、它的六題，唯一正本在 `settingsLimits.ts`
+ * （`settingsModel.ts` 用交集型別合併進 `Settings`），持久化函式在
+ * `services/settings.ts` 的 `getMaxResponseTokens()`／`setMaxResponseTokens()`。
+ * 這裡只留三個邊界常數——理由見上一段（跟 `generate.ts` 手動保持同步）。
  */
 export const DEFAULT_MAX_OUTPUT_TOKENS = 4096;
 export const MIN_MAX_OUTPUT_TOKENS = 256;

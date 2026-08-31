@@ -8,6 +8,11 @@ import {
   MAX_HISTORY_BYTE_BUDGET,
   MIN_HISTORY_BYTE_BUDGET,
 } from '../lib/historyTruncation.ts';
+import {
+  DEFAULT_MAX_OUTPUT_TOKENS,
+  MAX_MAX_OUTPUT_TOKENS,
+  MIN_MAX_OUTPUT_TOKENS,
+} from '../lib/maxResponseTokens.ts';
 import type { Settings } from '../lib/settingsModel.ts';
 
 
@@ -81,4 +86,34 @@ export async function getHistoryByteBudget(): Promise<HistoryBudgetStatus> {
 export async function setHistoryByteBudget(bytes: number): Promise<void> {
   const s = await loadSettings();
   await saveSettings({ ...s, historyByteBudget: bytes });
+}
+
+export type MaxResponseStatus = {
+  tokens: number;
+  /** 使用者真的動過這個值，還是仍在吃 `DEFAULT_MAX_OUTPUT_TOKENS`。 */
+  isCustom: boolean;
+  default: number;
+  min: number;
+  max: number;
+};
+
+/**
+ * B5（2026-08-31 收斂進 X3）：這一輪最多回多長。沒設過就回預設值——
+ * 六題、跟歷史上限方向相反的說明，唯一正本在 `settingsLimits.ts`。
+ */
+export async function getMaxResponseTokens(): Promise<MaxResponseStatus> {
+  const s = await loadSettings();
+  return {
+    tokens: s.maxOutputTokens ?? DEFAULT_MAX_OUTPUT_TOKENS,
+    isCustom: s.maxOutputTokens !== undefined,
+    default: DEFAULT_MAX_OUTPUT_TOKENS,
+    min: MIN_MAX_OUTPUT_TOKENS,
+    max: MAX_MAX_OUTPUT_TOKENS,
+  };
+}
+
+/** 🔴 邊界在路由層驗證過——這裡假設呼叫端已經驗過，不重複驗一次（同 `setHistoryByteBudget()` 的慣例）。 */
+export async function setMaxResponseTokens(tokens: number): Promise<void> {
+  const s = await loadSettings();
+  await saveSettings({ ...s, maxOutputTokens: tokens });
 }

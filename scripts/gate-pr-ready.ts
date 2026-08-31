@@ -111,14 +111,14 @@ const PERSISTED: PersistedEntry[] = [
     keyword: 'secrets.json',
     requireSixQuestions: false,
   },
-  {
-    // B5（2026-08-31）：AI 回應上限持久化，同 secrets.json 的模式（獨立小檔，不進 X3）。
-    category: 'maxResponseSettings.json',
-    dataFile: 'maxResponseSettings.json',
-    module: 'server/services/maxResponseSettings.ts',
-    keyword: 'maxResponseSettings.json',
-    requireSixQuestions: false,
-  },
+  // 🔴 B5（2026-08-31 做完；2026-08-31 收斂票追溯改對）：這裡曾經多一筆
+  // `maxResponseSettings.json` 的登記（同 secrets.json 的模式，獨立小檔避開 X3）。
+  // Peter 2026-08-31 裁定收斂進 `settings.json`（X3）——那個檔案與
+  // `server/services/maxResponseSettings.ts` 都已經不存在，`maxOutputTokens`
+  // 現在是 `settings.json` 這一類（上面第一筆 `requireSixQuestions: true`）底下的
+  // 一個欄位，不再是獨立持久化類別，所以這裡不留一筆指著不存在檔案的死登記——
+  // 移除本身就是「改對」：`discoverPersistedCategories()` 也再也掃不到那個字面
+  // 字串了，繼續登記反而會造成「登記了、但沒人再寫」的另一種對不上。
 ];
 
 const PR_SECTIONS = [/##\s*(起因|摘要)/, /##\s*(做了什麼|變更)/, /##\s*驗收/];
@@ -381,10 +381,6 @@ function runSelftest(): void {
       join(services, 'secrets.ts'),
       `const FILE = 'secrets.json';\n${'// pad line to push fixture past the trivial-file threshold\n'.repeat(15)}`,
     );
-    writeFileSync(
-      join(services, 'maxResponseSettings.ts'),
-      `const FILE = 'maxResponseSettings.json';\n${'// pad line to push fixture past the trivial-file threshold\n'.repeat(15)}`,
-    );
     mkdirSync(join(dir, 'server/routes'), { recursive: true });
     writeFileSync(
       join(dir, 'server/routes/writers.ts'),
@@ -400,7 +396,6 @@ function runSelftest(): void {
         // biome-ignore lint/suspicious/noTemplateCurlyInString: 同上
         'writeJson(`personas/${id}.json`, p);',
         "writeJson(FILE, s); const FILE = 'secrets.json';",
-        "writeJson(MR_FILE, s); const MR_FILE = 'maxResponseSettings.json';",
       ].join('\n'),
     );
     const goodResult = checkPersistedSix(dir);
