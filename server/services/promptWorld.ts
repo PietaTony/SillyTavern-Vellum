@@ -13,7 +13,7 @@ import type { Persona } from '../lib/persona.ts';
 import { loadSettings } from './settings.ts';
 import { readJson } from '../adapters/storage.ts';
 import { planInjection, type InjectionPlan } from '../lib/wiInject.ts';
-import { orderLayers } from '../lib/wiLayers.ts';
+import { DEFAULT_WI_STRATEGY, orderLayers } from '../lib/wiLayers.ts';
 import { buildScanText, selectEntries, type ScanMessage } from '../lib/wiSelect.ts';
 import type { WbEntry } from '../lib/worldbook.ts';
 
@@ -105,11 +105,8 @@ export async function worldForChat(
     if (w) globals.push(...w.entries);
   }
 
-  const ordered = orderLayers({
-    global: globals,
-    character: own?.entries ?? [],
-    persona: personaWorld?.entries ?? [],
-  });
+  const layers = { global: globals, character: own?.entries ?? [], persona: personaWorld?.entries ?? [] };
+  const ordered = orderLayers(layers, DEFAULT_WI_STRATEGY);
   const scan = buildScanText(messages, 4);
   const sel = selectEntries(ordered, scan);
   const plan = planInjection(sel.activated, { budget: DEFAULT_WI_BUDGET });
