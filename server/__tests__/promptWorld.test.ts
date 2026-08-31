@@ -124,6 +124,33 @@ describe('A3：worldForChat 真的把 budget 傳給 planInjection', () => {
     expect(warnSpy).not.toHaveBeenCalled(); // 沒裁就不該印——警告本身也要對「沒事」誠實
     warnSpy.mockRestore();
   });
+
+  /**
+   * 🔴 2026-08-31 換尺（字元數→UTF-8 位元組數）的反規回歸：舊制 `DEFAULT_WI_BUDGET`
+   * 是 `20_000` 字元；換尺前最壞情況（一本 20000 字、整本純中文的世界書）剛好卡在
+   * 邊界、不會被裁。換尺後單位變成位元組，若沒有同步調大 `DEFAULT_WI_BUDGET`，
+   * 中文一字 3 bytes ⇒ 這本世界書會被腰斬成只剩約 6666 字就被裁——這正是票所警告
+   * 的「本來不會被裁的內容，換尺後突然被裁」的災難。這支測試釘住「沒有發生」。
+   */
+  it('🔴 換尺前的最壞情況（20000 字純中文）換尺後仍然不被裁——沒有把安全網收緊', async () => {
+    const { worldForChat, writeJson, DEFAULT_WI_BUDGET } = await fresh();
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    const wholeChineseAtOldLimit = wbEntry({ uid: 'legacy-fit', content: '中'.repeat(20_000), order: 100 });
+    await writeJson(`worlds/char1.json`, {
+      version: 1,
+      characterId: 'char1',
+      entries: [wholeChineseAtOldLimit],
+      origin: { cardId: '', cardVersion: '', createDate: '', importedAt: '', entries: {} },
+    });
+
+    const outcome = await worldForChat(chat('char1'), null, []);
+
+    expect(DEFAULT_WI_BUDGET).toBeGreaterThanOrEqual(20_000 * 3); // 3 = UTF-8 下 BMP CJK 一字的 bytes
+    expect(outcome.trimmed).toBe(0); // 沒被裁——換尺沒有讓「本來不裁」變成「現在裁」
+    expect(outcome.plan.afterChar).toEqual([wholeChineseAtOldLimit.content]);
+    expect(warnSpy).not.toHaveBeenCalled();
+    warnSpy.mockRestore();
+  });
 });
 
 /**

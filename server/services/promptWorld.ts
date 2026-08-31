@@ -33,25 +33,27 @@ export const DEPTH_PRIORITY = { world: 0, persona: 1, card: 2 } as const;
  *    要動 `server/lib/settingsModel.ts` / `server/services/settings.ts`——那兩支是
  *    `AGENTS.md` §2 的 X3（跨層無主區，四個以上領域在讀，改動要開票給 Peter 簽）。
  *    這裡先用常數把「永遠不裁」這個更急迫的洞補起來，可調版本待 X3 票。
- * ② **單位是字元數，不是 token**（同 `wiInject.ts` 的 `BudgetOpts.count` 說明）：
- *    本專案還沒有 tokenizer，`chars/4` 之類的估算是把假的尺當真的量。
- *    這裡選一個**寬鬆**的字元數上限，只當「防止無限塞爆」的安全網，不是精算的 token 上限
- *    ——精算需要真的 tokenizer，那同樣不在這支的範圍內。
- * ③ 🔴 **20000 這個數字沒有量測支撐，是初步防線，不是校準過的安全邊界。**
- *    repo 裡目前沒有真實世界書資料可以估算量級——`default/`／`docs/`／
- *    `server/__tests__/` 底下的 `content` 全是 `'c'`／`'內容'`／`'x'.repeat(20)`
- *    這類佔位字串，拿它們估「一般大小的世界書」是在量空氣。
- *    而且至少兩個因素會讓這個閾值比字面數字看起來更容易撞到：
+ * ② 🔴 **2026-08-31 換尺：單位是 UTF-8 位元組數，不再是字元數**（`planInjection()`
+ *    沒收到 `opts.count` 時預設就是 `wiInject.ts` 的 `byteLength`；為什麼換、
+ *    要不要抄 ST 的 `BYTES_PER_TOKEN` 除法，理由見那支的 `BudgetOpts.count` 註解，
+ *    不重複）。這裡選的仍然是**寬鬆**的位元組數上限，只當「防止無限塞爆」的安全網，
+ *    不是精算的 token 上限——精算需要真的 tokenizer，同樣不在這支的範圍內。
+ * ③ 🔴 **60000（bytes）沒有量測支撐，是純換算出來的初步防線，不是校準過的安全邊界。**
+ *    repo 裡沒有真實世界書資料可以估算量級——`default/`／`docs/`／
+ *    `server/__tests__/` 的 `content` 全是 `'c'`／`'內容'`／`'x'.repeat(20)`
+ *    這類佔位字串，拿它們估「一般大小的世界書」是在量空氣。**換算怎麼來的**：
+ *    舊制 `20_000` **字元**；換尺不准讓「換尺前不會被裁，換尺後突然被裁」——
+ *    否則就是拿一把更準的尺、砍掉使用者本來就在用的東西。UTF-8 單一字元最重的常見
+ *    情形是 BMP CJK 表意文字 **3 bytes**；乘上這個最壞情況倍數 `20_000 × 3 = 60_000`，
+ *    保證「換尺前 20000 字元以內、即使整本世界書都是中文」這個最壞情況換尺後仍裝得下
+ *    ——不會比原本更緊。副作用：純英文內容的安全網變寬 3 倍（20000→60000 bytes≈字元），
+ *    但那只是防塞爆的網，變寬不是本票要擔心的方向，變緊才是。此外還有一個因素讓這閾值比字面數字更容易撞到：
  *    - budget 套的是 `sel.activated`（已經比對過關鍵字），但 `constant: true`
  *      的條目**不比對關鍵字、每輪必進場**——多條常駐設定（世界觀基礎、角色關係圖）
  *      逐輪疊加，不受「只有命中的才進場」這層篩選保護。
- *    - 這個 app 是中文為主，而中文的 token/字元比遠高於英文
- *      （多數 tokenizer 對中文接近或超過 1 token/字，英文約 0.25）——
- *      用英文直覺覺得「20000 字元很寬鬆」，套到中文內容會低估用掉的 token。
- *    待有真實使用資料後再校準這個數字；在那之前把它當「防止無限塞爆」的
- *    安全網，不要當成「一般世界書不會被裁」的保證。
+ *    待有真實使用資料後再校準這個數字；在那之前把它當安全網，不要當成保證。
  */
-export const DEFAULT_WI_BUDGET = 20_000;
+export const DEFAULT_WI_BUDGET = 60_000;
 
 export type WorldOutcome = {
   plan: InjectionPlan;
@@ -118,13 +120,12 @@ export async function worldForChat(
     // 並把計數放進回傳的 `WorldOutcome.trimmed`，讓呼叫端（`buildTurn.ts`）
     // 之後要接到 UI 時，資料已經在門口，不必回頭再挖一次 `plan.trimmed`。
     console.warn(
-      `[vellum] 世界書被預算裁掉 ${plan.trimmed.length}/${sel.activated.length} 條，未進 prompt（budget=${DEFAULT_WI_BUDGET} 字元）`,
+      `[vellum] 世界書被預算裁掉 ${plan.trimmed.length}/${sel.activated.length} 條，未進 prompt（budget=${DEFAULT_WI_BUDGET} bytes）`,
     );
   }
   // 🔴 A1（GAP-53）：這四個桶算出來但沒有消費者（見上面 WorldOutcome.unconsumedPositions
   // 檔頭），跟 plan.trimmed 同一個理由印一行 log——伺服器日誌是唯一看得到的管道。
-  const unconsumedPositions =
-    plan.anTop.length + plan.anBottom.length + plan.emTop.length + plan.emBottom.length;
+  const unconsumedPositions = plan.anTop.length + plan.anBottom.length + plan.emTop.length + plan.emBottom.length;
   if (unconsumedPositions > 0) {
     console.warn(
       `[vellum] 世界書有 ${unconsumedPositions} 條落在 anTop/anBottom/emTop/emBottom，這四個位置目前沒有消費者，不會進 prompt（GAP-53）`,
