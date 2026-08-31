@@ -1,4 +1,4 @@
-import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
+import { existsSync, mkdtempSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -136,6 +136,81 @@ describe('PATCH /api/settings/history-budget', () => {
       method: 'PATCH',
       headers: H,
       body: JSON.stringify({ bytes: '五千' }),
+    });
+    expect(r.status).toBe(400);
+  });
+});
+
+/**
+ * B5：這一輪最多回多長，使用者可調——**方向跟歷史上限相反**（那支管送出去的歷史，
+ * 這支管收回來的一則）。持久化刻意不走 `settings.json`（X3），走自己的
+ * `maxResponseSettings.json`（見 `server/services/maxResponseSettings.ts` 檔頭），
+ * 所以這裡另外斷言那個檔案本身的內容、不是 `settings.json`。
+ */
+const MAX_RESPONSE_PATH = '/api/settings/max-response';
+
+describe('GET /api/settings/max-response', () => {
+  it('舊資料（沒設過）讀進來是預設值 4096，isCustom 是 false', async () => {
+    const a = await app();
+    const r = await get(a, MAX_RESPONSE_PATH);
+    expect(r.status).toBe(200);
+    expect(await r.json()).toEqual({ tokens: 4096, isCustom: false, default: 4096, min: 256, max: 65_536 });
+  });
+});
+
+describe('PATCH /api/settings/max-response', () => {
+  it('改成 8000：GET 讀回來是 8000、isCustom 變 true，寫進獨立的 maxResponseSettings.json（不是 settings.json）；重整仍是 8000', async () => {
+    const a = await app();
+    const r = await a.request(MAX_RESPONSE_PATH, {
+      method: 'PATCH',
+      headers: H,
+      body: JSON.stringify({ tokens: 8000 }),
+    });
+    expect(r.status).toBe(200);
+    expect(await r.json()).toEqual({ tokens: 8000, isCustom: true, default: 4096, min: 256, max: 65_536 });
+
+    const raw = JSON.parse(readFileSync(join(root, 'maxResponseSettings.json'), 'utf8')) as {
+      maxOutputTokens: number;
+    };
+    expect(raw.maxOutputTokens).toBe(8000);
+
+    // 🔴 settings.json 完全沒被這支動到 —— 持久化是獨立檔案，不是 X3 的 Settings 型別。
+    // 這個測試檔至此都沒碰過 companion／history-budget／output-rules（每個 `it` 各自
+    // 一個乾淨的 mkdtemp root），所以 settings.json 這時候該是壓根還沒被建出來。
+    expect(existsSync(join(root, 'settings.json'))).toBe(false);
+
+    const reloaded = await app();
+    expect(((await (await get(reloaded, MAX_RESPONSE_PATH)).json()) as { tokens: number }).tokens).toBe(
+      8000,
+    );
+  });
+
+  it('🔴 低於下限（255）要 400，不能靜默存進去', async () => {
+    const a = await app();
+    const r = await a.request(MAX_RESPONSE_PATH, {
+      method: 'PATCH',
+      headers: H,
+      body: JSON.stringify({ tokens: 255 }),
+    });
+    expect(r.status).toBe(400);
+  });
+
+  it('🔴 高於上限（65537）要 400', async () => {
+    const a = await app();
+    const r = await a.request(MAX_RESPONSE_PATH, {
+      method: 'PATCH',
+      headers: H,
+      body: JSON.stringify({ tokens: 65_537 }),
+    });
+    expect(r.status).toBe(400);
+  });
+
+  it('🔴 壞 body（不是數字）回 400，不是靜默存一個 NaN', async () => {
+    const a = await app();
+    const r = await a.request(MAX_RESPONSE_PATH, {
+      method: 'PATCH',
+      headers: H,
+      body: JSON.stringify({ tokens: '八千' }),
     });
     expect(r.status).toBe(400);
   });

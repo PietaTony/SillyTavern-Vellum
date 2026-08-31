@@ -111,6 +111,14 @@ const PERSISTED: PersistedEntry[] = [
     keyword: 'secrets.json',
     requireSixQuestions: false,
   },
+  {
+    // B5（2026-08-31）：AI 回應上限持久化，同 secrets.json 的模式（獨立小檔，不進 X3）。
+    category: 'maxResponseSettings.json',
+    dataFile: 'maxResponseSettings.json',
+    module: 'server/services/maxResponseSettings.ts',
+    keyword: 'maxResponseSettings.json',
+    requireSixQuestions: false,
+  },
 ];
 
 const PR_SECTIONS = [/##\s*(起因|摘要)/, /##\s*(做了什麼|變更)/, /##\s*驗收/];
@@ -373,6 +381,10 @@ function runSelftest(): void {
       join(services, 'secrets.ts'),
       `const FILE = 'secrets.json';\n${'// pad line to push fixture past the trivial-file threshold\n'.repeat(15)}`,
     );
+    writeFileSync(
+      join(services, 'maxResponseSettings.ts'),
+      `const FILE = 'maxResponseSettings.json';\n${'// pad line to push fixture past the trivial-file threshold\n'.repeat(15)}`,
+    );
     mkdirSync(join(dir, 'server/routes'), { recursive: true });
     writeFileSync(
       join(dir, 'server/routes/writers.ts'),
@@ -388,6 +400,7 @@ function runSelftest(): void {
         // biome-ignore lint/suspicious/noTemplateCurlyInString: 同上
         'writeJson(`personas/${id}.json`, p);',
         "writeJson(FILE, s); const FILE = 'secrets.json';",
+        "writeJson(MR_FILE, s); const MR_FILE = 'maxResponseSettings.json';",
       ].join('\n'),
     );
     const goodResult = checkPersistedSix(dir);
@@ -456,7 +469,7 @@ function runSelftest(): void {
   console.log(
     bad
       ? `selftest FAIL（${bad} 條）`
-      : `selftest PASS（FEATURE-DONE、PR 模板、持久化六題×7 類、security README、diff 配對；repo run=${run(ROOT).length === 0}）`,
+      : `selftest PASS（FEATURE-DONE、PR 模板、持久化六題×${PERSISTED.length} 類、security README、diff 配對；repo run=${run(ROOT).length === 0}）`,
   );
   process.exit(bad ? 1 : 0);
 }

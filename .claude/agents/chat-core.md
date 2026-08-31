@@ -27,9 +27,17 @@ You own **H1 · Chat Core**. `AGENTS.md` holds the rules this file does not repe
   `truncateHistory()`（GAP-37 對話歷史截斷）從 `services/buildTurn.ts` 搬出來——
   純函式、無 IO，照 `lib`／`services` 既有分法本來就該在這裡；上一輪先做在
   `buildTurn.ts` 是因為新增檔案要先開票宣告，這張票補上宣告與搬遷。
+  `maxResponseTokens.ts`
+  🔴 B5（2026-08-31）新增：AI 回應上限的邊界常數（256／65536／4096，鏡射
+  `generate.ts` Body schema——那支現在被 H5 借走，不能改，數字手動保持同步，
+  見該檔檔頭）。純常數、無 IO。
 - `server/services/` — `chatModel.ts` `renderChat.ts` `buildTurn.ts` `greetingLore.ts`
   `landOpening.ts` `seedGreetingVars.ts` `commitPartialTurn.ts` `finishGenerateStream.ts`
-  🔴 These four are in `services/`, not `lib/`. `services/` touches IO; `lib/` is pure.
+  `maxResponseSettings.ts` 🔴 B5（2026-08-31）新增：AI 回應上限的持久化，走自己的
+  `maxResponseSettings.json`——**刻意不進 `settings.json`／X3**（那兩支要跨層票），
+  同 `secrets.json`／`auth.json` 的模式：各自關心的東西各自一個檔。
+  🔴 These four (`chatModel.ts` … `finishGenerateStream.ts`) are in `services/`, not
+  `lib/`. `services/` touches IO; `lib/` is pure.
 
 **Tests** — `server/__tests__/<module>.test.ts` for any module above.
 

@@ -112,16 +112,21 @@ export const deleteMessage = (
 /**
  * 生成。🔴 **不是 `EventSource`** —— 它只支援 GET、也沒辦法帶 body。
  * 走 `fetch` ＋ `response.body` 的 reader 迴圈，中止靠 `AbortController`。
+ *
+ * 🔴 B5：`maxOutputTokens` 是這裡才真正送出去的地方——後端早接受（`generate.ts`
+ * `min(256).max(65_536).default(4096)`），前端在此之前從沒送過，一律吃 4096。
+ * 不給就整段省略，退回後端預設，行為不變。
  */
 export async function streamGenerate(
   chatId: string,
   onEvent: (e: StreamEvent) => void,
   signal: AbortSignal,
+  maxOutputTokens?: number,
 ): Promise<void> {
   const res = await fetch('/api/generate', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ chatId }),
+    body: JSON.stringify({ chatId, ...(maxOutputTokens === undefined ? {} : { maxOutputTokens }) }),
     signal,
   });
   if (!res.ok || !res.body) {

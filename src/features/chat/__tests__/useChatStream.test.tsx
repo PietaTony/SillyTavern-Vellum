@@ -37,6 +37,43 @@ describe('useChatStream.regenerate', () => {
 });
 
 /**
+ * B5：`useChatStream` 的第四個參數（使用者調過的 AI 回應上限）要真的轉送給
+ * `streamGenerate` 的第四個參數，不是「型別接了、沒人轉送」的孤兒引擎。
+ *
+ * 🔴 突變證明：把 `run()` 裡呼叫 `streamGenerate` 那行的第四個引數拿掉
+ * （或寫死成 `undefined`），下面這個 `it` 斷言的具體數字 `9000` 就會紅。
+ */
+describe('useChatStream 轉送 maxOutputTokens 給 streamGenerate（B5）', () => {
+  it('🔴 send() 觸發的那次生成，streamGenerate 收到的第四個參數要是呼叫端給的具體值', async () => {
+    const api = await import('../api');
+    vi.mocked(api.appendMessage).mockResolvedValueOnce(msg('u1'));
+    const { result } = renderHook(() => useChatStream('c1', [msg('a')], undefined, 9000));
+
+    await act(async () => {
+      await result.current.send('哈囉');
+    });
+
+    await waitFor(() => expect(result.current.streaming).toBeNull());
+    const call = vi.mocked(api.streamGenerate).mock.calls.at(-1);
+    expect(call?.[3]).toBe(9000);
+  });
+
+  it('沒給第四個參數：streamGenerate 收到 undefined，不是隨便一個數字', async () => {
+    const api = await import('../api');
+    vi.mocked(api.appendMessage).mockResolvedValueOnce(msg('u2'));
+    const { result } = renderHook(() => useChatStream('c1', [msg('a')]));
+
+    await act(async () => {
+      await result.current.send('哈囉');
+    });
+
+    await waitFor(() => expect(result.current.streaming).toBeNull());
+    const call = vi.mocked(api.streamGenerate).mock.calls.at(-1);
+    expect(call?.[3]).toBeUndefined();
+  });
+});
+
+/**
  * B4：`done` 事件帶的 usage 要真的走到畫面能讀到的地方（`generation.usage`），
  * 不是「型別加好了」就算數——這個 repo 出過「引擎接好了、沒有門」三次。
  */

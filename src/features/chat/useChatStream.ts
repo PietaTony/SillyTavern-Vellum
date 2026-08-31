@@ -27,6 +27,8 @@ export function useChatStream(
    * 於是 `<UpdateVariable><JSONPatch>…` 會原封印在畫面上直到下次重讀。
    */
   onDone?: () => Promise<unknown>,
+  // B5：使用者調過的 AI 回應上限——呼叫端已經拿好值（理由見 `useMaxResponseTokens.ts`）。
+  maxOutputTokens?: number,
 ) {
   const [local, setLocal] = useState<Message[] | null>(null);
   const [streaming, setStreaming] = useState<string | null>(null);
@@ -66,6 +68,7 @@ export function useChatStream(
       chatId,
       makeRunEventHandler({ base, onDone, acc, setters, recordUsage }),
       ac.signal,
+      maxOutputTokens,
     ).catch((e: unknown) => {
       /*
        * 🔴 **不 await 就必須自己接住例外。** 在此之前是 `await`，例外會冒到
