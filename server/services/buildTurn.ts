@@ -6,10 +6,14 @@
  * 分開放才守得住那條界線，也讓 `generate.ts` 回到 150 行以內。
  */
 import type { Chat } from './chatModel.ts';
+import type { Character } from '../lib/character.ts';
+import { readJson } from '../adapters/storage.ts';
 import { displayOf } from '../lib/persona.ts';
 import { personaForChat } from './personaContext.ts';
 import { insertAtDepth, personaPieces } from '../lib/personaPrompt.ts';
 import { substitute } from '../lib/macro.ts';
+import { applyRules } from '../lib/outputRules.ts';
+import { depthFromEnd, rulesOf } from './renderChat.ts';
 import { worldDepthPieces, worldForChat, worldSystemText, DEPTH_PRIORITY } from './promptWorld.ts';
 
 export type Turn = {
@@ -37,11 +41,42 @@ export async function buildTurn(chat: Chat): Promise<Turn> {
   const pieces = personaPieces(who.persona);
   const macros = { user: userName, char: chat.characterName };
 
-  // `{{user}}`／`{{char}}` 在送進模型之前就要展開 —— 模型看到大括號只會照抄。
-  const history = chat.messages.map((m) => ({
-    role: m.role,
-    text: substitute(historyTextOf(m), macros),
-  }));
+  /**
+   * 🔴 D1 擴充（Peter 2026-08-31）：`target:'prompt'`／`'both'` 的輸出規則套進這裡——
+   * 在此之前這兩種 target 存了、驗證通過，卻沒有任何呼叫端讀它們，使用者選了、存了，
+   * 送出去的東西完全沒變，而且**沒有畫面會顯示這件事**。
+   *
+   * 🔴 **合併與深度都跟顯示路徑共用同一支**（不要各寫一份，見 `renderChat.ts` 的
+   * `rulesOf`／`depthFromEnd` 檔頭）：`rulesOf(ch)` 是同一個「全域先、卡片後」的陣列，
+   * `depthFromEnd(i, total)` 是同一套「從最新一則往回數」的算法。
+   *
+   * 🔴 **順序：規則套在半成品註記「之前」。** `historyTextOf()` 加的
+   * 「（以上一句在此被使用者中止…）」是系統加的後設文字，不是角色卡自己的話——
+   * 使用者寫的規則對象是「AI 說了什麼」，不該吃到這句系統話術，也不該讓一條寫得太寬的
+   * 規則把註記整句換掉、讓模型看不出這則被腰斬過。⇒ 先對**原文**套規則（跟顯示路徑
+   * 完全一樣，套在原文上），再交給既有的 `historyTextOf()` 判斷要不要加註記——
+   * 重用它、不改它的簽名，`applyVarUpdate.test.ts` 直接測著它，改簽名會連帶弄壞
+   * 那份測試的假設。最後才展開 `{{user}}`／`{{char}}`（跟顯示路徑同一個順序：
+   * 規則 → 巨集替換）。
+   *
+   * ⚠️ **多讀一次 `characters/<id>.json`**：`personaForChat()` 上面已經讀過同一個檔，
+   * 但它只回傳解析過的 persona（`Resolved`），拿不到 `outputRules`。本機小 JSON 檔，
+   * 多一次 `readJson` 的成本可以忽略；沒有為了省這一次讀檔去改 `personaForChat` 的
+   * 回傳形狀——那支是共用的，改它的輸出會牽動它其他呼叫端。
+   */
+  const ch = await readJson<Character | null>(`characters/${chat.characterId}.json`, null);
+  const rules = await rulesOf(ch);
+  const total = chat.messages.length;
+  const history = chat.messages.map((m, i) => {
+    const ruledText = rules.length
+      ? applyRules(m.text, rules, { target: 'prompt', depth: depthFromEnd(i, total) })
+      : m.text;
+    return {
+      role: m.role,
+      // `{{user}}`／`{{char}}` 在送進模型之前就要展開 —— 模型看到大括號只會照抄。
+      text: substitute(historyTextOf({ ...m, text: ruledText }), macros),
+    };
+  });
   // 世界書：好友那本（character 層）＋ persona 那本（persona 層）。
   const world = await worldForChat(chat, who.persona, history.map((m) => ({ name: '', text: m.text })));
 
