@@ -76,6 +76,56 @@ describe('POST /api/global-worlds', () => {
   });
 });
 
+/**
+ * 🔴 **與 `POST /` 相反：條目照檔案原樣、不強制關閉**（`globalWorlds.ts` 那條註解）。
+ * 使用者匯入一份「換機器帶著走」的檔案，期待的是「跟原本一樣」。
+ */
+describe('POST /api/global-worlds/import', () => {
+  const sample = () =>
+    JSON.stringify({
+      name: '匯入的全域書',
+      entries: { '0': { comment: 'x', content: 'y', disable: false, constant: true } },
+    });
+
+  it('🔴 合法檔案 ＝ 建一本並立刻掛進全域名單，條目狀態照原樣（不強制關閉）', async () => {
+    const a = await app();
+    const r = await a.request('/api/global-worlds/import', { method: 'POST', headers: H, body: sample() });
+    expect(r.status).toBe(201);
+    const body = (await r.json()) as { name: string; entryCount: number; enabledCount: number };
+    expect(body.name).toBe('匯入的全域書');
+    expect(body.enabledCount).toBe(1); // disable:false ⇒ 開著，不像 POST / 那樣強制關掉
+    expect(await count(a)).toBe(1);
+  });
+
+  it('沒有 name 欄位時自動編號，跟空白建立那條路一致', async () => {
+    const a = await app();
+    const r = await a.request('/api/global-worlds/import', {
+      method: 'POST',
+      headers: H,
+      body: '{"entries":{}}',
+    });
+    expect(((await r.json()) as { name: string }).name).toBe('全域世界書 1');
+  });
+
+  it('🔴 壞 JSON 回 400，不建任何書', async () => {
+    const a = await app();
+    const r = await a.request('/api/global-worlds/import', { method: 'POST', headers: H, body: '{oops' });
+    expect(r.status).toBe(400);
+    expect(await count(a)).toBe(0);
+  });
+
+  it('🔴 缺 entries 回 400，不建一本空書', async () => {
+    const a = await app();
+    const r = await a.request('/api/global-worlds/import', {
+      method: 'POST',
+      headers: H,
+      body: '{"name":"沒有entries"}',
+    });
+    expect(r.status).toBe(400);
+    expect(await count(a)).toBe(0);
+  });
+});
+
 describe('GET /api/global-worlds/presets', () => {
   it('三本都在，且只回目錄（不含條目內容）', async () => {
     const r = await (await app()).request('/api/global-worlds/presets', { headers: H });

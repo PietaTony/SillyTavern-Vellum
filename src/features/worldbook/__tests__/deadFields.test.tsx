@@ -65,6 +65,18 @@ describe('總則五：引擎不理的欄位', () => {
     expect(screen.getByText(/不會生效/)).toBeTruthy();
   });
 
+  /**
+   * 🔴 **匯入的外部世界書檔沒有 `extensions`** —— `sticky`／`cooldown`／`delay`
+   * 在 `raw` 頂層（`server/lib/worldbook.ts` 檔頭）。只查 `extensions` 的話，
+   * 匯入的書會被看成「這些欄位都沒設」，即使檔案裡明明寫著。
+   */
+  it('🔴 匯入的書（沒有 extensions）—— sticky／cooldown／delay 在 raw 頂層也要抓得到', () => {
+    render(<DeadFieldsNote value={entry({ raw: { sticky: 3, cooldown: 5, delay: 2 } })} />);
+    expect(screen.getByText(/黏著幾則/)).toBeTruthy();
+    expect(screen.getByText(/冷卻幾則/)).toBeTruthy();
+    expect(screen.getByText(/前幾則不觸發/)).toBeTruthy();
+  });
+
   it('值是 0 不算「有設定」—— ST 的預設就是 0，全部標出來只是噪音', () => {
     const { container } = render(
       <DeadFieldsNote value={entry({ raw: { extensions: { sticky: 0, cooldown: 0 } } })} />,

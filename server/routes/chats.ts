@@ -33,7 +33,7 @@ export const chats = new Hono()
     const expanded = withResolvedSwipes(chat.messages, ch?.greetings, stripLoreTags);
     return c.json({
       ...chat,
-      messages: renderMessages(expanded, rulesOf(ch), names),
+      messages: renderMessages(expanded, await rulesOf(ch), names),
       // 🔴 **回報是哪一層生效**：使用者改了全域卻沒反應（對話層蓋著），
       // 沒有這個資訊他只會覺得壞了（驗收 C4）。
       persona: who.persona ? { id: who.persona.id, name: who.persona.name, layer: who.layer } : { layer: who.layer },

@@ -1,7 +1,8 @@
 # GAP-124 實施計劃：畫面色差隱藏 ID（點讀筆）
 
-> **給 Peter。** 動機、技術路線、分階段交付、驗收標準、派工邊界，一次寫齊。  
-> 正本 id 清單：`design/screens.json`。Agent 家 backlog 請同步 `plans/90-BACKLOG.md` GAP-124。
+> **給 Peter。** 動機、分階段交付、驗收見此檔。  
+> 🔴 **Normative 規範（v0 已凍結）**：`design/GAP-124-spec.md` · **狀態判準**：`design/screen-id-bindings.json`  
+> Agent 家 backlog 請同步 `plans/90-BACKLOG.md` GAP-124。
 
 ---
 

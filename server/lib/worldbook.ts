@@ -11,6 +11,12 @@
  *
  * 🔴 `position` 一律用 **ST 原始碼的數值 enum**（`world-info.js:855`），不是字串。
  * 規格 §3 曾把 `1` 與 `4` 寫反；以 code 為準：`after: 1`、`atDepth: 4`。
+ *
+ * 🔴 **`raw` 的鍵名屬於哪一套 schema，兩個來源不一樣**（`rawSchema` 記著）：
+ * `fromCharacterBook` 產出的 `raw` 是卡內那一套（`insertion_order`／`extensions.depth`…），
+ * `fromWorldFile` 產出的 `raw` 是外部檔那一套（`order`／`depth` 都在頂層，沒有 `extensions`）。
+ * `wiEdit.ts` 回寫 `raw` 時要看這個欄位選對照表，選錯會把兩套鍵名混在同一個物件裡。
+ * 省略 ＝ 當作 `characterBook`（既有呼叫端從沒設過這欄，行為不變）。
  */
 
 export const WI_POSITION = {
@@ -58,6 +64,8 @@ export type WbEntry = {
   group: string;
   /** true ＝ 不計入 token 預算，也不受「預算已爆」阻擋（ST `ignoreBudget`）。 */
   ignoreBudget: boolean;
+  /** `raw` 的鍵名套的是哪一套 schema —— 見檔頭。 */
+  rawSchema?: 'characterBook' | 'worldFile' | undefined;
   /** 原始那一筆，**一個欄位都沒動**。匯出走這份。 */
   raw: Record<string, unknown>;
 };
@@ -95,6 +103,7 @@ export function fromWorldFile(json: unknown): WbEntry[] {
       useProbability: bool(e['useProbability'], false),
       group: str(e['group']),
       ignoreBudget: bool(e['ignoreBudget'], false),
+      rawSchema: 'worldFile',
       raw: e,
     };
   });
@@ -129,6 +138,7 @@ export function fromCharacterBook(book: unknown): WbEntry[] {
       useProbability: bool(x['useProbability'], false),
       group: str(x['group']),
       ignoreBudget: bool(x['ignore_budget'], false),
+      rawSchema: 'characterBook',
       raw: e,
     };
   });

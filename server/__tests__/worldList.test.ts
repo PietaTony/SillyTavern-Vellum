@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { changedFromOrigin, summarizeWorlds } from '../lib/worldList.ts';
+import { changedFromOrigin, summarizeWorlds, toWorldFile } from '../lib/worldList.ts';
+import { fromWorldFile, type WbEntry } from '../lib/worldbook.ts';
 
 const world = (over: Record<string, unknown> = {}) => ({
   characterId: 'c1',
@@ -66,5 +67,90 @@ describe('世界書摘要', () => {
       [],
     );
     expect(s?.name).toBe('測試卡A(1)');
+  });
+
+  it('🔴 沒有擁有者但有 world.name（匯入／全域）—— 用書自己的名字，不是「沒有擁有者的書」', () => {
+    const [s] = summarizeWorlds(
+      [{ id: 'w1', world: world({ characterId: '__imported__', name: '我匯入的書' }), updatedAt: 'T' }],
+      [],
+      [],
+    );
+    expect(s?.name).toBe('我匯入的書');
+  });
+});
+
+describe('匯出（C7）—— toWorldFile 是 fromWorldFile 的鏡像', () => {
+  const roundTrip = (file: { name?: string; entries: Record<string, unknown> }) => {
+    const parsed = fromWorldFile(file);
+    return toWorldFile(parsed, file.name);
+  };
+
+  it('🔴 round-trip：非預設值的 order／disable／position／depth／role 逐欄位相同', () => {
+    const original = {
+      name: '測試書',
+      entries: {
+        '7': {
+          uid: 7,
+          key: ['甲', '乙'],
+          keysecondary: ['丙'],
+          comment: '第七條',
+          content: '內容七',
+          constant: false,
+          disable: true, // 非預設（預設 false）
+          selective: true,
+          selectiveLogic: 3,
+          order: 250, // 非預設（100）
+          position: 4, // atDepth，非預設（0）
+          depth: 9, // 非預設（4）
+          role: 1, // 非預設（null）
+          caseSensitive: true,
+          matchWholeWords: true,
+          probability: 42,
+          useProbability: true,
+          ignoreBudget: true,
+          // ST 專屬、我們不建模的欄位 —— round-trip 也要原樣帶回去
+          sticky: 3,
+          cooldown: 2,
+          delay: 1,
+          vectorized: true,
+        },
+      },
+    };
+    const out = roundTrip(original);
+    expect(out).toEqual(original);
+  });
+
+  it('卡片來源（無 rawSchema）的條目匯出成外部檔形狀，且不會憑空生出 ST 專屬欄位', () => {
+    const e: WbEntry = {
+      uid: '1',
+      keys: ['a'],
+      secondaryKeys: [],
+      content: 'c',
+      comment: '',
+      constant: false,
+      enabled: false,
+      selective: false,
+      selectiveLogic: 0,
+      order: 100,
+      position: 0,
+      depth: 4,
+      role: null,
+      caseSensitive: false,
+      matchWholeWords: false,
+      probability: 100,
+      useProbability: false,
+      group: '',
+      ignoreBudget: false,
+      raw: { id: 1, keys: ['a'], insertion_order: 100 }, // 卡內 schema，不是外部檔 schema
+    };
+    const out = toWorldFile([e]);
+    const entry = out.entries['1'] as Record<string, unknown>;
+    expect(entry['disable']).toBe(true); // enabled:false → disable:true
+    expect(entry['key']).toEqual(['a']);
+    expect('sticky' in entry).toBe(false); // 沒有就是沒有，不補假預設值
+  });
+
+  it('沒有書名時輸出物件不帶 name 鍵', () => {
+    expect('name' in toWorldFile([])).toBe(false);
   });
 });

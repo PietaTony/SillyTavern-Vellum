@@ -20,6 +20,7 @@ export { CompanionLayer } from './ui/CompanionLayer';
 export { Composer } from './ui/Composer';
 export { FrontendNotice } from './ui/FrontendNotice';
 export type { FrontendRenderer } from './ui/MessageContent';
+export { OutputRulesLayer } from './ui/OutputRulesLayer';
 export { SwipePicker } from './ui/SwipePicker';
 export { Thread } from './ui/Thread';
 export { VariablesLayer } from './ui/VariablesLayer';

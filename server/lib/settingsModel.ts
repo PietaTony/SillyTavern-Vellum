@@ -135,6 +135,8 @@ export type Settings = {
    * 誰讀誰寫：`server/routes/companionSettings.ts`。可逆：刪掉這鍵即回退。
    */
   companionEnabled?: boolean | undefined;
+  /** D1（Peter 2026-08-31 跨層票）：使用者自建、不綁角色的輸出規則（`OutputRule`＋`id`）——形狀／合併順序/CRUD 見 `renderChat.ts`／`companionSettings.ts`。舊檔沒有此鍵 ⇒ 空陣列，行為不變。**此檔已頂 150 行上限，其餘說明搬去那兩支，不在這裡重複**。 */
+  globalOutputRules?: unknown[] | undefined;
 };
 
 /**

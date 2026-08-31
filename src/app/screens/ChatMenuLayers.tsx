@@ -1,11 +1,11 @@
 import { BackgroundsLayer } from '@/features/backgrounds';
-import { CompanionLayer, VariablesLayer } from '@/features/chat';
+import { CompanionLayer, OutputRulesLayer, VariablesLayer } from '@/features/chat';
 import { ChatPersona } from '@/features/persona';
 import { ProvidersLayer } from '@/features/providers';
 import type { ChatMenuLayer } from './ChatMenuLayer';
 
 /**
- * `ChatMenu.tsx` 的五個 overlay layer 實際渲染在這裡。
+ * `ChatMenu.tsx` 的 overlay layer 實際渲染在這裡（原本五個，D1 加「輸出規則」變六個）。
  *
  * 🔴 **純粹是 `gate:file-size` 的搬遷**（E1，2026-08-28）：`ChatMenu.tsx` 頂到 150 行
  * 上限，新增「桌寵」這一項再放不下自己的渲染區塊。行為與搬之前逐字相同——
@@ -37,6 +37,7 @@ export function ChatMenuLayers({
       <ProvidersLayer open={layer === 'providers'} onClose={close} />
       <VariablesLayer open={layer === 'variables'} onClose={close} chatId={chatId} />
       <CompanionLayer open={layer === 'companion'} onClose={close} />
+      <OutputRulesLayer open={layer === 'outputRules'} onClose={close} />
     </>
   );
 }

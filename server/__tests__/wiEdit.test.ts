@@ -91,3 +91,68 @@ describe('條目編輯（C3）', () => {
     expect(e.raw['secondary_keys']).toEqual(['d']); // 🔴 卡內叫 secondary_keys
   });
 });
+
+/**
+ * 🔴 **外部世界書檔（匯入）用另一套鍵名，且沒有 `extensions`**（`worldbook.ts` 檔頭）。
+ * 選錯對照表會把兩套鍵名混進同一個 `raw`，或漏寫剛剛的編輯 —— 這批測試守 `rawSchema`
+ * 真的有被讀到、而不是永遠走卡內那一套。
+ */
+describe('條目編輯 —— 外部世界書檔那一套（rawSchema: worldFile）', () => {
+  const wfEntry = (over: Partial<WbEntry> = {}): WbEntry => ({
+    uid: '0',
+    keys: ['甲'],
+    secondaryKeys: [],
+    content: '內容',
+    comment: '',
+    constant: false,
+    enabled: true,
+    selective: false,
+    selectiveLogic: 0,
+    order: 100,
+    position: 0,
+    depth: 4,
+    role: null,
+    caseSensitive: false,
+    matchWholeWords: false,
+    probability: 100,
+    useProbability: false,
+    group: '',
+    ignoreBudget: false,
+    rawSchema: 'worldFile',
+    raw: { uid: 0, key: ['甲'], content: '內容', disable: false, sticky: 5 },
+    ...over,
+  });
+
+  it('🔴 頂層鍵名（沒有 extensions）：depth／probability 直接寫在 raw 頂層', () => {
+    const e = applyEntryEdit(wfEntry(), { depth: 9, probability: 30 });
+    expect(e.raw['depth']).toBe(9);
+    expect(e.raw['probability']).toBe(30);
+    expect(e.raw['extensions']).toBeUndefined(); // 外部檔本來就不用這個
+  });
+
+  it('🔴 `enabled` 要反過來寫成 `disable`', () => {
+    const e = applyEntryEdit(wfEntry(), { enabled: false });
+    expect(e.raw['disable']).toBe(true);
+    const e2 = applyEntryEdit(wfEntry({ enabled: false, raw: { disable: true } }), { enabled: true });
+    expect(e2.raw['disable']).toBe(false);
+  });
+
+  it('關鍵字寫回 `key`／`keysecondary`，不是卡內的 `keys`／`secondary_keys`', () => {
+    const e = applyEntryEdit(wfEntry(), { keys: ['乙'], secondaryKeys: ['丙'] });
+    expect(e.raw['key']).toEqual(['乙']);
+    expect(e.raw['keysecondary']).toEqual(['丙']);
+    expect(e.raw['keys']).toBeUndefined();
+  });
+
+  it('🔴 認不得的欄位（sticky）原樣保留 —— 這套 schema 也適用同一條契約', () => {
+    const e = applyEntryEdit(wfEntry(), { content: 'x' });
+    expect(e.raw['sticky']).toBe(5);
+  });
+
+  it('省略 rawSchema 時預設走卡內那一套（既有呼叫端不受影響）', () => {
+    const legacy = entry(); // 上面卡內那套的 entry()，沒有 rawSchema
+    const e = applyEntryEdit(legacy, { depth: 9 });
+    const ext = e.raw['extensions'] as Record<string, unknown>;
+    expect(ext['depth']).toBe(9); // 走卡內那套，寫進 extensions
+  });
+});

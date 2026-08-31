@@ -37,11 +37,17 @@ export const DEAD_FIELDS: {
     present: (e) => Boolean(e.group),
     show: (e) => e.group,
   },
+  /**
+   * 🔴 **兩個位置都要找**：卡片複製來的書 `sticky`／`cooldown`／`delay` 藏在
+   * `raw.extensions` 底下；**匯入的外部世界書檔沒有 `extensions`，這三個欄位在
+   * `raw` 頂層**（`server/lib/worldbook.ts` 檔頭）。只查一邊的話，匯入的書會被
+   * 看成「這些欄位都沒設」，即使原始檔案裡明明寫著 `sticky: 5`。
+   */
   ...(['sticky', 'cooldown', 'delay'] as const).map((k) => ({
     key: k,
     label: { sticky: '黏著幾則', cooldown: '冷卻幾則', delay: '前幾則不觸發' }[k],
-    present: (e: { raw?: Record<string, unknown> }) => Boolean(rawExt(e)[k]),
-    show: (e: { raw?: Record<string, unknown> }) => String(rawExt(e)[k]),
+    present: (e: { raw?: Record<string, unknown> }) => Boolean(e.raw?.[k] ?? rawExt(e)[k]),
+    show: (e: { raw?: Record<string, unknown> }) => String(e.raw?.[k] ?? rawExt(e)[k]),
   })),
 ];
 

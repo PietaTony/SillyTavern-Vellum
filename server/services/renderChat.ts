@@ -14,17 +14,27 @@
 import type { Message } from './chatModel.ts';
 import { substitute } from '../lib/macro.ts';
 import { applyRules, type OutputRule } from '../lib/outputRules.ts';
+import { loadSettings } from './settings.ts';
 
-/** 深度＝從最新一則往回數（`maxDepth=2` 的開場頁靠它生效）。 */
+/**
+ * 深度＝從最新一則往回數（`maxDepth=2` 的開場頁靠它生效）。
+ *
+ * 🔴 **顯示（這支）與送進模型（`buildTurn.ts`）共用同一套算法**（D1 擴充，
+ * Peter 2026-08-31）——同一條 `minDepth`／`maxDepth` 規則，兩條路徑算出的深度只要
+ * 有一絲不同，就會套用在不同的幾則訊息上；而使用者只看得到顯示那邊，
+ * prompt 那邊算錯了不會有任何畫面告訴他。**改這支一定要同時檢查 `buildTurn.ts` 的呼叫端。**
+ */
+export const depthFromEnd = (index: number, total: number): number => total - 1 - index;
+
 export function renderMessages(
   messages: Message[],
   rules: OutputRule[],
   names: { char: string; user: string },
 ): Message[] {
-  const last = messages.length - 1;
   return messages.map((m, i) => {
     if (m.role !== 'model') return m;
-    const ruled = rules.length ? applyRules(m.text, rules, { target: 'display', depth: last - i }) : m.text;
+    const depth = depthFromEnd(i, messages.length);
+    const ruled = rules.length ? applyRules(m.text, rules, { target: 'display', depth }) : m.text;
     // 🔴 `{{user}}` 沒替換掉會直接印在畫面上 —— 使用者看到大括號只會覺得壞了。
     /**
      * 🔴 **M13 第一期起不再壓平成純文字。**
@@ -39,6 +49,43 @@ export function renderMessages(
   });
 }
 
-/** 從角色紀錄拿規則。存進去時是 `unknown[]`（zod 不驗內容），這裡收斂型別。 */
-export const rulesOf = (c: { outputRules?: unknown[] | undefined } | null): OutputRule[] =>
-  Array.isArray(c?.outputRules) ? (c.outputRules as OutputRule[]) : [];
+/**
+ * 這段對話真正要套用的規則表 —— **兩個來源的合併**（D1，Peter 2026-08-31 跨層票）。
+ * ① 卡片內嵌（`c.outputRules`，來自 `extensions.regex_scripts` → `deriveConfig.ts`）
+ * ② 使用者自己建的（`settings.json` 的 `globalOutputRules`，**全域、不綁角色** ——
+ *    綁角色會把使用者的個人規則寫進卡片檔，匯出卡片時一起帶走，那可能是他不想分享的東西）。
+ *
+ * 🔴 **順序：全域先、卡片後 —— 這是查證過的 ST 行為，不是我們自己選的。**
+ * `SillyTavern-Reference/public/scripts/extensions/regex/engine.js:11-16`：
+ * `SCRIPT_TYPES = { GLOBAL: 0, SCOPED: 1, PRESET: 2 }`，註解寫死
+ * `// ORDER MATTERS: defines the regex script priority`；`getRegexScripts()` 用這個順序
+ * `flatMap`——GLOBAL（我們的「使用者自建」）永遠排在 SCOPED（我們的「卡片內嵌」）前面。
+ *
+ * `applyRules` 是**依序套用、後一條吃前一條的輸出**（`outputRules.ts` 檔頭）——
+ * 順序不只是「誰先跑」，是「誰的輸出是最終結果」。全域先跑、卡片後跑 ⇒ **卡片作者的規則
+ * 有最後一擊**：使用者的通用規則（例如「所有 OOC 都拿掉」）先清過一輪，卡片自己認得的格式
+ * （它自己的狀態欄、它自己的標記）最後再精修一次，不會被使用者寫的一條通用規則意外吃掉。
+ *
+ * 🔴 **兩條路徑共用這一支**，不要各寫一份合併邏輯（Peter 2026-08-31 補的裁定：
+ * 這個 repo 已經有三次「同一個坑、多條平行路徑，只補了一條」）——
+ * `renderMessages`（這支檔案）套 `target: 'display'`／`'both'` 進畫面；
+ * `services/buildTurn.ts` 用同一份合併結果套 `target: 'prompt'`／`'both'` 進送給模型的文字。
+ * 合併的優先序（誰先跑、誰有最後一擊）兩邊完全相同，因為兩邊拿到的是同一個陣列。
+ *
+ * 🔴 **async**：要讀 `settings.json` 才知道使用者自建了哪些規則。唯一呼叫端
+ * （`routes/chats.ts` 的 `GET /:id`）已經是 `async` handler，多一個 `await` 不改變它是否寫檔——
+ * `loadSettings()` 只讀不寫（`adapters/storage.ts` 的 `readJson`），GET 仍然不動 `settings.json`。
+ *
+ * ⚠️ **兩個來源存進去時都只是 `unknown[]`，內容沒有人驗過**——這裡的 `as OutputRule[]`
+ * 是收斂型別，不是驗證：卡片那份在 `character.ts` 只用 `z.array(z.unknown())`（zod 不檢查
+ * 裡面每一條的形狀）；全域這份的 `Settings`（`settingsModel.ts`）根本沒有 zod schema，
+ * `loadSettings()` 只是 `readJson` 加一個 TS cast。下游 `applyRules`／`regexFrom` 對缺欄位、
+ * 錯型別的容忍度已經寫在 `outputRules.ts` 自己的檔頭（看不懂的正則回 `null`、不炸掉），
+ * 這裡才敢就這樣把陣列串起來——**看到 `as OutputRule[]` 不是偷懶，是這兩個來源本來就沒有
+ * 更強的型別可以要。**
+ */
+export async function rulesOf(c: { outputRules?: unknown[] | undefined } | null): Promise<OutputRule[]> {
+  const card = Array.isArray(c?.outputRules) ? (c.outputRules as OutputRule[]) : [];
+  const global = (await loadSettings()).globalOutputRules;
+  return [...(Array.isArray(global) ? (global as OutputRule[]) : []), ...card];
+}

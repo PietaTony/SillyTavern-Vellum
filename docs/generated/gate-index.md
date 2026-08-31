@@ -19,6 +19,7 @@
 | `gate-pr-ready.ts` | PR 交件前的機械檢查清單（對照 FEATURE-DONE.md Tier 1–2）。 |
 | `gate-preamble.ts` | **送進 iframe 的那幾段 JS 字串，語法要是對的**。 |
 | `gate-provider-guides.ts` | **每一家點得進去的供應商，都要有真的引導**（Peter 2026-08-26：「每一個都要做」）。 |
+| `gate-screen-id.ts` | GAP-124 screen id catalog 與狀態綁定（v0）。 |
 | `gate-screens-vs-routes.ts` | 設計畫面與 route 檔的一對一對照（active 里程碑範圍內）。 |
 | `gate-signer.ts` | `dist-app/**\/*.app`（電子簽出來的每個 .app，含巢狀 Helper.app） |
 | `gate-toast.ts` | **全站的 tips 只有一種**（Peter 2026-08-26：「這個 tips 修改是固定的， |
