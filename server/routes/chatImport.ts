@@ -4,7 +4,15 @@
  */
 import { Hono } from 'hono';
 import type { Character } from '../lib/character.ts';
-import { parseChatJsonl, viewOfEntry, viewOfHeader, writeChatJsonl } from '../lib/chatFile.ts';
+import {
+  BadNativeChatFile,
+  parseChatJsonl,
+  parseNativeChat,
+  viewOfEntry,
+  viewOfHeader,
+  writeChatJsonl,
+  writeNativeChat,
+} from '../lib/chatFile.ts';
 import { displayNameOf } from '../lib/displayName.ts';
 import { safeId } from '../lib/ids.ts';
 import { readBin, readJson as read, writeBin, writeJson } from '../adapters/storage.ts';
@@ -63,7 +71,12 @@ export const chatImport = new Hono()
     return c.json({ ...chat, swipeCounts: file.entries.map((e) => viewOfEntry(e).swipes.length) }, 201);
   })
 
-  /** 匯出：從 `.jsonl` 原文重建，**不是**從 `messages` 那四個欄位重建。 */
+  /**
+   * 匯出（ST 相容）：從 `.jsonl` 原文重建，**不是**從 `messages` 那四個欄位重建。
+   * 🔴 **只服務匯入進來的對話**——原生在 Vellum 建立的對話沒有這份原文，404。
+   * 那條缺口的補法是下面的 `/:id/export.vellum.json`，**不是**放寬這裡去猜一份假的
+   * `.jsonl`：假造 `is_user`／`mes` 這種 ST 專屬鍵，只會讓 ST 使用者匯回去看到殘缺的檔案。
+   */
   .get('/:id/export.jsonl', async (c) => {
     const id = safeId(c.req.param('id'));
     if (!id) return c.json({ error: '找不到這段對話' }, 404);
@@ -72,4 +85,57 @@ export const chatImport = new Hono()
     return new Response(writeChatJsonl(parseChatJsonl(raw.toString('utf8'))), {
       headers: { 'Content-Type': 'application/jsonl; charset=utf-8' },
     });
+  })
+
+  /**
+   * 匯出（我們自己的格式）：**任何對話都匯得出來**，包含原生建立、從沒匯入過的——
+   * 這是這張票要補的洞（`INBOX/20260831-native-chats-no-export.md`）。
+   * 直接從落地的 `chats/<id>.json` 取，不像上面那條要有 `.jsonl` 原文才行。
+   */
+  .get('/:id/export.vellum.json', async (c) => {
+    const id = safeId(c.req.param('id'));
+    if (!id) return c.json({ error: '找不到這段對話' }, 404);
+    const chat = await read<Chat | null>(`chats/${id}.json`, null);
+    if (!chat) return c.json({ error: '找不到這段對話' }, 404);
+    return new Response(
+      writeNativeChat({ characterName: chat.characterName, createdAt: chat.createdAt, messages: chat.messages }),
+      {
+        headers: {
+          'Content-Type': 'application/json; charset=utf-8',
+          'Content-Disposition': `attachment; filename="${id}.vellum.json"`,
+        },
+      },
+    );
+  })
+
+  /**
+   * 匯回我們自己的格式（`?characterId=` 掛在哪個角色底下，跟 `/import` 同一個判準）。
+   * 🔴 **底線**：`export.vellum.json` 吐出來的東西，這支一定要讀得回來——
+   * 這是 round-trip 測試守的那件事（`server/__tests__/chatImport.test.ts`）。
+   * ⚠️ 訊息 id 原樣沿用（不像 `/import` 幫 ST 的訊息重配一個）：我們自己的格式
+   * 本來就帶著 id，重配只會讓匯出→匯入前後的 `messages[].id` 對不上。
+   */
+  .post('/import/vellum', async (c) => {
+    const cid = safeId(c.req.query('characterId') ?? '');
+    if (!cid) return c.json({ error: '要指定 characterId' }, 400);
+    const ch = await read<Character | null>(`characters/${cid}.json`, null);
+    if (!ch) return c.json({ error: '找不到這個角色' }, 404);
+
+    let file;
+    try {
+      file = parseNativeChat(await c.req.text());
+    } catch (e) {
+      return c.json({ error: e instanceof BadNativeChatFile ? e.message : '這不是對話檔' }, 400);
+    }
+
+    const id = crypto.randomUUID();
+    const chat: Chat = {
+      id,
+      characterId: ch.id,
+      characterName: file.characterName || displayNameOf(ch),
+      messages: file.messages,
+      createdAt: new Date().toISOString(),
+    };
+    await writeJson(`chats/${id}.json`, chat);
+    return c.json(chat, 201);
   });
