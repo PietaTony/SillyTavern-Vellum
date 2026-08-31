@@ -395,3 +395,109 @@ jobs:
           fail_on_unmatched_files: true # 少一個平台就要紅，不要靜靜發一包不完整的
           body_path: release-body.md
           files: assets/*
+
+  # 🔴 **這支在守什麼：CD 失敗時，Peter 不用自己去翻 log 才知道。**
+  #    2026-08-31 事故：v0.2.22 停了三天，`release` job 的「組出 release notes」
+  #    那一步紅了兩次（PR #35、#39），另外 6 個 job 全綠——看起來像發版成功了，
+  #    其實沒有，而且**沒有任何人知道**，是中控線事後翻 `gh run view --log-failed`
+  #    才查出來的。閘門本身是對的（GAP-114 該擋的都擋了），缺的只是「有人看見」。
+  #
+  #    Peter 2026-08-31 已裁：自動開 GitHub Issue（不用新 secret，`GITHUB_TOKEN`
+  #    內建就有；issue 比 Actions 失敗信難忽略——失敗信那條路已被實證會被忽略；
+  #    issue 留痕、可回頭查）。
+  #
+  #    🔴 標題／內文要說得出**哪一個 job、哪一步**，不能只講「CD 失敗了」——
+  #    這是本票的驗收線，也是 v0.2.22 那次事故真正缺的東西。job 層級的
+  #    `${{ needs.*.result }}` 只知道「哪個 job」，不知道「哪一步」；
+  #    要挖到 step 名稱，得回頭打 Actions API 查這次 run 自己的 job 列表
+  #    （`GET /actions/runs/{run_id}/jobs`），對每個 `conclusion=="failure"`
+  #    的 job 再挑出 `steps[]` 裡同樣 `conclusion=="failure"` 的那一個。
+  #
+  #    🔴 `if: failure()` 搭配下面這串 `needs`：只要清單裡任何一個 job 失敗
+  #    （包含 `guard`本身），這個 job 就會跑；上游失敗導致的下游 `skipped`
+  #    不算 `failure()`，但不影響——只要有一個真的 `failure` 就會觸發。
+  #    成功的 CD 這個 job 直接被跳過（`skipped`），不會打任何 API、不會開 issue。
+  #
+  #    🔴 去重：同一個 workflow 檔連續失敗在同一個 job／step 上，不開第二張 issue，
+  #    在既有那張底下留言。簽章 = 排序後的「job → step」清單的 sha256，藏在
+  #    issue body 裡的 HTML 註解（`<!-- cd-failure-sig: ... -->`）——找得到就是
+  #    同一組失敗，留言；找不到（新的失敗模式，或上一張已經被關掉）才開新的。
+  #    不用「同標籤的第一張」這種粗略去重：不同 job／step 失敗是不同的事，
+  #    各自留痕才查得到，也才關得掉。
+  notify-on-failure:
+    needs: [guard, version, gates, windows-smoke, windows-app, mac-app, release]
+    if: failure()
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      actions: read # 讀這次 run 自己的 job／step 列表
+      issues: write
+    steps:
+      - name: 找出哪個 job／哪一步失敗，開（或延續）一張 Issue
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+          RUN_ID: ${{ github.run_id }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          SHA: ${{ github.sha }}
+          EVENT: ${{ github.event_name }}
+        run: |
+          set -e
+          JOBS_JSON=$(gh api "repos/$REPO/actions/runs/$RUN_ID/jobs")
+
+          # 每一行是「job → step」；job 本身就是失敗單位（沒有個別 step 紅）時，
+          # 說清楚是 job 本身，不要留白讓人以為腳本漏抓。
+          FAILED=$(echo "$JOBS_JSON" | jq -r '
+            [.jobs[] | select(.conclusion=="failure")] as $fj
+            | if ($fj | length) == 0 then empty else
+              $fj[] | . as $j
+              | ([$j.steps[]? | select(.conclusion=="failure") | .name]) as $steps
+              | if ($steps | length) > 0
+                then $steps[] | "\($j.name) → \(.)"
+                else "\($j.name) → （job 本身失敗，查不到個別 step）"
+                end
+            end
+          ')
+          # 🔴 這裡故意不吞掉「查不到」——API 沒給答案時要讓人知道要自己去看 run，
+          # 不要開一張說「哪裡失敗」卻空著的 issue（等於白開）。
+          if [ -z "$FAILED" ]; then
+            FAILED="（無法從 Actions API 判定是哪個 job／step —— 可能是逾時或被取消，見 $RUN_URL）"
+          fi
+          echo "失敗清單：$FAILED"
+
+          FIRST_LINE=$(echo "$FAILED" | head -1)
+          TITLE="CD 失敗：$FIRST_LINE"
+          SIG_HASH=$(printf '%s' "$(echo "$FAILED" | sort)" | shasum -a 256 | cut -d' ' -f1)
+          MARKER="<!-- cd-failure-sig: $SIG_HASH -->"
+
+          EXISTING=$(gh issue list --repo "$REPO" --label cd-failure --state open \
+            --json number,body --jq ".[] | select(.body | contains(\"$MARKER\")) | .number" | head -1)
+
+          if [ -n "$EXISTING" ]; then
+            gh issue comment "$EXISTING" --repo "$REPO" --body \
+              "再次失敗（同一組 job／step）：$RUN_URL（觸發：$EVENT，commit $SHA）"
+            echo "沿用既有 issue #$EXISTING —— 同一組 job／step 已有未關閉的 issue，不開新的"
+          else
+            # 🔴 用暫存檔組 body，不用 heredoc——heredoc 的結束分隔字元一旦被
+            # YAML block scalar 的縮排帶了空白就找不到，會整段被吃進字串裡。
+            BODY_FILE=$(mktemp)
+            {
+              echo '## CD 失敗'
+              echo
+              echo '**失敗的 job／step：**'
+              echo '```'
+              echo "$FAILED"
+              echo '```'
+              echo
+              echo "- 觸發事件：$EVENT"
+              echo "- commit：$SHA"
+              echo "- run：$RUN_URL"
+              echo
+              echo '這張 issue 由 `cd.yml` 的 `notify-on-failure` job 自動開出。修好之後手動關閉；'
+              echo '同一個 job／step 再次失敗時會在這張底下留言，不會再開一張新的。'
+              echo
+              echo "$MARKER"
+            } > "$BODY_FILE"
+            gh issue create --repo "$REPO" --title "$TITLE" --label cd-failure --body-file "$BODY_FILE"
+            echo "已開新 issue（首次出現這組 job／step 失敗）"
+          fi
