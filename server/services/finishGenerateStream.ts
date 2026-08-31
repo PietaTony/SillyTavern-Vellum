@@ -16,8 +16,45 @@
  * 才是重點，`ctrl.enqueue` 只是「如果連線還在」的順手嘗試，失敗不影響已經寫進
  * 檔案的訊息，所以兩個分支各自都用 try/catch 包住 enqueue。
  */
+import type { ProviderEvent } from '../providers/types.ts';
 import { redact } from './secrets.ts';
 import { commitPartialTurn } from './commitPartialTurn.ts';
+
+/**
+ * A6 順手做的抽檔：把 `generate.ts` 逐行處理 `adapter.parse()` 事件的 if/else
+ * 挪出來——不是這張票的內容，但 idle timeout 加進 `generate.ts` 之後撞了
+ * `gate:file-size`（`origin/staging` 量過，149 行），這一段本來就是**跟供應商
+ * 事件形狀綁死、跟路由層無關**的邏輯，抽出來比硬塞或砍註解乾淨。
+ * 🔴 **可變狀態用物件傳進來**，不是回傳值——呼叫端 `generate.ts` 的迴圈要看到
+ * `full`／`usage`／`finish` 累積到目前為止的值（idle timeout 判斷、`done` 事件都要用）。
+ */
+export function applyProviderEvents(
+  events: ProviderEvent[],
+  state: { full: string; finish: string | undefined; usage: Record<string, number | undefined> },
+  ctrl: ReadableStreamDefaultController<Uint8Array>,
+  enc: TextEncoder,
+  sse: (event: string, data: unknown) => string,
+  key: string,
+): void {
+  for (const ev of events) {
+    if (ev.type === 'delta') {
+      // 🔴 **thinking 不進正文**：它是思考過程，混進去會變成角色的台詞。
+      if (ev.kind === 'text') {
+        state.full += ev.text;
+        ctrl.enqueue(enc.encode(sse('delta', { text: ev.text })));
+      } else {
+        ctrl.enqueue(enc.encode(sse('thinking', { text: ev.text })));
+      }
+    } else if (ev.type === 'usage') {
+      state.usage = { ...state.usage, ...ev.usage };
+    } else if (ev.type === 'done') {
+      if (ev.finishReason) state.finish = ev.finishReason;
+      if (ev.usage) state.usage = { ...state.usage, ...ev.usage };
+    } else {
+      ctrl.enqueue(enc.encode(sse('error', { message: redact(ev.message, [key]) })));
+    }
+  }
+}
 
 export async function finishGenerateStream(opts: {
   ctrl: ReadableStreamDefaultController<Uint8Array>;
