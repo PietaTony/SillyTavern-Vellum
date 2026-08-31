@@ -17,6 +17,7 @@ export {
   updateCharacter,
 } from './api';
 export { loadAddFriendDraft } from './draftMigration';
+export { downloadCharacterCard } from './lib/exportCard';
 export { formatBytes, MAX_CARD_BYTES, validateCardFile } from './lib/validateCardFile';
 export {
   alternatesOf,
@@ -30,6 +31,7 @@ export { ADD_FRIEND_DRAFT, AddFriendForm } from './ui/AddFriendForm';
 export { AddFriendSubmit } from './ui/AddFriendSubmit';
 export { CharacterLayer } from './ui/CharacterLayer';
 export { ExistingCardPicker } from './ui/ExistingCardPicker';
+export { ExportCardButton } from './ui/ExportCardButton';
 export { type FriendItem, FriendList } from './ui/FriendList';
 export { GreetingsSection } from './ui/GreetingsSection';
 export { ImportCardBox } from './ui/ImportCardBox';

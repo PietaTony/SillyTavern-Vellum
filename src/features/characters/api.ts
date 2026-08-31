@@ -14,6 +14,12 @@ export type Character = {
   updatedAt?: string;
   /** 開場白候選數。>1 時對話的第一則訊息會長出左右切換（M12 起不再攔在進對話之前）。 */
   greetings?: string[];
+  /**
+   * 🔴 **有這個鍵才有卡可以匯出**（`services/importCard.ts` 只在匯入時寫入 `${id}.png`）。
+   * 自建角色從沒有這個欄位 ⇒ `GET /:id/card.png` 對它永遠 404（GAP-48）。
+   * 前端拿它當「要不要畫匯出鈕」的判準，不要用別的欄位猜。
+   */
+  card?: string;
 };
 
 export type NewCharacter = Omit<Character, 'id' | 'createdAt'>;
