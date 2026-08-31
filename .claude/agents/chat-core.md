@@ -23,6 +23,10 @@ You own **H1 · Chat Core**. `AGENTS.md` holds the rules this file does not repe
   `/api/settings/companion`，直接註冊在 `server/app.ts`——2026-08-28 由另一張 X3
   小票補的登記，第一版曾借掛在 `chatMessages.ts` 的 `/api/chats` 前綴下，已歸位）。
 - `server/lib/` — `chatFile.ts` `greetings.ts` `messageEdit.ts`
+  `historyTruncation.ts` 🔴 A2 抽檔票（2026-08-31）新增：`HISTORY_BYTE_BUDGET`／
+  `truncateHistory()`（GAP-37 對話歷史截斷）從 `services/buildTurn.ts` 搬出來——
+  純函式、無 IO，照 `lib`／`services` 既有分法本來就該在這裡；上一輪先做在
+  `buildTurn.ts` 是因為新增檔案要先開票宣告，這張票補上宣告與搬遷。
 - `server/services/` — `chatModel.ts` `renderChat.ts` `buildTurn.ts` `greetingLore.ts`
   `landOpening.ts` `seedGreetingVars.ts` `commitPartialTurn.ts` `finishGenerateStream.ts`
   🔴 These four are in `services/`, not `lib/`. `services/` touches IO; `lib/` is pure.

@@ -1,5 +1,6 @@
 import AutoStoriesOutlinedIcon from '@mui/icons-material/AutoStoriesOutlined';
 import DataObjectOutlinedIcon from '@mui/icons-material/DataObjectOutlined';
+import DownloadOutlinedIcon from '@mui/icons-material/DownloadOutlined';
 import ExtensionOutlinedIcon from '@mui/icons-material/ExtensionOutlined';
 import PersonOutlineIcon from '@mui/icons-material/PersonOutlined';
 import PetsOutlinedIcon from '@mui/icons-material/PetsOutlined';
@@ -9,6 +10,8 @@ import WallpaperOutlinedIcon from '@mui/icons-material/WallpaperOutlined';
 import ListItemIcon from '@mui/material/ListItemIcon';
 import ListItemText from '@mui/material/ListItemText';
 import MenuItem from '@mui/material/MenuItem';
+import { downloadChatExport } from '@/features/chat';
+import { pushToast } from '@/shared/ui/toastStore';
 import type { ChatMenuLayer } from './ChatMenuLayer';
 import { ReportMenuItem } from './ReportButton';
 
@@ -101,6 +104,22 @@ export function ChatMenuItems({
           <RuleOutlinedIcon fontSize="small" />
         </ListItemIcon>
         <ListItemText primary="輸出規則" secondary="自訂文字取代，全站生效" />
+      </MenuItem>
+      {/* 🔴 H1 落地票（2026-08-31）：原生對話在此之前沒有任何匯出入口
+          （`GET /:id/export.jsonl` 只服務匯入進來的對話，見 `chatImport.ts`）。
+          這個格式是我們自己的，ST 讀不回去——代價寫在 `exportChat.ts` 檔頭。 */}
+      <MenuItem
+        onClick={() => {
+          closeMenu();
+          void downloadChatExport(chatId).catch((e: Error) =>
+            pushToast({ severity: 'warning', text: e.message }),
+          );
+        }}
+      >
+        <ListItemIcon>
+          <DownloadOutlinedIcon fontSize="small" />
+        </ListItemIcon>
+        <ListItemText primary="匯出這段對話" secondary="我們自己的格式，帶得走、匯得回來" />
       </MenuItem>
       {/* 🔴 回報要在他發現問題的當下按得到 —— 埋在設定裡的話他得先離開這段對話，
           而他要講的往往就是「剛剛這段對話怎麼了」。
