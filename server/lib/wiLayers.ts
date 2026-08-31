@@ -54,9 +54,9 @@ export const CHAR_STRATEGY = { evenly: 0, characterFirst: 1, globalFirst: 2 } as
  *   得出差異。
  *
  * ⚠️ **這不是我們架構獨有的洞，是 ST 自己的真實行為，逐行對得上**：
- *   ST 的 `getSortedEntries()`（`world-info.js:4478-4527`）用策略把 global／
+ *   ST 的 `getSortedEntries()`（`world-info.js:4478-4532`）用策略把 global／
  *   character 兩層個別排序後串接（跟這支檔案的 `orderLayers()` 做的事一樣）；
- *   但 ST 自己在插入前（`world-info.js:5083`）也對**全部**已啟用條目做
+ *   但 ST 自己在插入前（`world-info.js:5084`）也對**全部**已啟用條目做
  *   `[...allActivatedEntries.values()].sort(sortFn)`——`sortFn`
  *   （`world-info.js:88`）就是 `(a, b) => b.order - a.order`，跟這裡的
  *   `byOrderDesc` 定義完全相同。ST 的 `character_strategy` 一樣只在
