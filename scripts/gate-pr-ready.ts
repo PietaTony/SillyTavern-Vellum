@@ -25,7 +25,15 @@
  *    的四類（有六題慣例在跑）才用原本「必須含『六題』字樣」的嚴格判準。
  */
 import { execSync } from 'node:child_process';
-import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import {
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readdirSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, sep } from 'node:path';
 
@@ -188,7 +196,8 @@ export function checkPersistedSix(root: string): string[] {
     }
     const src = readFileSync(modPath, 'utf8');
     if (entry.requireSixQuestions) {
-      if (!src.includes('六題')) bad.push(`${entry.module}: 缺「六題」檔頭（持久化 ${entry.dataFile}）`);
+      if (!src.includes('六題'))
+        bad.push(`${entry.module}: 缺「六題」檔頭（持久化 ${entry.dataFile}）`);
       else if (!src.includes(entry.keyword)) bad.push(`${entry.module}: 未提及 ${entry.keyword}`);
     } else if (src.trim().length < 200 || !src.includes(entry.keyword)) {
       bad.push(`${entry.module}: 內容不像 ${entry.dataFile} 的正本模組（清空了或關鍵字不見了）`);
@@ -350,22 +359,30 @@ function runSelftest(): void {
       join(lib, 'persona.ts'),
       `// Persona 型別，這裡故意墊長一點避免被誤判成清空的空殼檔案\nexport type Persona = { id: string };\n${'// pad line to push fixture past the trivial-file threshold\n'.repeat(15)}`,
     );
-    writeFileSync(join(services, 'secrets.ts'), `const FILE = 'secrets.json';\n${'// pad line to push fixture past the trivial-file threshold\n'.repeat(15)}`);
+    writeFileSync(
+      join(services, 'secrets.ts'),
+      `const FILE = 'secrets.json';\n${'// pad line to push fixture past the trivial-file threshold\n'.repeat(15)}`,
+    );
     mkdirSync(join(dir, 'server/routes'), { recursive: true });
     writeFileSync(
       join(dir, 'server/routes/writers.ts'),
       [
         "writeJson('settings.json', s);",
         "writeJson('auth.json', a);",
+        // biome-ignore lint/suspicious/noTemplateCurlyInString: 這是要寫進 fixture 檔的字面 TS 原始碼，不是插值
         'writeJson(`characters/${id}.json`, c);',
+        // biome-ignore lint/suspicious/noTemplateCurlyInString: 同上
         'writeJson(`chats/${id}.json`, c);',
+        // biome-ignore lint/suspicious/noTemplateCurlyInString: 同上
         'writeJson(`worlds/${id}.json`, w);',
+        // biome-ignore lint/suspicious/noTemplateCurlyInString: 同上
         'writeJson(`personas/${id}.json`, p);',
         "writeJson(FILE, s); const FILE = 'secrets.json';",
       ].join('\n'),
     );
     const goodResult = checkPersistedSix(dir);
-    if (goodResult.length !== 0) fail(`persisted 六題：好 fixture 應該乾淨，實際 ${JSON.stringify(goodResult)}`);
+    if (goodResult.length !== 0)
+      fail(`persisted 六題：好 fixture 應該乾淨，實際 ${JSON.stringify(goodResult)}`);
 
     // 壞：settingsModel.ts 挖掉六題字樣
     writeFileSync(join(lib, 'settingsModel.ts'), 'export type X = 1;\n');
