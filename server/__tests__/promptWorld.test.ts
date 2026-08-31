@@ -1,7 +1,7 @@
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Chat } from '../services/chatModel.ts';
 import { WI_POSITION, type WbEntry } from '../lib/worldbook.ts';
 
@@ -25,10 +25,13 @@ beforeEach(() => {
 afterEach(() => {
   rmSync(root, { recursive: true, force: true });
   delete process.env['VELLUM_DATA'];
+  // 🔴 spy 若在斷言失敗那一行就中止（vitest 拋錯離開 it()），本體內的
+  // `warnSpy.mockRestore()` 永遠不會跑到，console.warn 會帶著 mock 狀態
+  // 漏進下一個測試——這裡兜底，不管前一個測試是否成功都清乾淨。
+  vi.restoreAllMocks();
 });
 
 async function fresh() {
-  const { vi } = await import('vitest');
   vi.resetModules();
   const mod = await import('../services/promptWorld.ts');
   const { writeJson } = await import('../adapters/storage.ts');
@@ -72,6 +75,10 @@ const wbEntry = (o: Partial<WbEntry>): WbEntry => ({
 describe('A3：worldForChat 真的把 budget 傳給 planInjection', () => {
   it('🔴 超過 DEFAULT_WI_BUDGET 的條目被裁進 plan.trimmed，不是靜默塞進 prompt', async () => {
     const { worldForChat, writeJson, DEFAULT_WI_BUDGET } = await fresh();
+    // 🔴 console.warn 那段是「使用者今天唯一看得到裁切發生」的管道（見 promptWorld.ts
+    // 的註解），過去只靠人眼看 diff 確認它存在——沒有任何斷言守著，刪掉整段照樣全綠。
+    // spy 起來，跟 outcome.trimmed 一起斷言，兩邊都要對才算過。
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
     // order 200（先處理）用掉幾乎整個預算；order 100（後處理）一定會爆。
     // 這樣寫死哪條被裁，不必依賴 DEFAULT_WI_BUDGET 的實際數值。
     const fits = wbEntry({ uid: 'fits', content: 'F'.repeat(DEFAULT_WI_BUDGET - 10), order: 200 });
@@ -91,10 +98,16 @@ describe('A3：worldForChat 真的把 budget 傳給 planInjection', () => {
     expect(outcome.trimmed).toBe(1); // 🔴 這裡就是本次要補的洞：以前恆為 0
     expect(outcome.plan.trimmed.map((e) => e.uid)).toEqual(['overflow']);
     expect(outcome.plan.afterChar).toEqual([fits.content]); // 沒爆預算的那條照樣插進 prompt
+
+    // 🔴 log 內容要帶被裁條數，不是隨便印一行就算數——訊息本身要能回答「裁了幾條」。
+    expect(warnSpy).toHaveBeenCalledTimes(1);
+    expect(warnSpy.mock.calls[0]?.[0]).toContain('1/2');
+    warnSpy.mockRestore();
   });
 
-  it('沒有超過預算時 trimmed 是 0，不是「沒量過」的假象', async () => {
+  it('沒有超過預算時 trimmed 是 0，不是「沒量過」的假象，也不該印裁切警告', async () => {
     const { worldForChat, writeJson } = await fresh();
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
     const small = wbEntry({ uid: 'small', content: '短內容', order: 100 });
     await writeJson(`worlds/char1.json`, {
       version: 1,
@@ -108,5 +121,7 @@ describe('A3：worldForChat 真的把 budget 傳給 planInjection', () => {
     expect(outcome.trimmed).toBe(0);
     expect(outcome.plan.trimmed).toEqual([]);
     expect(outcome.plan.afterChar).toEqual(['短內容']);
+    expect(warnSpy).not.toHaveBeenCalled(); // 沒裁就不該印——警告本身也要對「沒事」誠實
+    warnSpy.mockRestore();
   });
 });
