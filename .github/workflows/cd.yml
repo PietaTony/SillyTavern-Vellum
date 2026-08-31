@@ -427,11 +427,15 @@ jobs:
   #    🔴 **這個 job 自己失敗，就回到原點**（2026-08-31 驗證時真的發生過一次，
   #    run 33399546267：這個 repo 當時 Issues 功能是關的，`gh issue create` 直接
   #    `the repository has disabled issues`，`notify-on-failure` 自己 `conclusion:
-  #    failure`）。這裡**沒有加第二層監控去看這個 job 有沒有跑成功**——加了只是
-  #    把「誰通知失敗沒被通知到」這個問題往後推一層，遞迴不會有終點。目前的立場
-  #    是接受這個殘留風險：這個 job 的失敗仍然會在 Actions 頁面本身留下紅燈，
-  #    只是不會像其他失敗一樣多一張 issue。判斷者：中控線驗收（2026-09-01），
-  #    Peter 認可維持現狀。
+  #    failure`）。**判斷者：Peter 2026-09-01 直接裁定「接受，不補（第二層）」**——
+  #    不是中控線代替他表態，是問過他本人拿到的答案。
+  #    理由（Peter 本人給的，照實抄，不是事後合理化）：**第二層其實已經存在**——
+  #    `notify-on-failure` 自己掛掉時，這個 workflow run 的整體結論仍然是
+  #    `failure`，GitHub 照樣會發 Actions 失敗信；承認那條路已經被證實會被忽略
+  #    （就是這整張票的起因），但它確實存在，不是零層防護。而 `notify-on-failure`
+  #    自己掛掉的觸發條件很窄（Issues 被關、`GITHUB_TOKEN` 被限流、jq 在沒預期到
+  #    的 API 回應上熔斷），再疊一層專門監控這個 job 會陷入「誰監控監控者」的
+  #    遞迴，沒有終點。
   #
   #    🔴 **去重簽章目前會被分支名污染，範圍很窄，記錄不修**：`guard` 是整支
   #    workflow 裡唯一沒有寫 `name:` 的 step，GitHub 用 `run:` 腳本的第一行自動
@@ -466,6 +470,14 @@ jobs:
   #      `skipped`（不是 `failure`），沒有一個誤觸發 `notify-on-failure` 的邏輯去
   #      開 issue。真正「全綠、notify 被跳過」的第一手證據，要等這支 job 隨著一次
   #      正常的 `staging → main` 發版一起跑過一次全綠的 `cd.yml` 才會出現。
+  #    ③ 還有一條沒試過的路，留給下一個人：`cd.yml` 本身已經在 `main` 上，
+  #      `workflow_dispatch` 打得通（跟 ①的獨立新檔不同）——理論上可以把最小
+  #      合成測試臨時塞進 `cd.yml` 檔案本身（不 `needs` 任何真實 job），在功能
+  #      分支上 dispatch，驗完再刪掉，繞開①那個「新檔案打不到」的 404。沒有
+  #      實測過，也不是必要的擋門條件（`if: failure()` 在「`needs` 全部成功 ⇒
+  #      條件為 false ⇒ job 被跳過」這個方向是官方文件寫死的語意，本來風險就低）
+  #      ——這個缺口不擋合併；下一次真的全綠發版時去 Actions 頁面確認沒有多開
+  #      一張 issue，已經記成發版後的檢查項（Peter／中控線 2026-09-01）。
   notify-on-failure:
     needs: [guard, version, gates, windows-smoke, windows-app, mac-app, release]
     if: failure()
