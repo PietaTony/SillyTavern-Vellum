@@ -9,7 +9,7 @@ import { DraftField } from '@/shared/ui/DraftField';
 import { pushToast } from '@/shared/ui/toastStore';
 import { type ImportedCharacter, importCardByUrl, importCardFile } from '../api';
 import { ImportCardError } from './ImportCardError';
-import { useDragFile } from './useDragFile';
+import { useCardFileImport } from './useCardFileImport';
 
 /**
  * 匯入現成的角色卡。**放在加入好友頁最上方**（Peter 指定）。
@@ -44,7 +44,6 @@ export function ImportCardBox({
 }) {
   // 還原在 initializer 同步做完（`useDraftWriter` 檔頭寫了為什麼不放在 effect）。
   const [url, setUrl] = useState<string>(() => readDraft<string>(URL_DRAFT) ?? '');
-  const [lastFile, setLastFile] = useState<File | null>(null);
   const m = useMutation({
     mutationFn: (input: string | ArrayBuffer) =>
       typeof input === 'string' ? importCardByUrl(input) : importCardFile(input),
@@ -70,13 +69,15 @@ export function ImportCardBox({
       onImported(c);
     },
   });
+  /** 拖進來的檔案與「或選擇檔案」按的是同一支——兩個入口不該有兩套行為（見 hook 檔頭）。 */
+  const { lastFile, clientError, setClientError, fromFile, dragging, dragProps } =
+    useCardFileImport((b) => m.mutate(b), m.isPending);
 
-  /** 拖進來的檔案與「或選擇檔案」按的是同一支——兩個入口不該有兩套行為。 */
-  const fromFile = (f: File) => {
-    setLastFile(f);
-    void f.arrayBuffer().then((b) => m.mutate(b));
+  /** URL 那條路自己的送出——跟 `fromFile` 分開放是因為要先清掉上一輪的 client 端錯誤。 */
+  const submitUrl = () => {
+    setClientError(null);
+    m.mutate(url.trim());
   };
-  const { dragging, dragProps } = useDragFile(fromFile, m.isPending);
 
   return (
     <Paper
@@ -114,7 +115,7 @@ export function ImportCardBox({
           variant="contained"
           loading={m.isPending}
           disabled={imported ? false : url.trim() === ''}
-          onClick={() => (imported ? onReset?.() : m.mutate(url.trim()))}
+          onClick={() => (imported ? onReset?.() : submitUrl())}
         >
           {imported ? '重設' : '匯入'}
         </Button>
@@ -132,12 +133,15 @@ export function ImportCardBox({
           }}
         />
       </Button>
-      {m.isError ? (
+      {clientError || m.isError ? (
         <ImportCardError
-          message={m.error instanceof Error ? m.error.message : '匯入失敗'}
+          message={clientError ?? (m.error instanceof Error ? m.error.message : '匯入失敗')}
           lastFile={lastFile}
           onUseAsAvatar={onUseAsAvatar}
-          onReset={() => m.reset()}
+          onReset={() => {
+            setClientError(null);
+            m.reset();
+          }}
         />
       ) : null}
     </Paper>

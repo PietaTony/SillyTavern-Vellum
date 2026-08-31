@@ -28,6 +28,13 @@ function reasons(refs: { chats: number; friends: number; isDefault: boolean }): 
  *
  * ⚠️ **封存之後這個 persona 會從清單消失**（`GET /api/personas` 預設濾掉 `archived`），
  * 但既有引用（對話、好友、全域預設）繼續照常運作——後端沒有動內容，只加了一個旗標。
+ *
+ * ⚠️ **`removed: true`（真的刪除）這個分支，目前唯一的呼叫端邏輯上走不到**：
+ * `/profile` 的 `current` 恆等於 `defaultPersonaId` 對應的那個 persona，
+ * 而後端 `referencedBy()` 判「還在用」的 `isDefault` 正是同一個 id ⇒ 從 `/profile`
+ * 刪除**必然**先撞上 `isDefault: true`，落在封存分支。不是 bug——這支元件是
+ * 給「刪除」這個動作本身用的，不是只給 `/profile` 用；`removed: true` 是為將來
+ * 的 persona 清單管理頁（可以刪一個不是目前預設的 persona）預留的路徑。
  */
 export function DeletePersonaDialog({
   open,
