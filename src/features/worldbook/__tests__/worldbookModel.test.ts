@@ -1,8 +1,10 @@
 import { describe, expect, it } from 'vitest';
+import { POSITION_UNIMPLEMENTED } from '../fields';
 import {
   changedLabel,
   entryHint,
   groupByPosition,
+  POSITION_GROUP,
   positionTitle,
   subtitleOf,
   WI_POSITION,
@@ -84,6 +86,23 @@ describe('依注入位置分組（C2 最容易做錯的地方）', () => {
 
   it('未知的 position 不會回 undefined，要看得出是未知', () => {
     expect(positionTitle(99)).toContain('未知位置');
+  });
+});
+
+/**
+ * 🔴 A1（GAP-53）：四個位置的**標題本身**要帶「尚未接線」——不是只有選了以後
+ * 才在 helperText 裡講。使用者在下拉選單裡就要看得出來，不然選錯了都不知道自己選錯了。
+ */
+describe('POSITION_GROUP：未接線的四個位置標題與 hint 要說清楚', () => {
+  it.each([...POSITION_UNIMPLEMENTED])('position %s 的標題帶「尚未接線」', (p) => {
+    expect(POSITION_GROUP[p]?.title).toContain('尚未接線');
+    expect(POSITION_GROUP[p]?.hint).toContain('尚未接線');
+  });
+
+  it('有消費者的三個位置標題乾淨，不帶「尚未接線」', () => {
+    expect(POSITION_GROUP[WI_POSITION.beforeChar]?.title).not.toContain('尚未接線');
+    expect(POSITION_GROUP[WI_POSITION.afterChar]?.title).not.toContain('尚未接線');
+    expect(POSITION_GROUP[WI_POSITION.atDepth]?.title).not.toContain('尚未接線');
   });
 });
 

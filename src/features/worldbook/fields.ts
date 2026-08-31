@@ -57,6 +57,31 @@ function rawExt(e: { raw?: Record<string, unknown> }): Record<string, unknown> {
   return typeof x === 'object' && x !== null ? (x as Record<string, unknown>) : {};
 }
 
+/**
+ * 🔴 **插入位置裡，四個桶算出來了、但沒有消費者**（GAP-53／A1 2026-08-31）。
+ *
+ * 對照 ST 原碼查證過，這四個位置**都是相對某個我們沒有的東西定位的**，不是隨便選錯數字：
+ * - `anTop`／`anBottom`（2／3）：ST 把它們接在「作者備註（Author's Note）」本文前後
+ *   （`world-info.js:5149-5152`：`ANTopEntries + originalAN + ANBottomEntries`），
+ *   而且只在 AN 的 interval 機制決定「這一則要插」時才真的進場
+ *   （`authors-note.js` 的 `shouldWIAddPrompt`，AN 沒開／還沒輪到時整組被丟掉，
+ *   連 ST 自己都不是「永遠有效」）。**我們沒有 Author's Note 這個功能**——
+ *   `server/lib/personaPrompt.ts:30-34` 處理 persona 自己的 `top_an`／`bottom_an`
+ *   時已經講過同一句話。沒有 AN 就沒有「AN 前」「AN 後」的錨點，插哪裡都是瞎猜。
+ * - `emTop`／`emBottom`（5／6）：ST 把它們接在角色卡「範例對話」（`mes_example`）
+ *   陣列的頭尾（`script.js:4580-4595`）。**我們整支 server 完全沒有範例對話這個概念**
+ *   （`grep -rn mes_example server` 零命中）——不是位置算錯，是錨點本身不存在。
+ *
+ * 兩邊都查過 ST 能不能回答「沒有錨點時插哪裡」：**不能**，ST 的實作本身就假設
+ * 錨點永遠存在（AN 是空字串也還是有位置／depth／role 可用）。不猜一個位置出來，
+ * 維持「算出來、不接線」，畫面上明說，好過假裝接上了。
+ */
+export const POSITION_UNIMPLEMENTED = new Set<number>([2, 3, 5, 6]); // anTop, anBottom, emTop, emBottom
+
+/** `POSITION_UNIMPLEMENTED` 的判斷式版本，給 UI 元件用。 */
+export const isPositionImplemented = (position: number): boolean =>
+  !POSITION_UNIMPLEMENTED.has(position);
+
 /** 逗號分隔的關鍵字字串 → 陣列。空白與空項一律丟掉。 */
 export const splitKeys = (v: string): string[] =>
   v
