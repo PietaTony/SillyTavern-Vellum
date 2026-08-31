@@ -19,6 +19,8 @@
 import type { ProviderEvent } from '../providers/types.ts';
 import { redact } from './secrets.ts';
 import { commitPartialTurn } from './commitPartialTurn.ts';
+import { definedUsage, type Message } from './chatModel.ts';
+import { writeJson } from '../adapters/storage.ts';
 
 /**
  * A6 順手做的抽檔：把 `generate.ts` 逐行處理 `adapter.parse()` 事件的 if/else
@@ -71,7 +73,7 @@ export async function finishGenerateStream(opts: {
   const { ctrl, enc, sse, controller, full, chatId, chat, usage, key, error } = opts;
   if (controller.signal.aborted && full.length > 0) {
     try {
-      const msg = await commitPartialTurn(chatId, chat, full);
+      const msg = await commitPartialTurn(chatId, chat, full, usage);
       ctrl.enqueue(enc.encode(sse('done', { message: msg, finishReason: 'ABORTED', usage })));
     } catch (commitErr) {
       console.error('[vellum] 中止時把半成品落地失敗：', commitErr);
@@ -97,4 +99,30 @@ export function closeQuietly(ctrl: ReadableStreamDefaultController<Uint8Array>):
   } catch {
     /* 已經因為中止被關掉的話，再關一次會丟例外——不用理它 */
   }
+}
+
+/**
+ * usage 落地（H1 落地票，2026-08-31）。供應商回報的真金用量——不是 ST 那種可以隨時
+ * 重算的估算值（`openai.js`／`chat-completions.js` grep `usage` 零命中，ST 從不讀它）。
+ * 錯過生成的這一刻，這個數字永遠拿不回來，所以要寫進訊息本體，不能只留在 SSE 那一次回應裡。
+ *
+ * 🔴 **放在這支檔案，不是 `generate.ts`**：`commitTurn()` 是 H6 的檔
+ * （`applyVarUpdate.ts`），這一輪沒有鎖它，不能改簽章塞第四個參數；而 `generate.ts`
+ * 自己也已經頂著 150 行的上限（`origin/staging` 量過），這段邏輯本來就跟這支檔案
+ * 其餘的「生成收尾」放在一起才對，不是硬塞進呼叫端。
+ *
+ * 🔴 **`msg` 要傳同一個物件參照**：呼叫端（`commitTurn`／`commitPartialTurn`）已經把
+ * 它 `push` 進 `chat.messages`，掛上 `usage` 欄位之後 `chat` 整包已經帶著它——
+ * 這裡只需要再寫一次檔。**沒有用量（供應商沒回任何欄位）就不多這次 I/O**。
+ */
+export async function persistUsage(
+  chatId: string,
+  chat: { messages: unknown[] },
+  msg: Message,
+  rawUsage: Record<string, number | undefined>,
+): Promise<void> {
+  const usage = definedUsage(rawUsage);
+  if (!usage) return;
+  msg.usage = usage;
+  await writeJson(`chats/${chatId}.json`, chat);
 }

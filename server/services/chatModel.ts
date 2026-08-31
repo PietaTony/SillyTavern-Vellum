@@ -5,6 +5,22 @@
 import { z } from 'zod';
 import { FITTINGS } from './settings.ts';
 
+/**
+ * 🔴 **供應商回報的真金用量，不是我們自己估的**（H1 落地票，2026-08-31 Peter 裁定）。
+ * ST 完全不讀供應商的 `usage`（`openai.js`／`chat-completions.js` grep 零命中）——
+ * 它自己有 tokenizer 隨時能重算，不存也沒差。我們沒有 tokenizer 這條路：
+ * 錯過這一刻，這個數字**永遠拿不回來**，所以要落地成訊息的持久欄位，不是暫態。
+ * 形狀照抄 `server/providers/types.ts` 的 `Usage`（線路層），供應商沒回的欄位就是
+ * 省略，不是 0——4 個欄位全部 optional。
+ */
+export const UsageSchema = z.object({
+  inputTokens: z.number().optional(),
+  outputTokens: z.number().optional(),
+  cacheRead: z.number().optional(),
+  cacheWrite: z.number().optional(),
+});
+export type Usage = z.infer<typeof UsageSchema>;
+
 export const MessageSchema = z.object({
   id: z.string(),
   role: z.enum(['user', 'model']),
@@ -56,8 +72,27 @@ export const MessageSchema = z.object({
    * 沒有值＝完整回覆（舊資料讀進來是 `undefined`，行為不變）。
    */
   partial: z.boolean().optional(),
+  /**
+   * 🔴 **這一則回覆花了多少（真金數字，見上面 `UsageSchema` 檔頭）。**
+   * 只有 `role: 'model'` 的訊息會有值；使用者訊息不耗供應商的用量。
+   * 🔴 **沒有這個欄位 ≠ 花費是 0**——是「這一則落地的時候我們還沒開始記」（此欄位加入
+   * 之前的舊訊息、或供應商那次沒回任何用量欄位）。畫面要用「沒有數字」表達，不是「0」
+   * ——同一個判準見 `src/features/chat/usageFormat.ts` 檔頭 `cacheRead` 那條。
+   * ⇒ 舊資料讀進來是 `undefined`，不需要 migration。
+   */
+  usage: UsageSchema.optional(),
 });
 export type Message = z.infer<typeof MessageSchema>;
+
+/**
+ * 供應商事件裡的用量是 `Record<string, number | undefined>`（見 `generate.ts` 的 `state.usage`）
+ * ——分兩次到、欄位可能是 `undefined`（沒回）。**把沒回的欄位濾掉再落地**：`{ inputTokens: undefined }`
+ * 這種半殘物件跟沒有這個欄位該是同一件事，全部都沒有 ⇒ 回 `undefined`，呼叫端不掛 `usage` 這個鍵。
+ */
+export function definedUsage(u: Record<string, number | undefined>): Usage | undefined {
+  const entries = Object.entries(u).filter(([, v]) => v !== undefined);
+  return entries.length ? (Object.fromEntries(entries) as Usage) : undefined;
+}
 
 export const ChatSchema = z.object({
   id: z.string(),

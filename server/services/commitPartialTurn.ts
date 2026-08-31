@@ -15,20 +15,28 @@
  * ⚠️ **`partial: true` 是「下一輪不可以把這句話當完整回覆」的資料指紋**——
  * 讀的一端在 `server/services/buildTurn.ts` 的 `historyTextOf`：它會在半成品的文字後面
  * 掛一句「已中止、還沒說完」的註記才送給模型，原文本身一個字都不改。
+ *
+ * 🔴 **半成品也可能帶用量**（H1 落地票，2026-08-31）：中止／逾時之前供應商可能已經
+ * 回過 `input_tokens`。`usage` 是選給的（呼叫端不一定量得到），照 `definedUsage` 的
+ * 判準濾過，沒有任何欄位就不掛這個鍵——理由同 `chatModel.ts` 的 `usage` 欄位檔頭。
  */
 import { writeJson } from '../adapters/storage.ts';
+import { definedUsage, type Usage } from './chatModel.ts';
 
 export async function commitPartialTurn(
   chatId: string,
   chat: { messages: unknown[] },
   partialText: string,
-): Promise<{ id: string; role: 'model'; text: string; at: string; partial: true }> {
+  usage?: Record<string, number | undefined>,
+): Promise<{ id: string; role: 'model'; text: string; at: string; partial: true; usage?: Usage }> {
+  const u = usage ? definedUsage(usage) : undefined;
   const msg = {
     id: crypto.randomUUID(),
     role: 'model' as const,
     text: partialText,
     at: new Date().toISOString(),
     partial: true as const,
+    ...(u ? { usage: u } : {}),
   };
   chat.messages.push(msg);
   await writeJson(`chats/${chatId}.json`, chat);
@@ -94,7 +102,7 @@ export async function handleIdleTimeout(opts: {
   controller.abort(); // 放掉那個卡住不吐字也不關閉的上游連線。
   try {
     if (full.length > 0) {
-      const msg = await commitPartialTurn(chatId, chat, full);
+      const msg = await commitPartialTurn(chatId, chat, full, usage);
       ctrl.enqueue(enc.encode(sse('done', { message: msg, finishReason: 'TIMEOUT', usage })));
     } else {
       ctrl.enqueue(enc.encode(sse('error', { message: '供應商逾時沒有回應，請重試一次' })));

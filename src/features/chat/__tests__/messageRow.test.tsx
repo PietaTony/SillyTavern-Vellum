@@ -147,3 +147,28 @@ describe('破壞性的兩項要先問', () => {
     await waitFor(() => expect(actions.onRegenerate).toHaveBeenCalledWith('m1'));
   });
 });
+
+/**
+ * H1 落地票（2026-08-31）：這一則訊息**本身**帶的用量——跟 footer 那顆「這一輪」的
+ * `UsageReadout` 是兩件事（見 `MessageRow.tsx` 那段的檔頭），這裡守的是「訊息物件上
+ * 有沒有那個數字，畫面就照樣呈現」。
+ */
+describe('這一則訊息的用量（落地，不是這一輪的暫態讀數）', () => {
+  it('有 usage 就畫出來（沿用 UsageReadout 的格式）', () => {
+    rowWith(msg({ usage: { outputTokens: 7 } }));
+    expect(screen.getByText('輸出 7')).toBeTruthy();
+  });
+
+  it('🔴 舊訊息沒有 usage 這個欄位 ⇒ 什麼都不畫——不是畫出「0」', () => {
+    const { container } = rowWith(msg()); // msg() 預設沒有 usage
+    expect(container.textContent).not.toContain('輸出');
+    expect(container.textContent).not.toContain('輸入');
+    // 更狠的一條：連「0」這個數字本身都不該出現在畫面上（誤讀成「這則沒花 token」）。
+    expect(container.textContent).not.toMatch(/[輸入出]\s*0\b/);
+  });
+
+  it('使用者的訊息不畫用量——那不是供應商計費的對象', () => {
+    const { container } = rowWith(msg({ role: 'user', usage: { outputTokens: 7 } }));
+    expect(container.textContent).not.toContain('輸出');
+  });
+});

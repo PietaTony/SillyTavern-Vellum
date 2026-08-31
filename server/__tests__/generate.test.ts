@@ -207,3 +207,50 @@ describe('IDLE_TIMEOUT_MS 的預設值', () => {
     expect(IDLE_TIMEOUT_MS).toBe(60_000);
   });
 });
+
+/**
+ * 三 · **usage 落地**（H1 落地票，2026-08-31）。供應商回報的真金用量，錯過生成的
+ * 這一刻就永遠拿不回來（見 `services/finishGenerateStream.ts` 的 `persistUsage` 檔頭）
+ * ——這裡守的是「真的寫進磁碟」，不是只在這一次 SSE 回應裡看得到。
+ */
+const USAGE_LINE =
+  'data: {"candidates":[{"content":{"parts":[{"text":"嗨"}]},"finishReason":"STOP"}],"usageMetadata":{"candidatesTokenCount":42}}\n\n';
+
+describe('usage 落地（H1 落地票，2026-08-31）', () => {
+  it('🔴 供應商回了用量 ⇒ 訊息重讀（從磁碟）也帶著同一個數字，不是只在這次回應裡', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => delayedStream(USAGE_LINE, 20)));
+    const a = await app();
+    const res = await a.request('/api/generate', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ chatId: CHAT.id }),
+    });
+    const body = await readAll(res);
+    expect(body).toContain('event: done');
+    // 這次回應本身就帶著它——但這條斷言守不住「有沒有真的落地」，下面重讀磁碟那段才是。
+    expect(body).toContain('"outputTokens":42');
+
+    // 🔴 重點：從磁碟重讀一次（不是同一個回應物件），證明真的寫進了 chat 檔。
+    const { readJson } = await import('../adapters/storage.ts');
+    const saved = await readJson<Chat>(`chats/${CHAT.id}.json`, CHAT);
+    const last = saved.messages.at(-1) as { text: string; usage?: { outputTokens?: number } };
+    expect(last.text).toBe('嗨');
+    expect(last.usage?.outputTokens).toBe(42);
+  });
+
+  it('🔴 供應商完全沒回用量 ⇒ 落地的訊息不帶 `usage` 這個鍵——不是「usage: {}」也不是「0」', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => delayedStream(OK_LINE, 20))); // OK_LINE 沒有 usageMetadata
+    const a = await app();
+    await a.request('/api/generate', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ chatId: CHAT.id }),
+    });
+
+    const { readJson } = await import('../adapters/storage.ts');
+    const saved = await readJson<Chat>(`chats/${CHAT.id}.json`, CHAT);
+    const last = saved.messages.at(-1) as { text: string; usage?: unknown };
+    expect(last.text).toBe('嗨');
+    expect('usage' in last).toBe(false);
+  });
+});
