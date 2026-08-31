@@ -1,7 +1,7 @@
 // @vitest-environment node
-import { mkdtempSync, rmSync } from 'node:fs';
+import { mkdtempSync, readdirSync, readFileSync, rmSync, statSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { join, resolve } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { HTTPException } from 'hono/http-exception';
 
@@ -101,5 +101,101 @@ describe('全域 .onError', () => {
     expect(res.status).toBe(401);
     const body = (await res.json()) as { error: string };
     expect(body.error).toBe(leaky);
+  });
+});
+
+
+/**
+ * 🔴 **`.onError` 那條「非 413 訊息原樣回傳」的假設（見上面「釘住現狀」那支測試），
+ * 只在「現在沒有別的地方會丟帶敏感內容的 HTTPException」這個前提下才算安全。**
+ * 複驗線 2026-09-01 實測證實：上面那支 pinning test 守的是「有人動了 `.onError` 本身」，
+ * 但真正會被踩到的風險是**「別的地方新長出一個 HTTPException 來源」**——探測路由
+ * 丟一個帶 `DB_PASSWORD=hunter2` 的 `HTTPException(401)`，整組測試（含 pinning test）
+ * 12 passed，對這個新來源完全視而不見。
+ *
+ * ⇒ 這裡補一支**普查**（不是新 `gate:*`，中控線 2026-09-01 裁定「補做，但用最輕的形態」，
+ * 不動 `scripts/`／`package.json`）：數 `server/`（排除 `__tests__/`，那裡本來就住著探測路由
+ * 與這支測試自己）裡有多少處
+ *   ① 自己 `throw new HTTPException(...)`
+ *   ② import 了 Hono 內建或常見第三方的 auth／validation middleware
+ *      （`hono/basic-auth`、`hono/bearer-auth`、`hono/jwt`、`hono/csrf`、
+ *      `hono/oauth-providers`、`@hono/zod-validator`、`@hono/valibot-validator`、
+ *      `@hono/typebox-validator`——這些都是「會自己組訊息丟 HTTPException」的常見來源）。
+ *
+ * 目前兩者都是 0（唯一的 `HTTPException` 來源是 `hono/body-limit` 內建的那個，
+ * 見 `server/app.ts` 檔頭的說明；`server/` 裡沒有任何檔案 import 上面那份清單）。
+ *
+ * 🔴 **判準用逐字子字串比對（`String.split(needle).length - 1`），不用正則。**
+ * 中控線今天自己踩過 `git grep -lE "a\|b\|c"` 的坑——`-E` 模式下 `\|` 是字面的
+ * `|` 不是 alternation，假性零命中剛好符合預期，差點就這樣報出去。子字串比對沒有
+ * 這一整類「跳脫符號寫錯、尺看起來在跑但其實沒在比對」的風險。
+ *
+ * 🔴 **這支測試以後一定會紅**——有人合法地新增一個 HTTPException 來源時就會
+ * （例如接 `hono/bearer-auth`、或自己 `throw` 一個帶著檔案路徑／密碼的 `HTTPException`）。
+ * **紅了不是這支測試壞了**，是在要求你：回頭看那個新來源丟出的 `err.message`
+ * 會不會帶敏感內容——會的話，`server/app.ts` 的 `.onError` 現在的寫法會原樣回傳給
+ * 呼叫端（就是上面「釘住現狀」那支測試證明的行為）。確認過（訊息本身乾淨，
+ * 或已經在 `.onError` 加了針對它的處理）之後，才把下面的期望值改成新數字，
+ * 並在這條註解旁邊記一筆：新來源是什麼、為什麼訊息安全。
+ * **不看那條 pinning test 就把數字改大讓它變綠，等於這支測試不存在。**
+ */
+describe('server/ 的 HTTPException 來源普查（不是新 gate，只是一支 vitest）', () => {
+  const SERVER_DIR = resolve(process.cwd(), 'server');
+
+  /** 逐字子字串計數——理由見上面檔頭：不用正則，避開跳脫符號寫錯的那一整類坑。 */
+  function countNeedle(text: string, needle: string): number {
+    return text.split(needle).length - 1;
+  }
+
+  /** 遞迴列出 `server/` 底下所有 `.ts`，排除 `__tests__`（探測路由與這支測試自己住的地方）。 */
+  function listTsFiles(dir: string): string[] {
+    const out: string[] = [];
+    for (const entry of readdirSync(dir)) {
+      if (entry === '__tests__') continue;
+      const full = join(dir, entry);
+      if (statSync(full).isDirectory()) {
+        out.push(...listTsFiles(full));
+      } else if (entry.endsWith('.ts')) {
+        out.push(full);
+      }
+    }
+    return out;
+  }
+
+  const RISKY_IMPORTS = [
+    'hono/basic-auth',
+    'hono/bearer-auth',
+    'hono/jwt',
+    'hono/csrf',
+    'hono/oauth-providers',
+    '@hono/zod-validator',
+    '@hono/valibot-validator',
+    '@hono/typebox-validator',
+  ];
+
+  it('🔴 尺要先自證①：countNeedle 的計數方式，先餵一個已知答案的樣本', () => {
+    const sample = "a throw new HTTPException(1); b throw new HTTPException(2); c 'hono/jwt' d";
+    expect(countNeedle(sample, 'throw new HTTPException')).toBe(2);
+    expect(countNeedle(sample, 'hono/jwt')).toBe(1);
+    expect(countNeedle(sample, '沒有這個東西')).toBe(0);
+  });
+
+  it('🔴 尺要先自證②：檔案列舉找得到已知一定存在的檔（server/app.ts 本身）', () => {
+    const files = listTsFiles(SERVER_DIR);
+    expect(files.length).toBeGreaterThan(50); // server/ 底下遠不止 50 個 .ts，掃到 0 或掃到個位數都代表尺壞了
+    expect(files.some((f) => f.endsWith(join('server', 'app.ts')))).toBe(true);
+  });
+
+  it('🔴 HTTPException 來源普查：目前只有一種來源（見上方檔頭「紅了要做什麼」）', () => {
+    const files = listTsFiles(SERVER_DIR);
+    let throwCount = 0;
+    let riskyImportCount = 0;
+    for (const file of files) {
+      const text = readFileSync(file, 'utf8');
+      throwCount += countNeedle(text, 'throw new HTTPException');
+      for (const needle of RISKY_IMPORTS) riskyImportCount += countNeedle(text, needle);
+    }
+    expect(throwCount).toBe(0);
+    expect(riskyImportCount).toBe(0);
   });
 });
