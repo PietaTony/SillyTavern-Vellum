@@ -2,7 +2,7 @@ import Chip from '@mui/material/Chip';
 import MenuItem from '@mui/material/MenuItem';
 import Stack from '@mui/material/Stack';
 import { DraftField } from '@/shared/ui/DraftField';
-import { splitKeys } from '../fields';
+import { isPositionImplemented, splitKeys } from '../fields';
 import { POSITION_GROUP, WI_POSITION } from '../model';
 import type { WbEntry } from '../types';
 import { EntryEditorAdvanced } from './EntryEditorAdvanced';
@@ -93,7 +93,14 @@ export function EntryEditor({
         helperText={POSITION_GROUP[value.position]?.hint || ' '}
       >
         {Object.entries(POSITION_GROUP).map(([p, g]) => (
-          <MenuItem key={p} value={p}>
+          // 🔴 GAP-53／A1：四個桶算出來了、沒有消費者（fields.ts 檔頭有查證）。
+          // 標題本身就帶「（尚未接線）」——不要等使用者選了才在 helperText 裡告知，
+          // 選單列表這一層就要看得出來，不然使用者選錯了都不知道自己選錯了。
+          <MenuItem
+            key={p}
+            value={p}
+            sx={isPositionImplemented(Number(p)) ? undefined : { color: 'warning.main' }}
+          >
             {g.title}
           </MenuItem>
         ))}

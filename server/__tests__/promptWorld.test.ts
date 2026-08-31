@@ -125,3 +125,53 @@ describe('A3：worldForChat 真的把 budget 傳給 planInjection', () => {
     warnSpy.mockRestore();
   });
 });
+
+/**
+ * 🔴 A1（GAP-53）：`anTop`／`anBottom`／`emTop`／`emBottom` 四個桶算出來了、
+ * 沒有消費者。`worldForChat` 要把這件事攤在 `WorldOutcome.unconsumedPositions`，
+ * 不能只靠 `activated` —— 那個數字混著這些條目，看起來像「有進場」。
+ */
+describe('A1：unconsumedPositions 不讓「掃了但沒消費」跟「有進 prompt」長得一樣', () => {
+  it('🔴 anTop／emBottom 各一條時，unconsumedPositions 是 2，且印出對應警告', async () => {
+    const { worldForChat, writeJson } = await fresh();
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    const an = wbEntry({ uid: 'an', content: '作者備註', position: WI_POSITION.anTop });
+    const em = wbEntry({ uid: 'em', content: '範例對話', position: WI_POSITION.emBottom });
+    const normal = wbEntry({ uid: 'normal', content: '正常', position: WI_POSITION.afterChar });
+    await writeJson(`worlds/char1.json`, {
+      version: 1,
+      characterId: 'char1',
+      entries: [an, em, normal],
+      origin: { cardId: '', cardVersion: '', createDate: '', importedAt: '', entries: {} },
+    });
+
+    const outcome = await worldForChat(chat('char1'), null, []);
+
+    expect(outcome.activated).toBe(3); // 三條都進場比對——問題不在有沒有比對到
+    expect(outcome.unconsumedPositions).toBe(2); // 但只有兩條真的沒消費者
+    expect(outcome.plan.afterChar).toEqual(['正常']); // 有消費者的那條照樣進 prompt
+    expect(outcome.plan.anTop).toEqual(['作者備註']); // 算出來了……
+    expect(outcome.plan.emBottom).toEqual(['範例對話']); // ……只是沒人讀
+
+    expect(warnSpy).toHaveBeenCalledTimes(1);
+    expect(warnSpy.mock.calls[0]?.[0]).toContain('2');
+    warnSpy.mockRestore();
+  });
+
+  it('全部是有消費者的位置時，unconsumedPositions 是 0，不印警告', async () => {
+    const { worldForChat, writeJson } = await fresh();
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    const normal = wbEntry({ uid: 'normal', content: '正常', position: WI_POSITION.afterChar });
+    await writeJson(`worlds/char1.json`, {
+      version: 1,
+      characterId: 'char1',
+      entries: [normal],
+      origin: { cardId: '', cardVersion: '', createDate: '', importedAt: '', entries: {} },
+    });
+
+    const outcome = await worldForChat(chat('char1'), null, []);
+    expect(outcome.unconsumedPositions).toBe(0);
+    expect(warnSpy).not.toHaveBeenCalled();
+    warnSpy.mockRestore();
+  });
+});

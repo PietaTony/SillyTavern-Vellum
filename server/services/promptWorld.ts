@@ -66,6 +66,14 @@ export type WorldOutcome = {
    * 跟『量過沒事』做成同一個空陣列」的原則（見 H3 §5）。
    */
   trimmed: number;
+  /**
+   * 🔴 A1（GAP-53）：`anTop`／`anBottom`／`emTop`／`emBottom` 四個桶算出來了、
+   * 沒有消費者（`worldSystemText`／`worldDepthPieces` 只讀另外三個）。查證見
+   * `src/features/worldbook/fields.ts` 檔頭：兩邊都缺 ST 賴以定位的錨點
+   * （Author's Note、範例對話），不猜位置，選擇算出來但不接線、畫面上明說。
+   * 跟 `trimmed` 同理：`activated` 混著這些條目，只看那個數字會誤以為文字進了 prompt。
+   */
+  unconsumedPositions: number;
 };
 
 /**
@@ -113,12 +121,22 @@ export async function worldForChat(
       `[vellum] 世界書被預算裁掉 ${plan.trimmed.length}/${sel.activated.length} 條，未進 prompt（budget=${DEFAULT_WI_BUDGET} 字元）`,
     );
   }
+  // 🔴 A1（GAP-53）：這四個桶算出來但沒有消費者（見上面 WorldOutcome.unconsumedPositions
+  // 檔頭），跟 plan.trimmed 同一個理由印一行 log——伺服器日誌是唯一看得到的管道。
+  const unconsumedPositions =
+    plan.anTop.length + plan.anBottom.length + plan.emTop.length + plan.emBottom.length;
+  if (unconsumedPositions > 0) {
+    console.warn(
+      `[vellum] 世界書有 ${unconsumedPositions} 條落在 anTop/anBottom/emTop/emBottom，這四個位置目前沒有消費者，不會進 prompt（GAP-53）`,
+    );
+  }
   return {
     plan,
     scanned: sel.scanned,
     total: ordered.length,
     activated: sel.activated.length,
     trimmed: plan.trimmed.length,
+    unconsumedPositions,
   };
 }
 

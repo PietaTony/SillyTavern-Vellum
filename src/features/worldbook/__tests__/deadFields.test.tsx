@@ -1,6 +1,7 @@
 import { render, screen } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
-import { DEAD_FIELDS } from '../fields';
+import { DEAD_FIELDS, isPositionImplemented, POSITION_UNIMPLEMENTED } from '../fields';
+import { WI_POSITION } from '../model';
 import type { WbEntry } from '../types';
 import { DeadFieldsNote } from '../ui/DeadFieldsNote';
 
@@ -86,5 +87,35 @@ describe('總則五：引擎不理的欄位', () => {
 
   it('清單本身涵蓋六個欄位（group ＋ 三個 ext ＋ 端點白名單擋掉的兩個）', () => {
     expect(DEAD_FIELDS.map((f) => f.key)).toEqual(['group', 'sticky', 'cooldown', 'delay']);
+  });
+});
+
+/**
+ * 🔴 A1（GAP-53）：`wiInject.ts` 算出 7 個桶，`buildTurn.ts` 只讀 3 個
+ * （`beforeChar`／`afterChar`／`atDepth`）。查證過 ST 原碼後確認 `anTop`／`anBottom`／
+ * `emTop`／`emBottom` 分別綁死在「Author's Note」與「範例對話」這兩個我們完全沒有的
+ * 概念上（`fields.ts` 檔頭附了行號），不能瞎猜一個位置頂上去 —— 選乙案：畫面上明說。
+ *
+ * 這裡守的是**事實表本身**：四個桶、不多不少。畫面測試（`EntryEditor.test.tsx`）
+ * 守的是「事實表有沒有真的被拿去畫出來」——兩層都要有，任一層被挖空都要紅。
+ */
+describe('插入位置：四個桶算出來、沒有消費者（GAP-53）', () => {
+  it('未接線的清單剛好是 anTop／anBottom／emTop／emBottom 四個，不多不少', () => {
+    expect(POSITION_UNIMPLEMENTED).toEqual(
+      new Set([WI_POSITION.anTop, WI_POSITION.anBottom, WI_POSITION.emTop, WI_POSITION.emBottom]),
+    );
+  });
+
+  it('三個真的有消費者的位置沒有被誤標', () => {
+    expect(isPositionImplemented(WI_POSITION.beforeChar)).toBe(true);
+    expect(isPositionImplemented(WI_POSITION.afterChar)).toBe(true);
+    expect(isPositionImplemented(WI_POSITION.atDepth)).toBe(true);
+  });
+
+  it('四個未接線的位置都標成 false', () => {
+    expect(isPositionImplemented(WI_POSITION.anTop)).toBe(false);
+    expect(isPositionImplemented(WI_POSITION.anBottom)).toBe(false);
+    expect(isPositionImplemented(WI_POSITION.emTop)).toBe(false);
+    expect(isPositionImplemented(WI_POSITION.emBottom)).toBe(false);
   });
 });
