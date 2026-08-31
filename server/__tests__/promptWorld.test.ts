@@ -151,6 +151,47 @@ describe('A3：worldForChat 真的把 budget 傳給 planInjection', () => {
     expect(warnSpy).not.toHaveBeenCalled();
     warnSpy.mockRestore();
   });
+
+  /**
+   * 🔴 GAP：上面「換尺前的最壞情況」那支反災難測試只釘了下界
+   * （`toBeGreaterThanOrEqual`）——PR #53 獨立驗收線實測：把 `DEFAULT_WI_BUDGET`
+   * 從 `60_000` 改成 `600_000`（大十倍），全部既有測試照樣綠燈。原因是上面那支
+   * 用的 fixture（`'F'.repeat(DEFAULT_WI_BUDGET - 10)`）**大小跟著常數一起長**，
+   * 常數變多大它都會過——那個設計是為了「換尺」不必依賴具體數值，代價就是
+   * 沒有人擋「常數被改到荒謬大」。常數被改到荒謬大等於退回沒有上限，
+   * 就是 PR #44 原本要修的洞（世界書無限塞爆 prompt，靜默發生）。這支測試補上界。
+   *
+   * 🔴 **上界怎麼推出來、為什麼是這個數字**（將來要調它的人重新推導這幾行，
+   * 不要直接改大）：
+   * - 這個 repo 沒有自己的「context window 上限」表（`historyTruncation.ts`
+   *   的 A2 票已經查過、Peter 否決了 26 家 per-model 表那條路，見該檔案
+   *   header），所以不能拿「我們的最大 context」當基準。
+   * - 改拿 ST 自己對「WI 預算的絕對值」設的上限當基準：ST 的 `world_info_budget`
+   *   本身是**相對 context 的百分比**（1–100，`world-info.js:73`），但 ST 另外
+   *   提供 `world_info_budget_cap`——一個**絕對值**覆寫（超過相對值算出來的
+   *   預算就用這個絕對值封頂，`world-info.js:4626-4628`），UI 把它的滑桿跟數字
+   *   輸入框都釘死在 `max="65536"`（`index.html:4730-4731`）——**65536 就是
+   *   ST 自己願意讓這個絕對值走到多大**，單位是 token
+   *   （跟 `getTokenCountAsync()` 比較，`world-info.js:4942`）。
+   * - 這個 repo 沒有 tokenizer，同 `historyTruncation.ts`／`wiInject.ts` 已經
+   *   立下的判準：1 token 最壞情況用 **3 bytes**（BMP CJK 一字）換算——
+   *   `historyTruncation.ts` 的 `DEFAULT_HISTORY_BYTE_BUDGET = 4000 × 3 = 12_000`
+   *   就是同一個乘數，這裡延用同一套，兩邊才「單位一致、可以直接比較」
+   *   （見 `historyTruncation.ts` header 對這兩個預算關係的說明）。
+   * - `65536 token × 3 bytes/token = 196_608 bytes`——這就是這支測試的上界。
+   *   `DEFAULT_WI_BUDGET`（60_000）離這個上界還有將近 3.3 倍餘裕，
+   *   PR #53 那次「改成 600_000」會直接超過，紅燈。
+   * - 這不是精算的 token 上限（同檔案其他地方反覆強調：本專案沒有真 tokenizer），
+   *   是「ST 自己都不讓這個值超過多少」的參照上界，跟下界那支的「換尺前最壞情況」
+   *   同一種**安全網**性質，不是校準過的效能邊界。
+   */
+  it('🔴 DEFAULT_WI_BUDGET 不能被改到「等於沒有上限」——回到 PR #44 要修的洞', async () => {
+    const { DEFAULT_WI_BUDGET } = await fresh();
+    // 65536 token（ST world_info_budget_cap 的 UI 上限，index.html:4730-4731）
+    // × 3 bytes/token（本 repo 的保守換算乘數，同 historyTruncation.ts:DEFAULT_HISTORY_BYTE_BUDGET）
+    const WI_BUDGET_UPPER_BOUND_BYTES = 65_536 * 3; // 196_608
+    expect(DEFAULT_WI_BUDGET).toBeLessThan(WI_BUDGET_UPPER_BOUND_BYTES);
+  });
 });
 
 /**
