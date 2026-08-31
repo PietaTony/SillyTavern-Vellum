@@ -16,6 +16,7 @@
 | `gate-no-hex.ts` | 畫面程式碼裡不得出現字面色碼。 |
 | `gate-ownership-dirgrain.ts` | `gate-ownership.ts` 的「單一 owner 目錄」放寬——治 |
 | `gate-ownership.ts` | `AGENTS.md` 的唯一規則——**一個檔案只有一個寫入者**——真的成立。 |
+| `gate-pr-ready.ts` | PR 交件前的機械檢查清單（對照 FEATURE-DONE.md Tier 1–2）。 |
 | `gate-preamble.ts` | **送進 iframe 的那幾段 JS 字串，語法要是對的**。 |
 | `gate-provider-guides.ts` | **每一家點得進去的供應商，都要有真的引導**（Peter 2026-08-26：「每一個都要做」）。 |
 | `gate-screen-id.ts` | GAP-124 screen id catalog 與狀態綁定（v0）。 |

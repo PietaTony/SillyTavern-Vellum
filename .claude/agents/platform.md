@@ -89,6 +89,7 @@ the user, starts, updates, and cannot be trivially broken into.
 | After widening `gate-file-size` to cover `server/`, the reported file count **did not move**. The unchanged number was the failure signal | `scripts/gate-file-size.ts` header |
 | Root `beforeLoad` ran `isSetUp()` before auth —— `/api/secrets` 401 looked like a broken product when password was set | `GAP-115` / `src/app/routes/__root.tsx` |
 | `LanWarning` and `NetworkCard` each had their own「沒有登入機制」copy —— password shipped but mobile LAN banner still lied | `NoLoginWarning.tsx` |
+| Agent 交件靠「多講一句 Peter 風格」才對齊 —— 六題、screens、GAP 沒有機械清單 | `GAP-116` / `FEATURE-DONE.md` |
 
 ## 5 · Before you say done
 
