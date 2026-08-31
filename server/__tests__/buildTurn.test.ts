@@ -30,7 +30,11 @@ afterEach(() => {
 
 async function fresh() {
   vi.resetModules();
-  const { buildTurn, truncateHistory, HISTORY_BYTE_BUDGET } = await import('../services/buildTurn.ts');
+  const { buildTurn } = await import('../services/buildTurn.ts');
+  // 🔴 抽檔票（`INBOX/20260831-a2-extract-truncation.md`）：純函式搬去 `lib/`
+  // 之後，這兩個名字從那裡 import——同一支 `vi.resetModules()` 之後動態 import
+  // 的規矩，理由跟其他幾個一樣（見檔頭）。
+  const { truncateHistory, HISTORY_BYTE_BUDGET } = await import('../lib/historyTruncation.ts');
   const { renderMessages, rulesOf } = await import('../services/renderChat.ts');
   const { writeJson } = await import('../adapters/storage.ts');
   return { buildTurn, truncateHistory, HISTORY_BYTE_BUDGET, renderMessages, rulesOf, writeJson };
