@@ -179,6 +179,36 @@ describe('truncateHistory：純函式，具體數字', () => {
     expect(droppedCount).toBe(0);
     expect(kept).toBe(messages); // 同一個參考，連新陣列都沒配置
   });
+
+  /**
+   * 🔴 獨立驗收退回（PR #55）：`break` 挖成 `continue`，原本這支測試套件
+   * **15/15 照樣全綠**——根因是既有的「超長訊息」fixture 全部同一個大小
+   * （`'a'.repeat(3000)`），`break` 與 `continue` 在等大小資料上算出**完全
+   * 相同**的結果，天生分辨不出來。這支用**混合大小**逼出兩者的分歧：
+   * 中間卡著一則放不下的（m2），後面還有更舊、但更小、放得下的（m1）。
+   *
+   * - `break`（現在的實作）：放不下就整段停止，**不繼續找更小的**⇒
+   *   留下來的是「從某個點往後」的連續一段，m1 跟著 m2 一起被丟掉。
+   * - `continue`（挖空）：放不下的跳過、繼續找下一則，會把 m1 撿回來，
+   *   留下的集合**不連續**（中間缺 m2），跟 ST 的語意（`openai.js:938-939,
+   *   1062-1065`：放不下就 `break`，不是找更小的塞縫隙）不同。
+   */
+  it('🔴 break 不是 skip：卡住的那則後面即使有更舊、更小、放得下的，也不會被撿回來', async () => {
+    const { truncateHistory } = await fresh();
+    const budget = 250;
+    const messages = [
+      { id: 'first', text: '' }, // 0 bytes，開場白
+      { id: 'm1', text: 'x'.repeat(40) }, // 40 bytes，舊、小，budget 放得下
+      { id: 'm2', text: 'y'.repeat(300) }, // 300 bytes，單獨就超過 250，放不下
+      { id: 'm3', text: 'z'.repeat(100) }, // 100 bytes
+      { id: 'm4', text: 'w'.repeat(100) }, // 100 bytes
+    ];
+    const { kept, droppedCount } = truncateHistory(messages, budget);
+    // m4(100)+m3(100)=200 ≤ 250；再加 m2(300) → 500 > 250，整段停止，
+    // m1 連試都不會試——這正是「連續最新一段」的定義。
+    expect(droppedCount).toBe(2);
+    expect(kept.map((m) => m.id)).toEqual(['first', 'm3', 'm4']);
+  });
 });
 
 describe('buildTurn：A2 歷史截斷真的接進送給模型的訊息（不是只有純函式裁得動）', () => {
@@ -237,15 +267,41 @@ describe('buildTurn：A2 歷史截斷真的接進送給模型的訊息（不是�
     expect(turn.system).toContain('角色'); // baseChat 的 characterName
   });
 
-  it('正常長度對話完全不受影響——尺沒壞的證明，跟「超長會被裁」同等重要', async () => {
+  /**
+   * 🔴 獨立驗收退回（PR #55）：上一版這支只用「開場白」「第一句」「第二句」
+   * 這種 2-3 個中文字的玩具訊息——只證明了「極短訊息不會被裁」，沒有證明
+   * 一段「正常長度但沒超過預算」的真實對話不受影響。改用貼近真實 RP 的長度
+   * （開場白、每輪使用者／角色各一段，都是上百字的中文），總量仍在
+   * `HISTORY_BYTE_BUDGET`（12000 bytes）之內，斷言一則都沒被裁。
+   */
+  it('正常長度對話（每則上百字的中文，總量在預算內）完全不受影響', async () => {
     const { buildTurn } = await fresh();
+    const greeting =
+      '暮色漸漸染上天邊，庭院裡的風鈴被晚風吹得叮噹作響。你推開木門走進來，帶著一身外頭的涼意，' +
+      '看見我正坐在廊下讀一本舊書，抬頭朝你笑了笑，示意你坐到身邊來，今晚的月色似乎特別好。';
+    const userTurn = (n: number) =>
+      `我把手裡的東西放下，走到你身邊坐下，順口問起今天發生的事情，語氣裡帶著一點好奇與關心（第${n}輪）。` +
+      '窗外的蟲鳴聲斷斷續續，屋裡的燈光昏黃而溫暖，兩個人就這樣有一搭沒一搭地聊著，誰也不急著把話說完。';
+    const modelTurn = (n: number) =>
+      `我側過頭看向你，把手裡的書輕輕合上放到一邊，慢慢講起今天遇到的一些瑣事（第${n}輪），` +
+      '聲音不高不低，像是說給你聽，也像是說給自己聽，偶爾停下來想一想措辭，才又接著往下說。';
     const chat = baseChat([
-      { id: 'g0', role: 'model', text: '開場白', at: 'now' },
-      { id: 'm1', role: 'user', text: '第一句', at: 'now' },
-      { id: 'm2', role: 'model', text: '第二句', at: 'now' },
+      { id: 'g0', role: 'model', text: greeting, at: 'now' },
+      { id: 'm1', role: 'user', text: userTurn(1), at: 'now' },
+      { id: 'm2', role: 'model', text: modelTurn(1), at: 'now' },
+      { id: 'm3', role: 'user', text: userTurn(2), at: 'now' },
+      { id: 'm4', role: 'model', text: modelTurn(2), at: 'now' },
+      { id: 'm5', role: 'user', text: userTurn(3), at: 'now' },
+      { id: 'm6', role: 'model', text: modelTurn(3), at: 'now' },
     ]);
+    // 保證這批 fixture 真的落在「正常長度」而不是意外超標——量出來的總 bytes 遠低於預算，
+    // 這支測試才真的在測「沒超過預算」這條路徑，不是意外掉進「超長」那條路徑。
+    const totalBytes = chat.messages.reduce((n, m) => n + Buffer.byteLength(m.text, 'utf8'), 0);
+    expect(totalBytes).toBeLessThan(12_000);
+    expect(totalBytes).toBeGreaterThan(1_500); // 也不能小到跟玩具訊息沒兩樣
+
     const turn = await buildTurn(chat);
     expect(turn.historyDropped).toBe(0);
-    expect(turn.messages.map((m) => m.text)).toEqual(['開場白', '第一句', '第二句']);
+    expect(turn.messages.map((m) => m.text)).toEqual(chat.messages.map((m) => m.text));
   });
 });

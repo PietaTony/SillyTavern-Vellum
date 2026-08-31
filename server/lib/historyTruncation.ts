@@ -20,6 +20,13 @@
  * ⚠️ **已知限制、不是這張票要解的**：`maxOutputTokens` 調很大＋小 context 模型
  * 仍可能單輪湊不下——那要嘛乙案（每家記真實上限）、要嘛限制 `maxOutputTokens`，
  * 兩者都跨 X3／H5，不在單層範圍內。這張票解的是歷史本身無界成長、永久卡死。
+ *
+ * ⚠️ **另一個已知限制（獨立驗收 PR #55 抓到，這一輪不修）**：`buildTurn.ts` 先
+ * `truncateHistory()` 才 `worldForChat()`——這支只管歷史本身的 12000 bytes，
+ * 世界書注入（`promptWorld.ts` 的 `DEFAULT_WI_BUDGET`，字元數，約 60000）
+ * **完全沒被算進這個預算**，兩份預算各自為政、互不知情，加起來仍可能超出
+ * 真實 context window。要修要嘛兩邊共用同一個總預算、要嘛先量總量再各自
+ * 按比例分攤，兩者都會動到 `promptWorld.ts`（H3），不在這張票的單層範圍內。
  */
 export const HISTORY_BYTE_BUDGET = 12_000;
 
