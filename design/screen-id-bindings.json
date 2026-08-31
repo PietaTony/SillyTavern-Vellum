@@ -113,6 +113,20 @@
       "stateRule": "settings/about 關於與更新"
     },
     {
+      "id": "Settings-Network--undrawn",
+      "route": "settings/network",
+      "owner": "platform",
+      "implemented": false,
+      "stateRule": "settings/network 其他裝置：允許連線開關 + 存取密碼"
+    },
+    {
+      "id": "Login--1",
+      "route": "login",
+      "owner": "platform",
+      "implemented": false,
+      "stateRule": "route === login；只有設了存取密碼且未登入時 root 守衛才會導來"
+    },
+    {
       "id": "Layer-Chat-Menu--1",
       "kind": "menu",
       "hostRoute": "chat/$chatId",
