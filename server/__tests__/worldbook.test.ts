@@ -23,6 +23,40 @@ describe('世界書正規化', () => {
     expect(ext.map((e) => e.position)).toEqual([WI_POSITION.afterChar, WI_POSITION.atDepth]);
   });
 
+  it('🔴 GAP-52：extensions.position 才是真值，字串欄位只是 ST 自己的 fallback —— extensions 存在時要贏過字串', () => {
+    // ST 匯出時字串欄位只會寫 before_char／after_char 兩種，真正的 at_depth 藏在 extensions.position。
+    // ST 自己匯入（world-info.js convertCharacterBook）用 `entry.extensions?.position ?? (字串 fallback)`。
+    const [e] = fromCharacterBook({
+      entries: [{ position: 'before_char', extensions: { position: WI_POSITION.atDepth } }],
+    });
+    expect(e!.position).toBe(WI_POSITION.atDepth);
+  });
+
+  it('沒有 extensions.position 時仍要讀字串欄位（fallback 沒被誤刪）', () => {
+    const [e] = fromCharacterBook({ entries: [{ position: 'after_char' }] });
+    expect(e!.position).toBe(WI_POSITION.afterChar);
+    const [e2] = fromCharacterBook({ entries: [{ position: 'after_char', extensions: {} }] });
+    expect(e2!.position).toBe(WI_POSITION.afterChar);
+  });
+
+  it('🔴 extensions.position 不是「有限數字」就要當它沒給——不是裝飾，是防型別污染', () => {
+    // wiPosition.ts 的 `typeof x['position'] === 'number' && Number.isFinite(...)` 檢查
+    // 拿掉的話：extensions.position 給字串 "4" 會讓 e.position 變成字串 "4"
+    //（WbEntry.position 宣告是 number，型別污染且是靜默的）；給 NaN 則讓 e.position 變成 NaN。
+    // extensions 是卡片作者塞什麼我們就收到什麼的地方，JSON 裡寫成字串或算出 NaN 都不需要惡意，
+    // 手滑就會發生——兩種都要落回字串欄位那條 fallback，不能把污染值原樣放進 position。
+    const [byString] = fromCharacterBook({
+      entries: [{ position: 'after_char', extensions: { position: '4' } }],
+    });
+    expect(byString!.position).toBe(WI_POSITION.afterChar);
+    expect(typeof byString!.position).toBe('number');
+
+    const [byNaN] = fromCharacterBook({
+      entries: [{ position: 'at_depth', extensions: { position: Number.NaN } }],
+    });
+    expect(byNaN!.position).toBe(WI_POSITION.atDepth);
+  });
+
   it('🔴 after 是 1、atDepth 是 4（規格曾把這兩個寫反）', () => {
     expect(WI_POSITION.afterChar).toBe(1);
     expect(WI_POSITION.atDepth).toBe(4);

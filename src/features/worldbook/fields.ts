@@ -4,12 +4,21 @@
  * （前者跟著設計走，後者跟著 `server/lib/` 走）。
  */
 
-/** 次要關鍵字的配對邏輯。值對齊 ST（`world-info.js` 的 `selectiveLogic`）。 */
+/**
+ * 次要關鍵字的配對邏輯。值對齊 ST（`world-info.js` 的 `selectiveLogic`／`world_info_logic`）。
+ *
+ * 🔴 **GAP-56：`NOT_ALL`（value 1）原本的文案寫的是 `NOT_ANY` 的語意**
+ * （「不可以有任何次要關鍵字」＝一個都不能出現，那是 `NOT_ANY`）。
+ * 引擎判準見 ST `world-info.js:4847`（`selectiveLogic === NOT_ALL && !hasSecondaryMatch` 即算通過，
+ * 逐一次要關鍵字檢查，**只要有一個沒中就觸發**）與 `server/lib/wiMatch.ts:53`（`!matchAll(...)`）：
+ * `NOT_ALL` 是「並非全部命中」（可以有一部分命中，只要不是全部），不是「全部都不能命中」。
+ * 四個選項因此要能在畫面上真的分辨語意，而不是只看英文縮寫。
+ */
 export const SELECTIVE_LOGIC = [
-  { value: 0, label: '要有任一個次要關鍵字（AND ANY）' },
-  { value: 1, label: '不可以有任何次要關鍵字（NOT ALL）' },
-  { value: 2, label: '一個次要關鍵字都不能有（NOT ANY）' },
-  { value: 3, label: '次要關鍵字要全部都有（AND ALL）' },
+  { value: 0, label: '只要命中任一個次要關鍵字就觸發（AND ANY）' },
+  { value: 1, label: '只要有一個次要關鍵字沒命中就觸發，不必全部都中（NOT ALL）' },
+  { value: 2, label: '次要關鍵字一個都不能命中才觸發（NOT ANY）' },
+  { value: 3, label: '次要關鍵字要全部命中才觸發（AND ALL）' },
 ] as const;
 
 /**
