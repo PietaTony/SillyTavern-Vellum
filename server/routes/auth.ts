@@ -8,11 +8,14 @@
  * 同一句話；只擋前端會再出現「開了遠端卻沒密碼」的說谎開關。
  * ⚠️ **rate limit 在記憶體** —— 重啟清零；夠擋 casual 暴力破解，不是 enterprise WAF。
  *
- * 🔴 **登出不會讓 token 失效**（2026-08-31 補上文件，行為原本就是這樣）——
- * session 是 stateless 的 HMAC 簽章 cookie（見 `authStore.ts`），`/logout` 只回
- * 清空用的 `Set-Cookie`；瀏覽器丟掉它之後這條路就走不通了，但**舊 cookie 本身
- * 直到過期都還是能通過 `sessionValid()`**——重放它一樣 200。要讓 server
- * 端真的撤銷，需要一張 session 表（GAP-115 之後的決定），這一輪不做。
+ * 🔴 **`/logout` 會讓舊 token 立刻失效**（2026-08-31 A5 修）——之前 session 是
+ * stateless 的 HMAC 簽章 cookie（見 `authStore.ts`），`/logout` 只回清空用的
+ * `Set-Cookie`；瀏覽器丟掉它之後這條路走不通了，但**舊 cookie 本身直到過期
+ * 都還能通過 `sessionValid()`**，重放它一樣 200——存取密碼整套的存在理由是
+ * 「開遠端連線前必須先設密碼」，這個洞正好落在會用到登出的那群人（開了區網／
+ * Tailscale）的路徑上。現在 `/logout` 呼叫 `authStore.revokeSession()` 輪替
+ * `sessionSecret`，不需要一張 session 表——細節、取捨（單一 secret ⇒ 登出會讓
+ * 這台 instance 當下所有裝置一起登出；重啟不影響撤銷結果）見 `authStore.ts` 檔頭。
  * ⚠️ **cookie 沒有 `Secure` 屬性**——這是取捨，不是漏掉。整條鏈路是明文 HTTP
  * （Tailscale／區網，沒有 TLS 終端），加了 `Secure` 瀏覽器會直接不送這個
  * cookie，登入會整個失效。之後如果幫 Vellum 接上 TLS，這個決定要跟著重新做。
@@ -27,6 +30,7 @@ import {
   hasPassword,
   makeSessionCookie,
   clearSessionCookie,
+  revokeSession,
   sessionValid,
   setPassword,
   verifyPassword,
@@ -106,7 +110,10 @@ export const auth = new Hono()
     return c.body(null, 204, { 'Set-Cookie': await makeSessionCookie() });
   })
 
-  .post('/logout', (c) => c.body(null, 204, { 'Set-Cookie': clearSessionCookie() }))
+  .post('/logout', async (c) => {
+    await revokeSession();
+    return c.body(null, 204, { 'Set-Cookie': clearSessionCookie() });
+  })
 
   .put('/password', async (c) => {
     const body = z
