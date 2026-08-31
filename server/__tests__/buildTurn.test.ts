@@ -32,12 +32,26 @@ async function fresh() {
   vi.resetModules();
   const { buildTurn } = await import('../services/buildTurn.ts');
   // 🔴 抽檔票（`INBOX/20260831-a2-extract-truncation.md`）：純函式搬去 `lib/`
-  // 之後，這兩個名字從那裡 import——同一支 `vi.resetModules()` 之後動態 import
+  // 之後，這幾個名字從那裡 import——同一支 `vi.resetModules()` 之後動態 import
   // 的規矩，理由跟其他幾個一樣（見檔頭）。
-  const { truncateHistory, HISTORY_BYTE_BUDGET } = await import('../lib/historyTruncation.ts');
+  //
+  // 🔴 A2/GAP-37（跨層票 2026-08-31）：`HISTORY_BYTE_BUDGET` 改名成
+  // `DEFAULT_HISTORY_BYTE_BUDGET`——它現在只是「沒調過時的預設值」，不再是
+  // 唯一值，改名避免讀這支測試的人以為它還是寫死的上限。
+  const { truncateHistory, DEFAULT_HISTORY_BYTE_BUDGET } = await import('../lib/historyTruncation.ts');
+  const { getHistoryByteBudget, setHistoryByteBudget } = await import('../services/settings.ts');
   const { renderMessages, rulesOf } = await import('../services/renderChat.ts');
   const { writeJson } = await import('../adapters/storage.ts');
-  return { buildTurn, truncateHistory, HISTORY_BYTE_BUDGET, renderMessages, rulesOf, writeJson };
+  return {
+    buildTurn,
+    truncateHistory,
+    DEFAULT_HISTORY_BYTE_BUDGET,
+    getHistoryByteBudget,
+    setHistoryByteBudget,
+    renderMessages,
+    rulesOf,
+    writeJson,
+  };
 }
 
 const baseChat = (messages: Chat['messages']): Chat => ({
@@ -138,44 +152,44 @@ describe('buildTurn：target:prompt／both 真的套進送給模型的文字', (
 
 /**
  * A2（GAP-37）：對話歷史沒有截斷，會長到超出模型 context window、供應商回 400、
- * **永久卡死**。見 `buildTurn.ts` 的 `HISTORY_BYTE_BUDGET`／`truncateHistory` 檔頭。
+ * **永久卡死**。見 `buildTurn.ts` 的 `DEFAULT_HISTORY_BYTE_BUDGET`／`truncateHistory` 檔頭。
  *
  * 🔴 斷言一律用具體數字（裁掉幾則、留下哪幾則的 id／text），不是「有裁」或
  * 「不是 0」——只驗「非某值」的斷言，換成另一個錯的數字也會過。
  */
 describe('truncateHistory：純函式，具體數字', () => {
   it('超出預算就整段從最舊的開始丟，留下連續最新一段', async () => {
-    const { truncateHistory, HISTORY_BYTE_BUDGET } = await fresh();
-    expect(HISTORY_BYTE_BUDGET).toBe(12_000);
+    const { truncateHistory, DEFAULT_HISTORY_BYTE_BUDGET } = await fresh();
+    expect(DEFAULT_HISTORY_BYTE_BUDGET).toBe(12_000);
     const g = { id: 'g0', text: 'Hi!' }; // 3 bytes，開場白
     const big = (id: string) => ({ id, text: 'a'.repeat(3000) }); // 3000 bytes／則
     const messages = [g, big('m1'), big('m2'), big('m3'), big('m4'), big('m5')];
     // 3 + 3000*3 = 9003 ≤ 12000 ≤ 12003 = 3 + 3000*4 —— m3/m4/m5 留得下，m2 放不下。
-    const { kept, droppedCount } = truncateHistory(messages, HISTORY_BYTE_BUDGET);
+    const { kept, droppedCount } = truncateHistory(messages, DEFAULT_HISTORY_BYTE_BUDGET);
     expect(droppedCount).toBe(2);
     expect(kept.map((m) => m.id)).toEqual(['g0', 'm3', 'm4', 'm5']);
   });
 
   it('第 0 則（開場白）永遠留著，即使單獨一則就已經超出預算', async () => {
-    const { truncateHistory, HISTORY_BYTE_BUDGET } = await fresh();
+    const { truncateHistory, DEFAULT_HISTORY_BYTE_BUDGET } = await fresh();
     const messages = [
       { id: 'g0', text: 'x'.repeat(20_000) }, // 單獨就超出 12000
       { id: 'm1', text: 'a'.repeat(100) },
       { id: 'm2', text: 'b'.repeat(100) },
     ];
-    const { kept, droppedCount } = truncateHistory(messages, HISTORY_BYTE_BUDGET);
+    const { kept, droppedCount } = truncateHistory(messages, DEFAULT_HISTORY_BYTE_BUDGET);
     expect(droppedCount).toBe(2);
     expect(kept.map((m) => m.id)).toEqual(['g0']);
   });
 
   it('沒超過預算就完全不動——這是尺沒壞的證明，跟「超長會被裁」同等重要', async () => {
-    const { truncateHistory, HISTORY_BYTE_BUDGET } = await fresh();
+    const { truncateHistory, DEFAULT_HISTORY_BYTE_BUDGET } = await fresh();
     const messages = [
       { id: 'g0', text: '開場白' },
       { id: 'm1', text: '第一句' },
       { id: 'm2', text: '第二句' },
     ];
-    const { kept, droppedCount } = truncateHistory(messages, HISTORY_BYTE_BUDGET);
+    const { kept, droppedCount } = truncateHistory(messages, DEFAULT_HISTORY_BYTE_BUDGET);
     expect(droppedCount).toBe(0);
     expect(kept).toBe(messages); // 同一個參考，連新陣列都沒配置
   });
@@ -272,7 +286,7 @@ describe('buildTurn：A2 歷史截斷真的接進送給模型的訊息（不是�
    * 這種 2-3 個中文字的玩具訊息——只證明了「極短訊息不會被裁」，沒有證明
    * 一段「正常長度但沒超過預算」的真實對話不受影響。改用貼近真實 RP 的長度
    * （開場白、每輪使用者／角色各一段，都是上百字的中文），總量仍在
-   * `HISTORY_BYTE_BUDGET`（12000 bytes）之內，斷言一則都沒被裁。
+   * `DEFAULT_HISTORY_BYTE_BUDGET`（12000 bytes）之內，斷言一則都沒被裁。
    */
   it('正常長度對話（每則上百字的中文，總量在預算內）完全不受影響', async () => {
     const { buildTurn } = await fresh();
@@ -303,5 +317,67 @@ describe('buildTurn：A2 歷史截斷真的接進送給模型的訊息（不是�
     const turn = await buildTurn(chat);
     expect(turn.historyDropped).toBe(0);
     expect(turn.messages.map((m) => m.text)).toEqual(chat.messages.map((m) => m.text));
+  });
+});
+
+/**
+ * A2/GAP-37（跨層票 2026-08-31，Peter 已簽）：`HISTORY_BYTE_BUDGET` 從寫死常數
+ * 改成使用者可調——`buildTurn()` 真的要用 `settings.json` 裡存的值，不是永遠讀
+ * `DEFAULT_HISTORY_BYTE_BUDGET`。
+ *
+ * 🔴 驗收條件①「挖空要紅」：下面第一個測試把 `setHistoryByteBudget` 換成
+ * no-op（永遠不寫進 `settings.json`），斷言會失敗，證明 `buildTurn()` 真的有讀
+ * 使用者存的值，不是巧合地跟預設值算出同一個數字。
+ */
+describe('A2/GAP-37：歷史上限使用者可調，buildTurn() 真的讀 settings.json 裡的值', () => {
+  const bigMessages = (n: number) =>
+    Array.from({ length: n }, (_, i) => ({
+      id: `m${i}`,
+      role: 'model' as const,
+      text: 'a'.repeat(1000),
+      at: 'now',
+    }));
+
+  it('使用者調小上限（3000 bytes）：留下的訊息數跟著變少，是具體數字不是「有變就好」', async () => {
+    const { buildTurn, setHistoryByteBudget } = await fresh();
+    await setHistoryByteBudget(3000);
+    const chat = baseChat([{ id: 'g0', role: 'model', text: 'Hi!', at: 'now' }, ...bigMessages(10)]);
+    const turn = await buildTurn(chat);
+    // 3（開場白）+ 1000*3 = 3003 > 3000 ≤ 3(g0) + 1000*2=2003 —— 留 g0 + 最新 2 則。
+    expect(turn.historyDropped).toBe(8);
+    expect(turn.messages).toHaveLength(3);
+  });
+
+  it('使用者調大上限（30000 bytes）：原本會被裁的訊息現在留得住', async () => {
+    const { buildTurn, setHistoryByteBudget } = await fresh();
+    // 這批訊息在預設 12000 bytes 下一定會裁（21*1000+3=20003 bytes，遠超預設）。
+    const chat = baseChat([{ id: 'g0', role: 'model', text: 'Hi!', at: 'now' }, ...bigMessages(20)]);
+    const defaultRun = await buildTurn(chat);
+    expect(defaultRun.historyDropped).toBeGreaterThan(0); // 先確認這批 fixture 在預設值下真的會裁
+    await setHistoryByteBudget(30_000);
+    const turn = await buildTurn(chat);
+    expect(turn.historyDropped).toBe(0);
+    expect(turn.messages).toHaveLength(21);
+  });
+
+  it('沒設過（settings.json 沒有 historyByteBudget）：行為與今天完全一致——用預設值，不是無上限', async () => {
+    const { buildTurn, getHistoryByteBudget, DEFAULT_HISTORY_BYTE_BUDGET } = await fresh();
+    const status = await getHistoryByteBudget();
+    expect(status.bytes).toBe(DEFAULT_HISTORY_BYTE_BUDGET);
+    expect(status.isCustom).toBe(false);
+
+    const big = (id: string) => ({ id, role: 'model' as const, text: 'a'.repeat(3000), at: 'now' });
+    const chat = baseChat([
+      { id: 'g0', role: 'model', text: 'Hi!', at: 'now' },
+      big('m1'),
+      big('m2'),
+      big('m3'),
+      big('m4'),
+      big('m5'),
+    ]);
+    const turn = await buildTurn(chat);
+    // 跟既有「沒調過」那組測試同一個數字（droppedCount 2）——證明沒調過時
+    // `buildTurn()` 用的預算就是 `DEFAULT_HISTORY_BYTE_BUDGET`，不是意外變成無上限。
+    expect(turn.historyDropped).toBe(2);
   });
 });

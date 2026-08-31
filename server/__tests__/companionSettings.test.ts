@@ -75,6 +75,73 @@ describe('PATCH /api/settings/companion', () => {
 });
 
 /**
+ * A2/GAP-37（跨層票 2026-08-31，Peter 已簽）：對話歷史上限，使用者可調——
+ * 這支只測「路由層真的接得到」（走真正的 `app`）＋驗證邊界；`buildTurn()`
+ * 是否真的讀到值，屬於裁切邏輯，測在 `buildTurn.test.ts`（同一份設定，不重複測）。
+ */
+const HISTORY_PATH = '/api/settings/history-budget';
+
+describe('GET /api/settings/history-budget', () => {
+  it('舊設定檔（沒有這個鍵）讀進來是預設值，isCustom 是 false', async () => {
+    const a = await app();
+    const r = await get(a, HISTORY_PATH);
+    expect(r.status).toBe(200);
+    expect(await r.json()).toEqual({ bytes: 12_000, isCustom: false, default: 12_000, min: 2_000, max: 200_000 });
+  });
+});
+
+describe('PATCH /api/settings/history-budget', () => {
+  it('改成 5000：GET 讀回來是 5000、isCustom 變 true，而且真的寫進 settings.json；重整仍然是 5000', async () => {
+    const a = await app();
+    const r = await a.request(HISTORY_PATH, {
+      method: 'PATCH',
+      headers: H,
+      body: JSON.stringify({ bytes: 5000 }),
+    });
+    expect(r.status).toBe(200);
+    expect(await r.json()).toEqual({ bytes: 5000, isCustom: true, default: 12_000, min: 2_000, max: 200_000 });
+
+    const raw = JSON.parse(readFileSync(join(root, 'settings.json'), 'utf8')) as {
+      historyByteBudget: number;
+    };
+    expect(raw.historyByteBudget).toBe(5000);
+
+    const reloaded = await app();
+    expect(((await (await get(reloaded, HISTORY_PATH)).json()) as { bytes: number }).bytes).toBe(5000);
+  });
+
+  it('🔴 低於下限（1999）要 400，不能靜默存進去', async () => {
+    const a = await app();
+    const r = await a.request(HISTORY_PATH, {
+      method: 'PATCH',
+      headers: H,
+      body: JSON.stringify({ bytes: 1999 }),
+    });
+    expect(r.status).toBe(400);
+  });
+
+  it('🔴 高於上限（200001）要 400', async () => {
+    const a = await app();
+    const r = await a.request(HISTORY_PATH, {
+      method: 'PATCH',
+      headers: H,
+      body: JSON.stringify({ bytes: 200_001 }),
+    });
+    expect(r.status).toBe(400);
+  });
+
+  it('🔴 壞 body（不是數字）回 400，不是靜默存一個 NaN', async () => {
+    const a = await app();
+    const r = await a.request(HISTORY_PATH, {
+      method: 'PATCH',
+      headers: H,
+      body: JSON.stringify({ bytes: '五千' }),
+    });
+    expect(r.status).toBe(400);
+  });
+});
+
+/**
  * D1：使用者自建的輸出規則 —— ST 正則的第二個來源，全域、不綁角色（Peter 2026-08-31 跨層票）。
  */
 const RULES_PATH = '/api/settings/output-rules';

@@ -22,18 +22,58 @@
  * 兩者都跨 X3／H5，不在單層範圍內。這張票解的是歷史本身無界成長、永久卡死。
  *
  * ⚠️ **另一個已知限制（獨立驗收 PR #55 抓到，這一輪不修）**：`buildTurn.ts` 先
- * `truncateHistory()` 才 `worldForChat()`——這支只管歷史本身的 12000 bytes，
+ * `truncateHistory()` 才 `worldForChat()`——這支只管歷史本身的預算，
  * 世界書注入（`promptWorld.ts` 的 `DEFAULT_WI_BUDGET`，**位元組數**，60_000，
  * PR #53／`e934d7726` 把它從字元數換成 UTF-8 位元組數之後的數字，跟這裡的
- * `HISTORY_BYTE_BUDGET` 是同一套判準，兩邊單位一致、可以直接相加比較）
+ * `DEFAULT_HISTORY_BYTE_BUDGET` 是同一套判準，兩邊單位一致、可以直接相加比較）
  * **完全沒被算進這個預算**，兩份預算各自為政、互不知情，加起來仍可能超出
  * 真實 context window。要修要嘛兩邊共用同一個總預算、要嘛先量總量再各自
  * 按比例分攤，兩者都會動到 `promptWorld.ts`（H3），不在這張票的單層範圍內。
+ *
+ * 🔴 **2026-08-31 跨層票（`INBOX/20260831-history-budget-user-setting.md`，
+ * Peter 已簽，原話「同意」）：這個數字現在是使用者可調的預設值，不再是唯一值。**
+ * Peter 的裁定原話：「ST 怎麼做我們照抄。我記得 ST 給使用者調整，但是不清不楚的。
+ * 讓我們也是讓使用者自己調整，但是寫得清楚點。」——ST 確實可調
+ * （`openai_max_context`，`openai.js:353,1558`），但 UI 只有一根裸滑桿＋
+ * 「Context (tokens)」四個字（`index.html:289-290,635-644`），沒說單位其實不是真
+ * token（ST 自己也只是估的：`BYTES_PER_TOKEN = 3.35` 常數在 `tokenizers.js:12`，
+ * 估算函式在 `:167-168`——**這裡順便訂正**：這份票原始草稿引的行號
+ * `tokenizers.js:60,64-68` 對不上，那幾行是 `TEXTGEN_TOKENIZERS`／`TOKENIZER_URLS`，
+ * 跟 bytes/token 的估算無關，已自行查證改過）、沒說超過會發生什麼、沒說
+ * 跟世界書預算是分開算的。這裡照抄「使用者可調」那一半，**不做** ST 那張
+ * 26 家寫死、會過期的 per-model 表（`openai.js:4967-5677`，A2 票裡已被 Peter
+ * 否決的乙案）。
+ *
+ * **實際生效值怎麼決定**：`services/settings.ts` 的 `getHistoryByteBudget()` 讀
+ * `settings.json` 的 `historyByteBudget`，沒設過就回這裡的
+ * `DEFAULT_HISTORY_BYTE_BUDGET`——`buildTurn.ts` 一律呼叫那支，不再直接讀這個常數。
+ * **這個常數本身沒有變、上面「數字怎麼來」那幾段推導也沒有過期**：多數使用者
+ * 不會去動設定，預設值仍然是多數人實際遇到的行為——「可調」只是把偏保守的代價
+ * 從「所有人被迫接受」降成「想改的人自己改」。
+ *
+ * 🔴 **UI 要講清楚的四件事**（見 `src/features/chat/ui/HistoryBudgetLayer.tsx`——
+ * 那支是這裡的前端孿生，兩邊說明要一起看，改一邊不改另一邊就會兩邊講的不一樣）：
+ * ① 單位老實講是位元組、不是 token（這個 repo 沒有 tokenizer）
+ * ② 講清楚超過會發生什麼：最舊的訊息被靜默丟掉、不會送給模型
+ * ③ 講清楚這是跟世界書分開的獨立預算，兩邊互不知情、加起來仍可能超出真實上限
+ * ④ 講清楚兩個方向的後果：調太小 → 模型失憶；調太大 → 供應商可能回 400、
+ *    那個聊天室永久卡住（GAP-37 本身）
  */
-export const HISTORY_BYTE_BUDGET = 12_000;
+export const DEFAULT_HISTORY_BYTE_BUDGET = 12_000;
 
 /**
- * 從最新往回留，超出 {@link HISTORY_BYTE_BUDGET} 就整段停止——跟 ST
+ * 使用者可調範圍的安全欄杆。⚠️ **這兩個數字沒有量測支撐**——只是防呆（不准設
+ * 0／負數／天文數字），不是照哪一家供應商的真實上限量出來的。下限 2000 bytes
+ * 大約是「還留得住開場白＋一兩句話」的量級；上限 200000 bytes 是給大 context
+ * 模型留的寬鬆上界，沒有逐家查證（這張票刻意不做 per-model 表，見上）。
+ * 要調這兩個數字之前先量，不要憑感覺改。
+ */
+export const MIN_HISTORY_BYTE_BUDGET = 2_000;
+export const MAX_HISTORY_BYTE_BUDGET = 200_000;
+
+/**
+ * 從最新往回留，超出傳入的 `budgetBytes`（預設是 {@link DEFAULT_HISTORY_BYTE_BUDGET}，
+ * 使用者調過就是那個值）就整段停止——跟 ST
  * `populateChatHistory`（`openai.js:939-1065`）同一個算法：`reverse()` 後
  * 逐則 `canAfford` 就留，放不下就 `break`（不是跳過找更小的），
  * 所以留下來的一定是**連續的最新一段**。

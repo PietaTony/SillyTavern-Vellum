@@ -1,5 +1,6 @@
 import ChevronRightIcon from '@mui/icons-material/ChevronRight';
 import DevicesOutlinedIcon from '@mui/icons-material/DevicesOutlined';
+import HistoryOutlinedIcon from '@mui/icons-material/HistoryOutlined';
 import InfoOutlinedIcon from '@mui/icons-material/InfoOutlined';
 import PaletteOutlinedIcon from '@mui/icons-material/PaletteOutlined';
 import SmartToyOutlinedIcon from '@mui/icons-material/SmartToyOutlined';
@@ -14,6 +15,7 @@ import { useState } from 'react';
 import { ReportListItem } from '@/app/screens/ReportButton';
 import { TabBar } from '@/app/screens/TabBar';
 import { BackgroundsLayer } from '@/features/backgrounds';
+import { HistoryBudgetLayer } from '@/features/chat';
 import { Screen } from '@/shared/ui/Screen';
 
 export const Route = createFileRoute('/settings/')({ component: SettingsPage });
@@ -31,6 +33,10 @@ function SettingsPage() {
   //    ② `design/screens.json` 是 `gate:screens` 的正本，多開一個 route 要先改設計正本。
   //    ⚠️ 這裡**不傳 `chatId`** ⇒ 只有「全域」分頁，沒有「這段對話」——在設定頁沒有對話可談。
   const [bg, setBg] = useState(false);
+  // 🔴 A2/GAP-37（跨層票 2026-08-31，Peter 已簽）：對話歷史上限——同背景那顆，
+  // 走全螢層而不是第四個路由，理由跟上面 `bg` 那句一致。實際的 UI／文案在
+  // `HistoryBudgetLayer.tsx`（H1，`src/features/chat/**`），這裡只是入口。
+  const [histBudget, setHistBudget] = useState(false);
 
   return (
     <Screen title="設定" footer={<TabBar active="settings" />}>
@@ -84,11 +90,22 @@ function SettingsPage() {
 
         <Divider component="li" />
 
+        <ListItemButton onClick={() => setHistBudget(true)}>
+          <ListItemIcon>
+            <HistoryOutlinedIcon />
+          </ListItemIcon>
+          <ListItemText primary="對話歷史上限" secondary="長對話什麼時候開始被丟掉、丟多少" />
+          <ChevronRightIcon color="disabled" />
+        </ListItemButton>
+
+        <Divider component="li" />
+
         {/* 🔴 這一項不是只給「壞掉了」用的（Peter 2026-08-27：「任何東西」）——
             平常想講什麼都從這裡走，而且此刻程式是好的，版本那些欄位讀得到。 */}
         <ReportListItem />
       </List>
       <BackgroundsLayer open={bg} onClose={() => setBg(false)} />
+      <HistoryBudgetLayer open={histBudget} onClose={() => setHistBudget(false)} />
     </Screen>
   );
 }
