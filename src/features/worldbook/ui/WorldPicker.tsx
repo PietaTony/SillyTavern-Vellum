@@ -3,15 +3,18 @@ import Button from '@mui/material/Button';
 import Dialog from '@mui/material/Dialog';
 import DialogContent from '@mui/material/DialogContent';
 import DialogTitle from '@mui/material/DialogTitle';
+import Divider from '@mui/material/Divider';
 import List from '@mui/material/List';
 import ListItemButton from '@mui/material/ListItemButton';
 import ListItemText from '@mui/material/ListItemText';
 import Stack from '@mui/material/Stack';
 import Typography from '@mui/material/Typography';
-import { useQuery } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { fetchWorlds } from '../api';
+import { importWorld } from '../importExport';
 import { subtitleOf } from '../model';
+import { ImportWorldButton } from './ImportWorldButton';
 
 /**
  * 世界書選擇器（C6）。**四層都用同一個**：persona／好友／對話／全域。
@@ -46,6 +49,18 @@ export function WorldPicker({
   });
   const worlds = q.data ?? [];
   const current = worlds.find((w) => w.id === value);
+  const qc = useQueryClient();
+
+  // 🔴 匯入的書不屬於任何好友，這裡是唯一能綁到它的地方。成功就直接選上它 ——
+  // 使用者匯入一本書通常就是為了馬上用在這一層，不必再點兩次。
+  const importMut = useMutation({
+    mutationFn: (text: string) => importWorld(text),
+    onSuccess: async (r) => {
+      await qc.invalidateQueries({ queryKey: ['worlds'] });
+      onChange(r.id);
+      setOpen(false);
+    },
+  });
 
   return (
     <Stack spacing={0.5}>
@@ -80,13 +95,27 @@ export function WorldPicker({
               讀不到世界書清單：{q.error instanceof Error ? q.error.message : ''}
             </Alert>
           ) : null}
+          {importMut.isError ? (
+            <Alert severity="warning" sx={{ m: 2 }}>
+              匯不進來：{importMut.error instanceof Error ? importMut.error.message : ''}
+            </Alert>
+          ) : null}
+          <Stack sx={{ p: 1.5 }}>
+            <ImportWorldButton
+              busy={importMut.isPending}
+              onFile={(text) => importMut.mutate(text)}
+              helperText="從 ST 匯出的世界書檔（.json）匯入一本新的"
+            />
+          </Stack>
+          <Divider />
           {/*
            * 🔴 **每個死路都要有出口**：一本書都沒有時要說得出「怎麼會有」，
            * 而不是給一個空清單讓人卡在這裡。
            */}
           {!q.isPending && !q.isError && worlds.length === 0 ? (
             <Typography variant="body2" color="text.secondary" sx={{ p: 3, textAlign: 'center' }}>
-              還沒有任何世界書。世界書是跟著角色卡一起進來的 —— 匯入一張帶世界書的卡就會出現。
+              還沒有任何世界書。世界書是跟著角色卡一起進來的 ——
+              匯入一張帶世界書的卡就會出現，或者用上面的「匯入一本新的」帶一個 .json 檔進來。
             </Typography>
           ) : null}
           <List disablePadding>

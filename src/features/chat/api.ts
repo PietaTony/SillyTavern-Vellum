@@ -1,5 +1,15 @@
 import { del, get, patch, post } from '@/shared/lib/http';
+import type { VarSchema } from '@/shared/types/varSchema';
 import { type Chat, type Message, parseSse, type StreamEvent } from './model';
+
+/**
+ * 桌寵開關（E1）。**全域設定，不分對話**——`/api/settings/companion`
+ * 是它自己的前綴，不是這段對話的東西（見 `server/routes/companionSettings.ts` 檔頭）。
+ */
+export const fetchCompanionEnabled = (): Promise<{ enabled: boolean }> =>
+  get('/api/settings/companion');
+export const setCompanionEnabled = (enabled: boolean): Promise<{ enabled: boolean }> =>
+  patch('/api/settings/companion', { enabled });
 
 export const fetchChats = (): Promise<Chat[]> => get<Chat[]>('/api/chats');
 export const fetchChat = (id: string): Promise<Chat> => get<Chat>(`/api/chats/${id}`);
@@ -41,6 +51,19 @@ export const patchChatVariables = (
   vars: Record<string, unknown>,
 ): Promise<{ variables: Record<string, unknown> }> =>
   patch(`/api/chats/${chatId}/variables`, { patch: vars });
+
+/**
+ * 卡片**宣告**了哪些變數 —— D2 面板缺的另一半（值走 `fetchChat`，這支只讀 schema）。
+ * 唯讀，端點見 `server/routes/cardVariables.ts:56-67`。
+ *
+ * 🔴 `{ schema: null }` 是**正常空狀態**，不是錯誤：角色沒有卡片檔／卡片沒有 `[initvar]`
+ * 條目／PNG 根本不是卡片，三種原因收斂成同一個 `null`（同檔 51-54 行）。
+ * 呼叫端只能靠 HTTP status 分辨「讀不到」——這裡沿用 `get()` 既有慣例：非 2xx 一律
+ * throw `ApiError`，2xx 一律回傳 body（含 `schema:null`），不在這層另外判斷。
+ */
+export const fetchCardVariableSchema = (
+  characterId: string,
+): Promise<{ schema: VarSchema | null }> => get(`/api/card-variables/${characterId}/schema`);
 
 export const swipeMessage = (
   chatId: string,

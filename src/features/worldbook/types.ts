@@ -59,9 +59,19 @@ export const GLOBAL_OWNER = '__global__';
 export type World = {
   version: 1;
   characterId: string;
+  /** 只有「沒有擁有者」的書會有（匯入、全域）—— 見後端 `charWorld.ts` 的欄位註解。 */
+  name?: string;
   entries: WbEntry[];
   origin?: { entries?: Record<string, { enabled: boolean; comment: string }> };
 };
+
+/**
+ * 🔴 匯入但還沒綁到任何一層的書用這個 —— **與 `GLOBAL_OWNER` 不同**。
+ * `$worldId/index.tsx` 靠這個字面值判斷要不要顯示「全域世界書」那句警告；
+ * 剛匯入、還沒加進全域名單的書如果也標成 `GLOBAL_OWNER`，那句警告就是謊話。
+ * **與後端的 `server/lib/globalWorld.ts` 是同一個字面值**，由測試釘住。
+ */
+export const IMPORTED_OWNER = '__imported__';
 
 /** 四層綁定總覽（C4）。 */
 export type LayerFact = {

@@ -1,6 +1,13 @@
 import { describe, expect, it } from 'vitest';
 import { readCard } from '../lib/card.ts';
-import { cardIdentity, contentHash, driftFromOrigin, setEntryEnabled, worldFromCard } from '../lib/charWorld.ts';
+import {
+  cardIdentity,
+  contentHash,
+  driftFromOrigin,
+  parseWorldFile,
+  setEntryEnabled,
+  worldFromCard,
+} from '../lib/charWorld.ts';
 import { isPrivateAddress } from '../adapters/fetchCard.ts';
 import { encodePayload } from '../lib/card.ts';
 import { makeText, writeChunks } from '../lib/png.ts';
@@ -90,6 +97,51 @@ describe('出廠快照', () => {
     expect(id.cardId).toHaveLength(16);
     const other = cardIdentity(readCard(cardPng({ ...payload, data: { ...payload.data, name: '改過' } })));
     expect(other.cardId).not.toBe(id.cardId);
+  });
+});
+
+describe('匯入外部世界書檔（C7）—— 結構驗證', () => {
+  it('缺 entries 回錯誤，不是空清單', () => {
+    const r = parseWorldFile({});
+    expect(r.ok).toBe(false);
+    if (!r.ok) expect(r.error).toContain('entries');
+  });
+
+  it('entries 是陣列（誤把 character_book 貼進來）回錯誤', () => {
+    const r = parseWorldFile({ entries: [{ id: 0 }] });
+    expect(r.ok).toBe(false);
+  });
+
+  it('entries 是字串／數字回錯誤', () => {
+    expect(parseWorldFile({ entries: '壞掉' }).ok).toBe(false);
+    expect(parseWorldFile({ entries: 123 }).ok).toBe(false);
+  });
+
+  it('個別 entry 不是物件（例如一個裸字串）指名哪個 uid 壞掉', () => {
+    const r = parseWorldFile({ entries: { '0': {}, bad: 'not an object' } });
+    expect(r.ok).toBe(false);
+    if (!r.ok) expect(r.error).toContain('bad');
+  });
+
+  it('🔴 合法的空書（entries: {}）是 0 條，不是錯誤 —— 兩者不能長得一樣', () => {
+    const r = parseWorldFile({ entries: {} });
+    expect(r.ok).toBe(true);
+    if (r.ok) expect(r.entries).toEqual([]);
+  });
+
+  it('合法檔案帶出書名與條目', () => {
+    const r = parseWorldFile({ name: '我的書', entries: { '0': { comment: 'x' } } });
+    expect(r.ok).toBe(true);
+    if (r.ok) {
+      expect(r.name).toBe('我的書');
+      expect(r.entries).toHaveLength(1);
+    }
+  });
+
+  it('沒有 name 欄位時回 undefined，不是空字串', () => {
+    const r = parseWorldFile({ entries: {} });
+    expect(r.ok).toBe(true);
+    if (r.ok) expect(r.name).toBeUndefined();
   });
 });
 

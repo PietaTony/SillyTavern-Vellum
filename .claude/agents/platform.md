@@ -15,18 +15,19 @@ the user, starts, updates, and cannot be trivially broken into.
 **Front end**
 - `src/features/about/**` `src/features/backgrounds/**` `src/features/network/**` `src/features/update/**`
 - `src/app/routes/` — `__root.tsx` `index.tsx` `first-run/index.tsx` `first-run/route.tsx`
-  `settings/index.tsx` `settings/about.tsx` `settings/network.tsx`
+  `settings/index.tsx` `settings/about.tsx` `settings/network.tsx` `login.tsx`
   🔴 Paths are relative to `src/app/routes/`. `index.tsx` means the app's own root index,
   not `worlds/index.tsx` (H3's) or `settings/providers/index.tsx` (H5's).
 - `src/app/screens/` — `AppBackground.tsx` `UpdateAvailablePanel.tsx` `UpdateCheckCard.tsx` `SettingsAboutScreen.tsx`
   `appFailure.ts` `AppUnreachable.tsx` `ReportButton.tsx`
+- `src/app/auth.ts`
 - `src/app/report.ts`
 
 **Back end**
-- `server/routes/` — `update.ts` `network.ts` `backgrounds.ts` `chatBackground.ts`
-- `server/lib/releaseNotes.ts`
+- `server/routes/` — `update.ts` `network.ts` `backgrounds.ts` `chatBackground.ts` `auth.ts`
+- `server/lib/releaseNotes.ts` `server/lib/authStore.ts`
 - `server/adapters/**` **except** `gemini.ts` (H5's), `audioFiles.ts` (H8's), `extensionFetch.ts` (H9's)
-- `server/http/**` — `bodyLimits.ts` `hostGuard.ts`
+- `server/http/**` — `bodyLimits.ts` `hostGuard.ts` `authGuard.ts`
 
 **Build & ship**
 - `scripts/**` (every `gate-*.ts` and `verify-*.ts`)
@@ -86,6 +87,9 @@ the user, starts, updates, and cannot be trivially broken into.
 | `identity: null` does not produce "unsigned", it produces **"damaged"** — Gatekeeper rejects it outright instead of showing the unidentified-developer prompt | `GAP-100` |
 | `electron-builder` publishes to GitHub Releases on its own, and signs with whatever certificate it finds in the local keychain. It found a **company** one | `GAP-98` / remove-docker report ④ |
 | After widening `gate-file-size` to cover `server/`, the reported file count **did not move**. The unchanged number was the failure signal | `scripts/gate-file-size.ts` header |
+| Root `beforeLoad` ran `isSetUp()` before auth —— `/api/secrets` 401 looked like a broken product when password was set | `GAP-115` / `src/app/routes/__root.tsx` |
+| `LanWarning` and `NetworkCard` each had their own「沒有登入機制」copy —— password shipped but mobile LAN banner still lied | `NoLoginWarning.tsx` |
+| Agent 交件靠「多講一句 Peter 風格」才對齊 —— 六題、screens、GAP 沒有機械清單 | `GAP-116` / `FEATURE-DONE.md` |
 
 ## 5 · Before you say done
 

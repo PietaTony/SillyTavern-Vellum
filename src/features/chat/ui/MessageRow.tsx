@@ -1,4 +1,5 @@
 import Box from '@mui/material/Box';
+import Typography from '@mui/material/Typography';
 import type { Message } from '../model';
 import { useLongPress } from '../useLongPress';
 import { type MessageActions, useRowActions } from '../useRowActions';
@@ -9,6 +10,7 @@ import { MessageEditor } from './MessageEditor';
 import { MessageMenu } from './MessageMenu';
 import { SwipeBar } from './SwipeBar';
 import { ThemRow } from './ThemRow';
+import { UsageReadout } from './UsageReadout';
 
 /**
  * 一列訊息：外框 ＋ 內容 ＋ 長按能做的四件事
@@ -64,6 +66,20 @@ export function MessageRow({
       sx={{ '@media (pointer: coarse)': { userSelect: 'none', WebkitTouchCallout: 'none' } }}
     >
       <MessageContent text={message.text} frontend={frontend} messageId={message.id} />
+      {/* 🔴 半成品（跨層票 H1／H6，2026-08-28）——資料上分得出來，畫面也要看得出來。 */}
+      {message.partial ? (
+        <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 0.5 }}>
+          （已中止，未說完）
+        </Typography>
+      ) : null}
+      {/*
+       * 🔴 **落地的用量，不是這一輪的暫態讀數**（H1 落地票，2026-08-31）——
+       * 那顆在 `$chatId.tsx` 的 `<UsageReadout usage={generation.usage} />` 是 footer
+       * 的「這一輪」，重整會清空；這裡是掛在**這一則訊息本身**、寫進磁碟的數字，
+       * 重整、翻回歷史都還在。舊訊息沒有這個欄位 ⇒ `message.usage` 是 `undefined`，
+       * `UsageReadout` 接住 `null` 就什麼都不畫——不是「顯示 0」。
+       */}
+      {message.role === 'model' ? <UsageReadout usage={message.usage ?? null} /> : null}
     </Box>
   );
 

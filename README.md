@@ -5,7 +5,7 @@
 > ⚠️ **目前是 Alpha 版本。** 功能還在快速增減，畫面與操作方式**可能在版本之間直接改變**，
 > 不保證每一版都相容。重要的對話與角色卡建議自己另外留一份。
 
-**[SillyTavern](https://github.com/SillyTavern/SillyTavern) 的分支（fork）** —— 後端沿用，前端整個重寫。
+**[SillyTavern](https://github.com/SillyTavern/SillyTavern) 的分支（fork）** —— 後端以 **Hono** 重寫（`server/`，沿用 ST 的 API 與資料語意），前端整個重寫。
 功能一樣，UI／UX 大改。
 
 授權 **AGPL-3.0-or-later**（見 [`LICENSE`](LICENSE)）—— 上游是 AGPL，分支也必須是。
@@ -18,6 +18,16 @@ git 歷史保留了完整的來源鏈（第一個 commit 是 SillyTavern 作者 
 > **改過的話請設 `VELLUM_SOURCE_URL` 指到你自己的原始碼位置** ——
 > 不改的話那顆按鈕會把你的使用者帶到我們的 repo，那不是你正在跑的那一版。
 > AGPL **允許收費**，但不允許不給源碼。
+
+---
+
+## 給 agent／新協作者
+
+1. [`ARCHITECTURE.md`](ARCHITECTURE.md) — 專案地圖與閱讀順序（**先讀**）
+2. [`AGENTS.md`](AGENTS.md) — 哪個檔案誰能改
+3. [`.claude/agents/<domain>.md`](.claude/agents/) — 該領域 GAP；或搜 [`docs/generated/gap-index.md`](docs/generated/gap-index.md)
+4. `pnpm verify` — 唯一收據；改完貼真實輸出
+5. 深度規格／ticket — agents home 的 `plans/`、`INBOX/`（路徑見 ARCHITECTURE.md §5）
 
 ---
 
@@ -144,19 +154,20 @@ app 裡有新版時會直接告訴你。更新是三步：
 
 ## 🔴 安全性：先看這一段再決定要不要對外開
 
-**Vellum 沒有登入機制。** 這是刻意的 —— 它被設計成**單人在自己電腦上跑**的 app。
+**Vellum 預設只給本機用** —— 綁 `127.0.0.1`，沒設密碼時也只有這台電腦連得到。
 
-⇒ **任何連得到那個 port 的人，都等於是你。** 他能讀你全部的對話、
-用你的 API 金鑰花錢。所以：
+若要讓手機或平板連進來：先到 **設定 → 其他裝置** 設 **存取密碼**，再打開「允許其他裝置連線」並重啟。
+連進來的人要先登入；沒有使用者帳號系統，只有這台 instance 的一組 shared secret。
 
 | 情境 | 安全嗎 |
 |---|---|
-| 預設（綁 `127.0.0.1`） | ✅ 只有這台電腦連得到 |
-| 透過 **Tailscale** 給自己的手機用 | ✅ tailnet 是私有網路，只有你的裝置在裡面 |
-| 設 `HOST=0.0.0.0` 接到家裡 wifi | ⚠️ **同一個網路上的人都連得到**，室友、訪客、被入侵的裝置 |
+| 預設（綁 `127.0.0.1`、未設密碼） | ✅ 只有這台電腦連得到 |
+| 預設 + **已設存取密碼**（仍只綁本機） | ✅ 本機仍可直接用；密碼主要給遠端連線 |
+| 透過 **Tailscale** + 存取密碼 | ✅ 建議做法：tailnet 私有 + 登入 |
+| 設 `HOST=0.0.0.0` / 開「其他裝置」接到家裡 wifi | ⚠️ **同一個網路上的人都連得到** —— 務必設密碼 |
 | 直接開到公網 / port forwarding | 🔴 **不要這樣做** |
 
-> 之後會加密碼保護，讓「架給別人用」變成安全的選項。**在那之前，請只用前兩種。**
+忘記密碼：在這台電腦刪除 `data/auth.json` 後重啟（對話與金鑰不受影響）。
 
 已經做的防護（都有測試與實測收據）：
 
@@ -165,6 +176,7 @@ app 裡有新版時會直接告訴你。更新是三步：
   自訂網域要明確設 `VELLUM_ALLOWED_HOSTS`
 - **上傳大小**：8 MB 上限，塞不爆磁碟
 - **零 CORS**：有一支測試釘住它，加一行 `Access-Control-Allow-Origin` 就會紅
+- **存取密碼**：scrypt hash 存在 `data/auth.json`；設密碼後 API 要 session cookie
 - **卡片腳本關在 sandbox iframe 裡**（不給 `allow-same-origin`），讀不到你的其他對話
 
 ## 從手機或平板連進來

@@ -7,11 +7,13 @@ import {
   type ScriptsState,
   setScriptsConsent,
 } from './api';
-import { type BridgeDeps, buildBridge } from './runtime/bridge';
+import { backgroundOf } from './runtime/background';
+import type { BridgeDeps } from './runtime/bridge';
 import { installBridgeHost } from './runtime/host';
+import { liveBridge } from './runtime/liveBridge';
 import { VENDOR_HOSTS } from './runtime/preamble';
 import type { CardVarScopes } from './runtime/scopes';
-import { wrap } from './runtime/srcdoc';
+import { useCompanionEnabled } from './useCompanionEnabled';
 import { useVarPush } from './useVarPush';
 
 /**
@@ -71,22 +73,7 @@ export function useCardScripts(deps: BridgeDeps): CardScriptsView {
    */
   const live = useRef(deps);
   live.current = deps;
-  const api = useMemo(
-    () =>
-      buildBridge({
-        get chatId() {
-          return live.current.chatId;
-        },
-        get characterId() {
-          return live.current.characterId;
-        },
-        messages: () => live.current.messages(),
-        swipe: (id, i) => live.current.swipe(id, i),
-        edit: (id, t) => live.current.edit(id, t),
-        saveVariables: (patch, scope) => live.current.saveVariables(patch, scope),
-      }),
-    [],
-  );
+  const api = useMemo(() => liveBridge(live), []);
   useEffect(() => installBridgeHost(api), [api]);
 
   const save = useMutation({
@@ -115,10 +102,11 @@ export function useCardScripts(deps: BridgeDeps): CardScriptsView {
     enabled,
     staleTime: Number.POSITIVE_INFINITY,
   });
-  const background = useMemo(() => {
-    const list = content.data?.scripts ?? [];
-    return list.length > 0 ? list.map((x) => wrap(x.content)).join('') : null;
-  }, [content.data]);
+  const companionEnabled = useCompanionEnabled(); // E1：關掉 ⇒ frame 根本不建。
+  const background = useMemo(
+    () => backgroundOf(content.data?.scripts, companionEnabled),
+    [content.data, companionEnabled],
+  );
 
   // 🔴 白名單 ＝ 我們自己的 vendor ＋ 使用者同意過的那些。`VENDOR_HOSTS` 也要進同意視窗，
   // 不講的話就變成「我們替使用者做了一個他不知道的外連」。

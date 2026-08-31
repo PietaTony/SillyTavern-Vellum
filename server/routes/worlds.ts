@@ -7,12 +7,13 @@
  */
 import { Hono } from 'hono';
 import type { Character } from '../lib/character.ts';
-import type { CharWorld } from '../lib/charWorld.ts';
+import { type CharWorld, parseWorldFile } from '../lib/charWorld.ts';
+import { IMPORTED_OWNER, makeWorld } from '../lib/globalWorld.ts';
 import type { Persona } from '../lib/persona.ts';
 import { safeId } from '../lib/ids.ts';
-import { listJson, listJsonMeta, readJson } from '../adapters/storage.ts';
+import { listJson, listJsonMeta, readJson, writeJson } from '../adapters/storage.ts';
 import { friendBindings, LAYER_FACTS } from '../lib/wiBindings.ts';
-import { summarizeWorlds } from '../lib/worldList.ts';
+import { summarizeWorlds, toWorldFile } from '../lib/worldList.ts';
 
 export const worlds = new Hono()
   /**
@@ -70,4 +71,51 @@ export const worlds = new Hono()
     if (!id) return c.json({ error: '找不到這本世界書' }, 404);
     const world = await readJson<CharWorld | null>(`worlds/${id}.json`, null);
     return world ? c.json(world) : c.json({ error: '找不到這本世界書' }, 404);
+  })
+
+  /**
+   * 匯出（C7）。回 ST 相容的外部世界書檔（`{ name?, entries: { uid: entry } }`）——
+   * 換一台機器、甚至換回 ST 本尊都要匯得進去。判準見 `worldList.ts` 的 `toWorldFile`。
+   * 🔴 任何一本都能匯（全域／好友／匯入但還沒綁定的），這裡不分身分。
+   */
+  .get('/:id/export', async (c) => {
+    const id = safeId(c.req.param('id'));
+    if (!id) return c.json({ error: '找不到這本世界書' }, 404);
+    const world = await readJson<CharWorld | null>(`worlds/${id}.json`, null);
+    if (!world) return c.json({ error: '找不到這本世界書' }, 404);
+    const file = toWorldFile(world.entries, world.name);
+    const filename = encodeURIComponent(`${world.name ?? id}.json`);
+    return c.body(JSON.stringify(file, null, 2), 200, {
+      'Content-Type': 'application/json; charset=utf-8',
+      'Content-Disposition': `attachment; filename*=UTF-8''${filename}`,
+    });
+  })
+
+  /**
+   * 匯入（C7）。**建一本獨立的書**，不屬於任何好友、也不自動變全域
+   * （全域會立刻套用到所有對話，那是使用者要主動選的事——見 `globalWorlds.ts` 的 `/import`）。
+   * 匯入後這本書會出現在 `WorldPicker`，可以馬上綁到某個 persona（玩家故事書）。
+   *
+   * 🔴 **結構壞掉回 400，不噴一本空書**（`parseWorldFile` 把關）；壞 JSON 讓
+   * `JSON.parse` 直接丟給 `app.ts` 的 `onError` 收成 400，兩種情況都不會寫檔。
+   */
+  .post('/import', async (c) => {
+    const raw = await c.req.text();
+    const json = raw.trim() === '' ? {} : JSON.parse(raw); // 壞 JSON → app.ts 的 onError 收成 400
+    const parsed = parseWorldFile(json);
+    if (!parsed.ok) return c.json({ error: parsed.error }, 400);
+    const { id, world } = makeWorld(parsed.entries, {
+      characterId: IMPORTED_OWNER,
+      ...(parsed.name ? { name: parsed.name } : {}),
+    });
+    await writeJson(`worlds/${id}.json`, world);
+    return c.json(
+      {
+        id,
+        name: world.name ?? id,
+        entryCount: world.entries.length,
+        enabledCount: world.entries.filter((e) => e.enabled).length,
+      },
+      201,
+    );
   });

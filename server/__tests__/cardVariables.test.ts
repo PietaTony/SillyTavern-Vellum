@@ -3,6 +3,8 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Character } from '../lib/character.ts';
+import { encodePayload } from '../lib/card.ts';
+import { makeText, writeChunks } from '../lib/png.ts';
 
 /**
  * 卡片變數的 `global` 與 `character` 兩種範圍（2026-08-27）。
@@ -38,6 +40,33 @@ const CH: Character = {
 const seedChar = async () => {
   const { writeJson } = await import('../adapters/storage.ts');
   await writeJson(`characters/${CH.id}.json`, CH);
+};
+
+function cardPngIhdr(): Buffer {
+  const ihdr = Buffer.alloc(13);
+  ihdr.writeUInt32BE(1, 0);
+  ihdr.writeUInt32BE(1, 4);
+  ihdr[8] = 8;
+  ihdr[9] = 6;
+  return ihdr;
+}
+
+/** 合成一張帶 `[initvar]` 世界書條目的卡片 PNG（真卡是私人資料，測試素材自己造）。 */
+function cardPngWithInitVars(content: string): Buffer {
+  const ccv3 = {
+    data: { character_book: { entries: [{ comment: '[initvar]', content }] } },
+  };
+  return writeChunks([
+    { type: 'IHDR', data: cardPngIhdr() },
+    makeText('ccv3', encodePayload(ccv3)),
+    { type: 'IDAT', data: Buffer.from([9, 9, 9]) },
+    { type: 'IEND', data: Buffer.alloc(0) },
+  ]);
+}
+
+const seedCardPng = async (id: string, content: string) => {
+  const { writeBin } = await import('../adapters/storage.ts');
+  await writeBin(`characters/${id}.png`, cardPngWithInitVars(content));
 };
 
 type App = Awaited<ReturnType<typeof app>>;
@@ -77,6 +106,63 @@ describe('GET /api/card-variables/:characterId', () => {
       global: { 暱稱: '阿年' },
       character: { 好感度: 7 },
     });
+  });
+});
+
+describe('GET /api/card-variables/:characterId/schema —— 卡片宣告，不是目前的值', () => {
+  it('有 [initvar] 條目的卡：回宣告的變數與引擎加的約束', async () => {
+    const a = await app();
+    await seedChar();
+    await seedCardPng(CH.id, '時期: 成年\n安全感: 15\n面具: 85\n親密度: 20');
+    const r = await req(a, `/api/card-variables/${CH.id}/schema`);
+    expect(r.status).toBe(200);
+    const body = await r.json();
+    expect(body.schema.variables.map((v: { name: string }) => v.name)).toEqual([
+      '時期',
+      '安全感',
+      '面具',
+      '親密度',
+    ]);
+    expect(body.schema.variables.find((v: { name: string }) => v.name === '時期').readonly).toBe(true);
+    expect(body.schema.constraints).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ var: '安全感', maxDeltaPerTurn: 3, clamp: [0, 100] }),
+      ]),
+    );
+  });
+
+  it('🔴 沒有卡片檔（手動建立的角色）：`schema: null`，不是 404、不是 500', async () => {
+    const a = await app();
+    await seedChar();
+    const r = await req(a, `/api/card-variables/${CH.id}/schema`);
+    expect(r.status).toBe(200);
+    expect(await r.json()).toEqual({ schema: null });
+  });
+
+  it('卡片有世界書但沒有 [initvar] 條目：一樣是 `schema: null`', async () => {
+    const a = await app();
+    await seedChar();
+    const { writeBin } = await import('../adapters/storage.ts');
+    const ccv3 = { data: { character_book: { entries: [{ comment: '別的條目', content: '無關內容' }] } } };
+    await writeBin(
+      `characters/${CH.id}.png`,
+      writeChunks([
+        { type: 'IHDR', data: cardPngIhdr() },
+        makeText('ccv3', encodePayload(ccv3)),
+        { type: 'IDAT', data: Buffer.from([9, 9, 9]) },
+        { type: 'IEND', data: Buffer.alloc(0) },
+      ]),
+    );
+    const r = await req(a, `/api/card-variables/${CH.id}/schema`);
+    expect(r.status).toBe(200);
+    expect(await r.json()).toEqual({ schema: null });
+  });
+
+  it('角色 id 不存在：`schema: null`，跟「有角色但沒卡片」同一種結果（唯讀端點不 404）', async () => {
+    const a = await app();
+    const r = await req(a, '/api/card-variables/nope1/schema');
+    expect(r.status).toBe(200);
+    expect(await r.json()).toEqual({ schema: null });
   });
 });
 

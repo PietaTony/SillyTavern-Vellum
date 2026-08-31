@@ -288,3 +288,24 @@ PR #4（三項，待審）：輸入框當場清空＋LINE 式黏底與「回到�
 🔴 **這一輪的共同形狀是「引擎接好了、沒有門」**，一共三個：
 被丟掉的 `thinking` 事件、沒人讀的 `manual` 旗標、零呼叫端的 `emitToCards`。
 下次看到「某某功能沒反應」，先查那條路徑的**最後一哩有沒有人接**。
+
+## `server/lib/companion.ts` 是孤兒引擎（2026-08-28，E1 稽核時查到，刻意不動）
+查 E1（桌寵開關）時發現：`server/lib/companion.ts`（P7 原生桌寵引擎，`sequenceFor`／
+`frameRect`／`checkCompanion` 那組純函式）**零呼叫端** —— `grep -rn "companion"
+server/routes/ src/` 只命中它自己的測試（`server/__tests__/companion.test.ts`）與
+`scripts/verify-companion.ts`（B8／C1b 停損線）。沒有任何路由回傳 `Companion` 設定，
+沒有任何畫面元件渲染它。
+
+**現在實機真的在跑的桌寵，跟這支完全無關**——是卡片自己的 `tavern_helper.scripts[6]`
+（2.06MB），整支丟進沙箱 iframe 跑，走 `CardBackground.tsx` 的 `mode="overlay"`
+那個 frame，讀寫的是它自己的 `stat_data`。E1 的「桌寵開關」關的也是這個 overlay
+frame（讓它整個不建），不是 `companion.ts` 這支。
+
+⇒ **這不是「原生桌寵引擎的殘骸」，是規格 P7 還沒被兌現的後半**：呈現層原語
+（sheet／atlas／sequences／stateMap／百分比切格）已經照真卡的形狀移植好、通過
+`verify:companion` 的驗收，缺的是①一個回傳 `Companion` 設定的路由、②前端一個
+實際渲染它的畫面元件。這兩件都不在任何一個 agent 現有的檔案清單裡，是一次新功能
+立項，不是清理範圍。
+
+🔴 **Peter 2026-08-28 裁定：這一輪刻意不動這支檔**，只留這筆紀錄——
+不要誤讀成待辦，下一個要接 P7 的人先讀這段再決定要不要立項。

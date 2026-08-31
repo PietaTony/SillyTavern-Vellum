@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { failureOf } from '../model';
+import { failureOf } from '../failureOf';
 
 /**
  * 🔴 **實機踩到的那一串**（Peter 2026-08-27）：畫面上出現

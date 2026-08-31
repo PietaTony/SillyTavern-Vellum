@@ -1,0 +1,94 @@
+import { Hono } from 'hono';
+import { z } from 'zod';
+import { getCompanionEnabled, setCompanionEnabled, loadSettings, saveSettings } from '../services/settings.ts';
+import { regexFrom } from '../lib/outputRules.ts';
+import { safeId } from '../lib/ids.ts';
+
+/**
+ * E1：桌寵開關。**全域設定，跟 `network.ts`／`globalWorlds.ts` 同一類**，
+ * 掛在自己的 `/api/settings` 前綴（`server/app.ts` 直接註冊）——不是這段對話的設定。
+ *
+ * 🔴 **這裡曾經借住 `chatMessages.ts` 的 `/api/chats` 前綴**（2026-08-28 第一版，
+ * 當時的票明講 `app.ts` 不在鎖裡）。中控線 2026-08-28 補了一張 X3 小票把它歸位——
+ * 借用只是權宜之計，下一個要找全域設定的人不該被指去 `/api/chats/` 底下找，
+ * 也不該有人照著這個借位再抄一次。
+ *
+ * 🔴 **真正的桌寵是卡片的背景腳本**（`CardBackground.tsx` 的 overlay frame），
+ * 不是 `server/lib/companion.ts` 那支沒接路由的孤兒引擎（詳見 `TASKS.md`）。
+ * 這支只負責存讀開關值，「關掉之後 frame 真的不建」的判斷在前端 `useCardScripts.ts`。
+ *
+ * 🔴 D1（Peter 2026-08-31 跨層票）：使用者自建的輸出規則 CRUD 也掛在這裡，**不是另開一支檔案**。
+ * 那張票的 Locks 清單只給了 `settingsModel.ts`／`services/settings.ts`／`renderChat.ts`／
+ * `ChatMenu*` 與 `features/chat/**`，沒有 `server/app.ts`，也沒有授權新增 `server/routes/`
+ * 的檔名（`routes/` 跟 `lib/`／`services/` 一樣是逐檔列名，不能自己判斷加檔）。這支已經掛在
+ * `/api/settings`、已經是我名下的檔案 —— 加在同一條 Hono 鏈上，`app.ts` 完全不用動。
+ */
+const RuleBody = z.object({
+  name: z.string().min(1).max(120),
+  find: z.string().min(1),
+  replace: z.string(),
+  target: z.enum(['display', 'prompt', 'both']),
+  minDepth: z.number().int().nullable(),
+  maxDepth: z.number().int().nullable(),
+  trim: z.array(z.string()),
+  enabled: z.boolean(),
+});
+
+/**
+ * `find` 是不是一個 JS 讀得懂的正則。🔴 **壞掉的正則不能默默存進去**——
+ * `outputRules.ts` 的 `regexFrom()` 對看不懂的 pattern 回 `null`，`applyRule` 接到
+ * `null` 就直接原文吐回去（靜默不套用）。存的時候不擋，使用者會以為規則生效了，
+ * 其實它從第一天就沒動過任何一個字（總則五：不能靜默失效）。
+ */
+const findIsValid = (find: string): boolean => regexFrom(find) !== null;
+
+export const companionSettings = new Hono()
+  .get('/companion', async (c) => c.json({ enabled: await getCompanionEnabled() }))
+  .patch('/companion', async (c) => {
+    const body = z.object({ enabled: z.boolean() }).safeParse(await c.req.json());
+    if (!body.success) return c.json({ error: '參數不合法' }, 400);
+    await setCompanionEnabled(body.data.enabled);
+    return c.json({ enabled: body.data.enabled });
+  })
+
+  .get('/output-rules', async (c) => c.json({ items: (await loadSettings()).globalOutputRules ?? [] }))
+
+  .post('/output-rules', async (c) => {
+    const body = RuleBody.safeParse(await c.req.json());
+    if (!body.success) return c.json({ error: '參數不合法' }, 400);
+    if (!findIsValid(body.data.find)) {
+      return c.json({ error: `正則寫壞了：「${body.data.find}」建不出合法的 RegExp` }, 400);
+    }
+    const rule = { id: crypto.randomUUID(), ...body.data };
+    const s = await loadSettings();
+    const next = [...(s.globalOutputRules ?? []), rule];
+    await saveSettings({ ...s, globalOutputRules: next });
+    return c.json(rule, 201);
+  })
+
+  .patch('/output-rules/:id', async (c) => {
+    const id = safeId(c.req.param('id'));
+    const body = RuleBody.safeParse(await c.req.json());
+    if (!id) return c.json({ error: '找不到這條規則' }, 404);
+    if (!body.success) return c.json({ error: '參數不合法' }, 400);
+    if (!findIsValid(body.data.find)) {
+      return c.json({ error: `正則寫壞了：「${body.data.find}」建不出合法的 RegExp` }, 400);
+    }
+    const s = await loadSettings();
+    const list = (s.globalOutputRules ?? []) as ({ id: string } & Record<string, unknown>)[];
+    if (!list.some((r) => r.id === id)) return c.json({ error: '找不到這條規則' }, 404);
+    const rule = { id, ...body.data };
+    const next = list.map((r) => (r.id === id ? rule : r));
+    await saveSettings({ ...s, globalOutputRules: next });
+    return c.json(rule);
+  })
+
+  .delete('/output-rules/:id', async (c) => {
+    const id = safeId(c.req.param('id'));
+    const s = await loadSettings();
+    const list = (s.globalOutputRules ?? []) as ({ id: string } & Record<string, unknown>)[];
+    const next = list.filter((r) => r.id !== id);
+    if (!id || next.length === list.length) return c.json({ error: '找不到這條規則' }, 404);
+    await saveSettings({ ...s, globalOutputRules: next });
+    return c.json({ ok: true });
+  });

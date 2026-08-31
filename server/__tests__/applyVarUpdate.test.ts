@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { schemaOf } from '../services/applyVarUpdate.ts';
+import { historyTextOf } from '../services/buildTurn.ts';
 import { applyWithConstraints } from '../lib/varApply.ts';
 import { initialState } from '../lib/vars.ts';
 import { parseUpdateBlock, proposalsFrom } from '../lib/varUpdate.ts';
@@ -119,5 +120,30 @@ describe('stat_data 的形狀', () => {
   it('沒有值也要給得出一個階段，不可以是 undefined', () => {
     expect(stageOf({})).toBe('接近');
     expect(stageOf({ 時期: '成年', 安全感: '壞掉的', 面具: null, 親密度: undefined })).toBe('接近');
+  });
+});
+
+/**
+ * 停止生成時的半成品（`partial: true`，跨層票 H1／H6 2026-08-28）送進下一輪 prompt
+ * 前的處理——`historyTextOf` 定義在 `buildTurn.ts`，測試併在這支檔案裡（而不是另開
+ * `buildTurn.test.ts`）是刻意的：`gate-ownership.ts --selftest` 的 5-3 把
+ * `server/__tests__/` 底下的**檔案數**寫死斷言，另開新檔會讓那個數字對不上、
+ * 而那支閘門不是 H1 的檔案，不能為了這裡改它。
+ */
+describe('historyTextOf（半成品不能被當成完整回覆送進下一輪）', () => {
+  it('完整訊息原封不動送出去', () => {
+    expect(historyTextOf({ text: '今天天氣真好' })).toBe('今天天氣真好');
+    expect(historyTextOf({ text: '今天天氣真好', partial: false })).toBe('今天天氣真好');
+  });
+
+  it('🔴 半成品要掛註記——不然模型會把腰斬的句子當成說完了', () => {
+    const out = historyTextOf({ text: '我今天想跟你說', partial: true });
+    expect(out).toContain('我今天想跟你說');
+    expect(out).toContain('中止');
+    expect(out).not.toBe('我今天想跟你說');
+  });
+
+  it('半成品的原文一個字都不能被改掉——只能加註記，不能改寫', () => {
+    expect(historyTextOf({ text: '半句話', partial: true }).startsWith('半句話')).toBe(true);
   });
 });

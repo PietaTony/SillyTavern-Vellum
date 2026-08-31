@@ -35,3 +35,52 @@ describe('useChatStream.regenerate', () => {
     expect(result.current.messages.map((m) => m.id)).toEqual(['a', 'new']);
   });
 });
+
+/**
+ * B4：`done` 事件帶的 usage 要真的走到畫面能讀到的地方（`generation.usage`），
+ * 不是「型別加好了」就算數——這個 repo 出過「引擎接好了、沒有門」三次。
+ */
+describe('useChatStream 的用量讀數', () => {
+  it('🔴 done 帶 usage，generation.usage 要讀得到；沒帶就是 null，不是硬塞 {}', async () => {
+    vi.mocked((await import('../api')).streamGenerate).mockImplementationOnce(
+      (_chatId, onEvent) => {
+        onEvent({
+          type: 'done',
+          message: { id: 'new', role: 'model', text: '回覆', at: '2026-08-31' },
+          finishReason: 'STOP',
+          usage: { inputTokens: 12, outputTokens: 34 },
+        });
+        return Promise.resolve();
+      },
+    );
+    const { result } = renderHook(() => useChatStream('c1', [msg('a')]));
+    act(() => result.current.regenerate([msg('a')]));
+    await waitFor(() => expect(result.current.streaming).toBeNull());
+    expect(result.current.generation.usage).toEqual({ inputTokens: 12, outputTokens: 34 });
+  });
+
+  it('🔴 下一輪送出／重生成要清掉上一輪的數字，不然舊數字會被誤讀成這一輪的', async () => {
+    const api = await import('../api');
+    vi.mocked(api.streamGenerate).mockImplementationOnce((_chatId, onEvent) => {
+      onEvent({
+        type: 'done',
+        message: { id: 'new', role: 'model', text: '回覆', at: '2026-08-31' },
+        finishReason: 'STOP',
+        usage: { inputTokens: 12 },
+      });
+      return Promise.resolve();
+    });
+    const { result } = renderHook(() => useChatStream('c1', [msg('a')]));
+    act(() => result.current.regenerate([msg('a')]));
+    await waitFor(() => expect(result.current.generation.usage).not.toBeNull());
+
+    // 這一輪不帶 usage（例如串流中途失敗，還沒到 done 就走 error 分支）
+    vi.mocked(api.streamGenerate).mockImplementationOnce((_chatId, onEvent) => {
+      onEvent({ type: 'error', message: '壞了' });
+      return Promise.resolve();
+    });
+    act(() => result.current.regenerate([msg('a')]));
+    await waitFor(() => expect(result.current.failure).toBe('壞了'));
+    expect(result.current.generation.usage).toBeNull();
+  });
+});

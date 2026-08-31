@@ -64,3 +64,86 @@ export function greetingForSwipe(
   if (raw === undefined || target === undefined) return undefined;
   return strip(raw) === target ? raw : undefined;
 }
+
+/**
+ * 把一則訊息的候選**展開回完整字串陣列**。
+ *
+ * 🔴 **兩種來源，判準看字面 `swipes` 存不存在**（`chatModel.ts` 的 `greetingSwipes`
+ * 欄位頭有完整理由）：
+ *   · **字面（快照）**——舊資料、匯入的對話、使用者編輯過的訊息。原樣回傳。
+ *   · **參照**（`msg.greetingSwipes === true` 且沒有字面 `swipes`）——
+ *     這則訊息就是角色卡的開場白，候選**現在**從 `ch.greetings` 剝過再拼，
+ *     不是建立對話那一刻存的快照。角色卡的問候語之後被改了，這裡會跟著變
+ *     （這是刻意的附帶好處，不是 bug —— 見呼叫端 `chats.ts` 的註解）。
+ *
+ * 找不到來源（沒有字面 `swipes`、也沒有 `ch.greetings` 可用——例如角色被刪了、
+ * 或角色重新匯入後 `greetings` 是空的）就回 `undefined`：**呼叫端要能處理
+ * 「這則訊息其實沒有候選」，不要偽造一個空陣列或單元素陣列。**
+ *
+ * ⚠️ 跟 `greetingForSwipe` 一樣收 `strip` 當參數、不直接 import `stripLoreTags`：
+ * 留在「純判準」這一層，測試可以塞假的 strip 來證明「真的有剝過」。
+ */
+export function resolveSwipes(
+  msg: { swipes?: string[] | undefined; greetingSwipes?: boolean | undefined },
+  greetings: string[] | undefined,
+  strip: (s: string) => string,
+): string[] | undefined {
+  if (msg.swipes) return msg.swipes;
+  if (msg.greetingSwipes && greetings?.length) return greetings.map(strip);
+  return undefined;
+}
+
+/**
+ * `GET /chats/:id` 用：展開「參照」角色開場白的那幾則成字面 `swipes`；
+ * 放這裡不放 route——`chats.ts` 頂著 150 行上限（見檔頭），跟 `resolveSwipes`
+ * 同一層判準，擺一起不會分岔。
+ *
+ * 🔴 **同一個坑、兩條路徑，第一版只補了一條**（獨立驗收線抓到）：夾 `swipeIndex`
+ * 之前只做在「主動切換」（`pickSwipe`）。角色卡 `greetings` 變短不需要使用者
+ * 動作就會讓存著的 index 懸空，GET 不理它就印出「5 / 3」這種不存在的分數
+ * （`SwipeBar.tsx:66,107` 直接信任 `swipeIndex`）。
+ *
+ * 🔴 **Peter 2026-08-28 推翻第一版「夾回最後一格、text 跟著換」的做法**：
+ * 候選還在、只是內容被作者修正，夾回同一位置沒問題；但**這裡是位置本身
+ * 消失了**——`greetingSwipes` 只可能出現在對話第一則，使用者往往已經接了
+ * 好幾輪、敘事接著「他當初真的選的那句」寫。用別的候選頂替還冒充成原句，
+ * 比誠實顯示「5 / 3」壞掉更危險。⇒ **`text` 維持原樣，`swipeIndex` 回 `null`**
+ * （不是 `undefined`／省略——那個值已經代表「沒有多重候選」；`null` 專指
+ * 「有候選，但這句不在裡面」）。前端要跟著誠實：不能再用 `?? 0` 把 `null`
+ * 吃成「高亮第一個候選」，那是比原本更糟的第三種錯誤。
+ *
+ * 🔴 只改回應、不寫回磁碟——GET 從沒把回傳值餵回 `writeJson`，「只是看」
+ * 不該有副作用（同「編輯過才材質化」那套心智模型）。
+ * ⚠️ 合法範圍內 `text` 仍照現拼的那一格換——同位置內容被修正，跟上面
+ * 「位置消失」是兩件事，不要混在一起處理。
+ */
+export function withResolvedSwipes<T extends { swipes?: string[] | undefined; swipeIndex?: number | null | undefined; text?: string | undefined; greetingSwipes?: boolean | undefined }>(messages: T[], greetings: string[] | undefined, strip: (s: string) => string): T[] {
+  return messages.map((m) => {
+    if (!m.greetingSwipes) return m;
+    const swipes = resolveSwipes(m, greetings, strip);
+    if (!swipes?.length) return m;
+    const idx = withinRange(m.swipeIndex ?? 0, swipes.length);
+    if (idx === null) return { ...m, swipes, swipeIndex: null } as T;
+    return { ...m, swipes, swipeIndex: idx, text: swipes[idx] ?? m.text };
+  });
+}
+
+/** 🔴 withResolvedSwipes 與材質化（chatMessages.ts）共用這把尺，理由同上，不夾也不猜。 */
+export const withinRange = (requested: number, len: number): number | null => (requested >= 0 && requested < len ? requested : null);
+
+/**
+ * `PATCH .../swipe` 用：挑出第 `requestedIndex` 個候選，順便把 index 夾回合法範圍
+ * （沿用既有「夾住不 500」的判準，`chats.test.ts` 早就在守）。
+ * 回 `null` ＝ 這則訊息沒有其他候選，呼叫端轉 404。
+ * 🔴 **不回傳整份 `candidates`**——呼叫端只需要「夾好的 index」與「那一格的文字」，
+ * 給整份陣列只會誘使呼叫端手滑把它寫回磁碟（那就是把參照凍回快照，見 `resolveSwipes`）。
+ */
+export function pickSwipe(
+  msg: { swipes?: string[] | undefined; swipeIndex?: number | null | undefined; greetingSwipes?: boolean | undefined },
+  greetings: string[] | undefined, requestedIndex: number, strip: (s: string) => string,
+): { index: number; text: string } | null {
+  const candidates = resolveSwipes(msg, greetings, strip);
+  if (!candidates?.length) return null;
+  const index = Math.min(Math.max(requestedIndex, 0), candidates.length - 1);
+  return { index, text: candidates[index] ?? '' };
+}

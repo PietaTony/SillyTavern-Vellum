@@ -14,9 +14,11 @@ import { ConsentDialog, useCardEvents } from '@/features/cardscripts';
 import { CharacterLayer, fetchCharacter } from '@/features/characters';
 import {
   Composer,
+  dropUnknownSwipeIndex,
   fetchChat,
   SwipePicker,
   Thread,
+  UsageReadout,
   useChatStream,
   useSwipeMessage,
 } from '@/features/chat';
@@ -42,12 +44,12 @@ function ChatPage() {
   // ☰ →「換開場」開的候選目錄（M12 第三批）。同一個元件，第三個入口。
   const [showGreetings, setShowGreetings] = useState(false);
   // 🔴 生成完要重讀（理由見 `useChatStream` 的 `onDone`）。
-  const { messages, streaming, thinking, failure, setFailure, send, regenerate, reset } =
+  const { messages, streaming, generation, failure, setFailure, send, regenerate, reset, stop } =
     useChatStream(chatId, q.data?.messages, () => q.refetch());
-
   const swipe = useSwipeMessage(chatId, () => q.refetch(), reset);
 
-  useCardEvents(chatId, messages); // 發事件給卡片腳本；判準與時機在 `useCardEvents`
+  // 🔴 型別邊界不是動 H6：dropUnknownSwipeIndex 理由見 `features/chat/swipeDisplay.ts`。
+  useCardEvents(chatId, dropUnknownSwipeIndex(messages)); // 發事件給卡片腳本
 
   const actions = chatMessageActions(chatId, () => q.refetch(), reset, regenerate);
 
@@ -91,6 +93,7 @@ function ChatPage() {
       footer={
         <>
           {failure ? <ChatFailure message={failure} onDismiss={() => setFailure(null)} /> : null}
+          <UsageReadout usage={generation.usage} />
           <Composer chatId={chatId} busy={streaming !== null} onSend={send} />
         </>
       }
@@ -98,13 +101,14 @@ function ChatPage() {
       <Thread
         messages={messages}
         streaming={streaming}
-        thinking={thinking}
+        thinking={generation.thinking}
         avatar={char.data?.avatar || undefined}
         name={q.data.characterName}
         characterId={q.data.characterId}
         onSwipe={(messageId, index) => void swipe.mutate({ messageId, index })}
         onAvatarClick={() => setShowChar(true)}
         actions={actions}
+        onStop={stop}
         // 卡片自己的前端區塊怎麼呈現：見 `CardFrontend`（那一層才認識 cardscripts）。
         frontend={(part) => (
           <CardFrontend cards={cards} characterId={q.data.characterId} {...part} />

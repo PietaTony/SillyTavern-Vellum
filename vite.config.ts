@@ -3,7 +3,7 @@ import { tanstackRouter } from '@tanstack/router-plugin/vite';
 import react from '@vitejs/plugin-react';
 import { defineConfig } from 'vite';
 
-// 後端是 ST 原本的 Express（M1 搬過來），跑在 8000。
+// 後端是 Hono（`server/`），dev 預設 18521（見 BACKEND）。
 // dev 時前端 5173，/api 與其他後端路由 proxy 過去。
 // 🔴 **dev 用 18520／18521，正式版用 8520**（Peter 2026-08-27 裁定）。
 // 在此之前 dev 前端也是 8520 —— 而**桌面版寫死要綁 8520** ⇒ 兩邊互撞：

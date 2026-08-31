@@ -14,7 +14,7 @@
  */
 import { createHash } from 'node:crypto';
 import type { Card } from './card.ts';
-import { fromCharacterBook, type WbEntry } from './worldbook.ts';
+import { fromCharacterBook, fromWorldFile, type WbEntry } from './worldbook.ts';
 
 export type OriginSnapshot = {
   /** 來源卡片的版本識別。**不是給人看的，是給升級時比對用的。** */
@@ -38,6 +38,14 @@ export type OriginSnapshot = {
 export type CharWorld = {
   version: 1;
   characterId: string;
+  /**
+   * 書名。🔴 **只有「沒有擁有者」的書會需要它**（匯入、全域）——
+   * 好友那一份的名字就是好友的名字，卡片複製時不會寫這個欄位（省了一個會分岔的真相來源）。
+   * 全域書的名字仍然存在 `Settings.globalWorlds`（既有機制不動），這裡是給**匯入但還沒
+   * 綁定任何一層**的書用的，讓 `worldList.ts` 的清單與 `WorldPicker` 認得出它是哪一本
+   * ——不然只會看到「（沒有擁有者的書）」，匯兩本以上就分不出誰是誰。
+   */
+  name?: string | undefined;
   /** 使用者可以改的那一份（開關改在這裡）。 */
   entries: WbEntry[];
   origin: OriginSnapshot;
@@ -102,4 +110,30 @@ export function driftFromOrigin(world: CharWorld): { uid: string; factory: boole
     if (o && o.enabled !== e.enabled) out.push({ uid: e.uid, factory: o.enabled, now: e.enabled });
   }
   return out;
+}
+
+/**
+ * 驗證＋轉換一份**已經 `JSON.parse` 過**的外部世界書檔（`{ entries: {...} }`）。
+ * 結構錯就整個拒絕，不要噴一本空書 ——「沒讀到」與「讀到 0 條」必須看得出差異。
+ *
+ * 🔴 壞 JSON 本身不在這裡處理：呼叫端讓 `JSON.parse` 直接丟，`app.ts` 的
+ * `onError` 會收成 400（「參數不合法：body 不是 JSON」）。
+ * 個別欄位型別錯沿用 `fromWorldFile` 既有的容錯（缺什麼用預設）—— ST 自己也不驗這層，
+ * 這裡只守「entries 這個殼本身」，殼歪了才回 400。
+ */
+export function parseWorldFile(
+  json: unknown,
+): { ok: true; name: string | undefined; entries: WbEntry[] } | { ok: false; error: string } {
+  const top = bag(json);
+  const rows = top['entries'];
+  if (rows === undefined) return { ok: false, error: '缺少 entries 欄位 —— 這不是世界書檔' };
+  if (typeof rows !== 'object' || rows === null || Array.isArray(rows)) {
+    return { ok: false, error: 'entries 必須是「uid → 條目」的物件，不是陣列或其他型別' };
+  }
+  for (const [uid, v] of Object.entries(rows)) {
+    if (typeof v !== 'object' || v === null || Array.isArray(v)) {
+      return { ok: false, error: `entries.${uid} 必須是一個物件` };
+    }
+  }
+  return { ok: true, name: typeof top['name'] === 'string' ? top['name'] : undefined, entries: fromWorldFile(json) };
 }

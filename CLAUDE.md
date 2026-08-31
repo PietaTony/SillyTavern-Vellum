@@ -9,7 +9,9 @@
 ## 1 · What this is
 
 Vellum — a local, single-user LLM roleplay app. A fork of SillyTavern 1.18.0:
-**the Express back end stays, `public/` is being replaced by a React front end.**
+**the back end is Hono (`server/`), rewritten from SillyTavern's Express stack;
+`public/` is being replaced by a React front end.**
+🔴 **Orientation map:** [`ARCHITECTURE.md`](ARCHITECTURE.md) — reading order and where the canonical docs live.
 AGPL-3.0, locked in by the fork. Public releases, so treat everything here as public.
 
 Reply to the user in **Traditional Chinese**; keep code and technical terms in English.
@@ -109,6 +111,8 @@ Mark the ticket handled; locked paths go back to their owners.
 ## 5 · Things that will bite
 
 - 🔴 **`pnpm verify` is the only receipt.** No CI runs it for you before you push.
+- **Before opening a PR:** read [`FEATURE-DONE.md`](FEATURE-DONE.md) and run
+  `pnpm gate:pr-ready --diff origin/staging` (structural checks already run inside `pnpm verify`).
 - 🔴 **`package.json` changed → run `pnpm install` before `pnpm verify`**, or the gates
   measure the old dependency tree and go green while CI goes red.
 - 🔴 **Merging a PR into `main` publishes a public Release; pushing `staging` no longer does**

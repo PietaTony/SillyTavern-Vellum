@@ -6,6 +6,7 @@ import Stack from '@mui/material/Stack';
 import Typography from '@mui/material/Typography';
 import { type ReactNode, useState } from 'react';
 import type { Message } from '../model';
+import { isKnownSwipe, swipeCounterAria, swipeCounterLabel } from '../swipeDisplay';
 import { SwipePicker } from './SwipePicker';
 
 /**
@@ -65,8 +66,9 @@ export function SwipeBar({
   const total = message.swipes?.length ?? 0;
   // 🔴 沒有候選時**內容照樣要畫出來** —— 這一層是包住內容的，不是附加在旁邊的。
   if (total < 2) return <>{children}</>;
-  const at = message.swipeIndex ?? 0;
-  const go = (d: number) => onSwipe(message.id, (at + d + total) % total);
+  const at = message.swipeIndex; // `null` 語意見 ../swipeDisplay；切換 base 回退 0 沒關係，是新動作。
+  const known = isKnownSwipe(at);
+  const go = (d: number) => onSwipe(message.id, ((known ? at : 0) + d + total) % total);
 
   /**
    * 🔴 **兩條共用同一個 `sx` 物件** —— 連 margin 都對稱（`my`），
@@ -99,12 +101,12 @@ export function SwipeBar({
         <ChevronLeftIcon fontSize="small" />
       </IconButton>
       <ButtonBase
-        aria-label={`全部 ${total} 個候選（${where}）`}
+        aria-label={swipeCounterAria(at, total, where)}
         onClick={() => setPicking(true)}
         sx={{ px: 0.75, py: 0.25, borderRadius: 1 }}
       >
-        <Typography variant="caption" color="inherit">
-          {at + 1} / {total}
+        <Typography variant="caption" color={known ? 'inherit' : 'warning.main'}>
+          {swipeCounterLabel(at, total)}
         </Typography>
       </ButtonBase>
       <IconButton

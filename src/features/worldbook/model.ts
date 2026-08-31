@@ -1,8 +1,12 @@
 /**
  * 純函式。**不碰 api／store／ui**（A4，由 gate:boundaries 守）。
  * 型別在 `types.ts` —— 這一支曾經連型別一起放，152 行撞到單檔上限。
+ * `worldOwnerNote` 也抽出去了（`worldOwnerNote.ts`，A1 2026-08-31：加了插入位置的
+ * 「尚未接線」說明後又撞一次上限）。
  */
 import type { WorldSummary } from './types';
+
+export { worldOwnerNote } from './worldOwnerNote';
 
 /**
  * 注入位置。**值對齊 ST 原始碼的數值 enum**（`world-info.js:855`），不是字串。
@@ -28,17 +32,32 @@ export const WI_POSITION = {
 export const POSITION_GROUP: Record<number, { title: string; hint: string }> = {
   [WI_POSITION.beforeChar]: { title: '角色描述之前', hint: '接在人設前面，先於角色本身被讀到' },
   [WI_POSITION.afterChar]: { title: '角色描述之後', hint: '接在人設後面，最常見的一組' },
-  [WI_POSITION.anTop]: { title: '作者備註之前', hint: '' },
-  [WI_POSITION.anBottom]: { title: '作者備註之後', hint: '' },
+  [WI_POSITION.anTop]: {
+    title: '作者備註之前（尚未接線）',
+    hint: '🔴 尚未接線 —— 我們還沒有「作者備註」這個概念，存起來不會遺失，但這段文字目前不會送進 prompt（GAP-53）',
+  },
+  [WI_POSITION.anBottom]: {
+    title: '作者備註之後（尚未接線）',
+    hint: '🔴 尚未接線 —— 我們還沒有「作者備註」這個概念，存起來不會遺失，但這段文字目前不會送進 prompt（GAP-53）',
+  },
   [WI_POSITION.atDepth]: {
     title: '插進對話裡',
     hint: '依各自的深度插在最近幾則訊息之間，離對話越近影響越強',
   },
-  [WI_POSITION.emTop]: { title: '範例對話之前', hint: '' },
-  [WI_POSITION.emBottom]: { title: '範例對話之後', hint: '' },
+  [WI_POSITION.emTop]: {
+    title: '範例對話之前（尚未接線）',
+    hint: '🔴 尚未接線 —— 我們還沒有「範例對話」這個概念，存起來不會遺失，但這段文字目前不會送進 prompt（GAP-53）',
+  },
+  [WI_POSITION.emBottom]: {
+    title: '範例對話之後（尚未接線）',
+    hint: '🔴 尚未接線 —— 我們還沒有「範例對話」這個概念，存起來不會遺失，但這段文字目前不會送進 prompt（GAP-53）',
+  },
   [WI_POSITION.outlet]: {
-    title: 'Outlet（不自動進場）',
-    hint: '要在 system prompt 或區塊順序裡寫 {{outlet::名稱}} 才會被放進去',
+    title: 'Outlet（尚未接線）',
+    // 🔴 舊文案承諾「寫 {{outlet::名稱}} 就會被放進去」——這個巨集全 repo 零消費端
+    // （fields.ts 檔頭有查證：wiInject.ts 把 outlet 直接丟進 plan.unplaced，
+    // 沒有任何地方讀過那個桶，也沒有任何巨集實作去接它）。改成不承諾做不到的事。
+    hint: '🔴 尚未接線 —— 這個位置需要具名插槽機制，但我們的引擎沒有實作，存起來不會遺失，但這段文字目前不會送進 prompt（GAP-53）',
   },
 };
 

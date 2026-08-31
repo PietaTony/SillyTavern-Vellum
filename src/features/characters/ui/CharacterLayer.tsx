@@ -10,6 +10,7 @@ import { FullScreenLayer } from '@/shared/ui/FullScreenLayer';
 import { pushToast } from '@/shared/ui/toastStore';
 import { fetchCharacter, nameOf, updateCharacter } from '../api';
 import { alternatesOf } from '../model';
+import { ExportCardButton } from './ExportCardButton';
 import { GreetingsSection } from './GreetingsSection';
 import { WorldSection } from './WorldSection';
 
@@ -92,11 +93,15 @@ export function CharacterLayer({
       title="角色設定"
       onClose={onClose}
       action={
-        readOnly ? null : (
-          <Button size="small" loading={save.isPending} onClick={() => save.mutate()}>
-            儲存
-          </Button>
-        )
+        <Stack direction="row" spacing={0.5} sx={{ alignItems: 'center' }}>
+          {/* 🔴 匯出跟編不編輯無關（`readOnly` 只管改名／改描述那幾格）—— 這一顆在唯讀模式下也要出現，是唯讀對話層目前唯一能碰到匯出的路。 */}
+          <ExportCardButton characterId={characterId} hasCard={Boolean(q.data?.card)} />
+          {readOnly ? null : (
+            <Button size="small" loading={save.isPending} onClick={() => save.mutate()}>
+              儲存
+            </Button>
+          )}
+        </Stack>
       }
     >
       {q.isPending ? <CircularProgress size={24} /> : null}

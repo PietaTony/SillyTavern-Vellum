@@ -1,6 +1,9 @@
 import { useRef, useState } from 'react';
 import { appendMessage, streamGenerate } from './api';
 import type { Message } from './model';
+import { applyStopGeneration } from './stopGeneration';
+import { makeRunEventHandler } from './streamEventHandler';
+import { useGenerationUsage } from './useGenerationUsage';
 
 /**
  * 對話畫面的「送出 → 串流 → 落地」狀態。
@@ -36,6 +39,8 @@ export function useChatStream(
    */
   const [thinking, setThinking] = useState(false);
   const [failure, setFailure] = useState<string | null>(null);
+  // B4：這一輪用量（理由與「只留最近一輪」的判準見 `useGenerationUsage.ts`）。
+  const { usage, clear: clearUsage, record: recordUsage } = useGenerationUsage();
   const abortRef = useRef<AbortController | null>(null);
 
   const messages = local ?? fromServer ?? [];
@@ -52,37 +57,14 @@ export function useChatStream(
     setStreaming('');
     const ac = new AbortController();
     abortRef.current = ac;
-    let acc = '';
+    const acc = { value: '' }; // 共用可變盒子——理由見 `streamEventHandler.ts`。
+    // 四個 setter 包一層物件——單純是行數（見 `streamEventHandler.ts` 的 `RunSetters`）。
+    const setters = { setThinking, setStreaming, setLocal, setFailure };
     setThinking(false);
+    clearUsage(); // 上一輪的數字不該蓋在這一輪頭上（見 `useGenerationUsage.ts`）。
     void streamGenerate(
       chatId,
-      (e) => {
-        if (e.type === 'delta') {
-          // 🔴 正文一開始吐就不再說「思考中」——它已經在寫了。
-          setThinking(false);
-          acc += e.text;
-          setStreaming(acc);
-        } else if (e.type === 'thinking') {
-          setThinking(true);
-        } else if (e.type === 'done') {
-          setThinking(false);
-          setLocal((prev) => [...(prev ?? base), e.message]);
-          setStreaming(null);
-          /*
-           * 🔴 **重讀成功才丟掉樂觀暫存。** 失敗就留著 —— 那一則訊息已經存下來了，
-           * 把它換成（還沒重讀到的）伺服器那份等於當場讓剛剛的回覆消失。
-           */
-          if (onDone)
-            void onDone().then(
-              () => setLocal(null),
-              () => {},
-            );
-        } else {
-          setThinking(false);
-          setStreaming(null);
-          setFailure(e.message);
-        }
-      },
+      makeRunEventHandler({ base, onDone, acc, setters, recordUsage }),
       ac.signal,
     ).catch((e: unknown) => {
       /*
@@ -91,7 +73,11 @@ export function useChatStream(
        * 訊息早就存下來了，壞掉的是生成。
        * ⚠️ 使用者自己中止的不算失敗，不要跳一則訊息嚇他。
        */
-      if (ac.signal.aborted) return;
+      if (ac.signal.aborted) {
+        // 🔴 停止生成（跨層票 H1／H6，2026-08-28）——理由見 `stopGeneration.ts`。
+        applyStopGeneration({ acc: acc.value, base, ...setters });
+        return;
+      }
       setThinking(false);
       setStreaming(null);
       setFailure(e instanceof Error ? e.message : '生成中斷');
@@ -138,5 +124,23 @@ export function useChatStream(
   /** 丟掉樂觀暫存，改讀伺服器那份。**切候選成功之後一定要叫它**（見檔頭 B1）。 */
   const reset = () => setLocal(null);
 
-  return { messages, streaming, thinking, failure, setFailure, send, regenerate, reset };
+  const stop = () => abortRef.current?.abort(); // 停止生成（跨層票 H1／H6）：交給 catch 分支處理。
+
+  /*
+   * 🔴 `thinking`／`usage` 包成 `generation`——不是為了語意分組，是單純的行數：
+   * `$chatId.tsx` 的呼叫端解構九個欄位就已經頂到 100 字元換行寬度，B4 加的
+   * `usage` 會把它從兩行炸成十二行（一個屬性一行，biome 的格式）。包一層物件、
+   * 欄位數不變，呼叫端拆出來也只多一行（`generation.thinking`／`.usage`）。
+   */
+  return {
+    messages,
+    streaming,
+    generation: { thinking, usage },
+    failure,
+    setFailure,
+    send,
+    regenerate,
+    reset,
+    stop,
+  };
 }

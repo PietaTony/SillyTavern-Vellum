@@ -5,6 +5,22 @@
 import { z } from 'zod';
 import { FITTINGS } from './settings.ts';
 
+/**
+ * 🔴 **供應商回報的真金用量，不是我們自己估的**（H1 落地票，2026-08-31 Peter 裁定）。
+ * ST 完全不讀供應商的 `usage`（`openai.js`／`chat-completions.js` grep 零命中）——
+ * 它自己有 tokenizer 隨時能重算，不存也沒差。我們沒有 tokenizer 這條路：
+ * 錯過這一刻，這個數字**永遠拿不回來**，所以要落地成訊息的持久欄位，不是暫態。
+ * 形狀照抄 `server/providers/types.ts` 的 `Usage`（線路層），供應商沒回的欄位就是
+ * 省略，不是 0——4 個欄位全部 optional。
+ */
+export const UsageSchema = z.object({
+  inputTokens: z.number().optional(),
+  outputTokens: z.number().optional(),
+  cacheRead: z.number().optional(),
+  cacheWrite: z.number().optional(),
+});
+export type Usage = z.infer<typeof UsageSchema>;
+
 export const MessageSchema = z.object({
   id: z.string(),
   role: z.enum(['user', 'model']),
@@ -13,11 +29,70 @@ export const MessageSchema = z.object({
   /**
    * 同一則訊息的多個候選（開場白有 9 則）。
    * 🔴 **沒有候選的訊息不要偽造成 `[text]`** —— 那會讓「有沒有重生成過」這件事失真。
+   *
+   * 🔴 **開場白的候選不一定字面存在這裡**（GAP：18 段對話量到一份 33,578 bytes、
+   * 只有 3 則訊息，79% 是第一則的 9 個開場白候選全文）。`greetingSwipes: true` 時
+   * 這裡故意留空，候選是 `resolveSwipes()`（`lib/greetings.ts`）從 `ch.greetings`
+   * 現拼的 —— 見那個欄位的註解。
    */
   swipes: z.array(z.string()).optional(),
-  swipeIndex: z.number().optional(),
+  /**
+   * 🔴 **`null` 是合法值，不是 bug**（Peter 2026-08-28 裁定，`lib/greetings.ts` 的
+   * `withinRange()` 與 `messageEdit.ts` 的 `currentSwipe()` 是產生／消費它的兩端）。
+   * 意思是「這則訊息有 `swipes`，但目前 `text` 不屬於其中任何一格」——角色卡砍掉了
+   * 使用者當初選的那則問候語，材質化（編輯）時沒有格子可以誠實對應，所以不猜。
+   * 省略／`undefined` 仍然是舊語意「沒有多重候選」，兩者不可以互相取代。
+   */
+  swipeIndex: z.number().nullable().optional(),
+  /**
+   * 這則訊息的候選是不是「參照」角色卡的開場白，而不是字面存一份快照。
+   *
+   * 🔴 **只有 `POST /chats` 建立對話當下、且該則就是第一則開場白時才會設**——
+   * 那是唯一「候選＝角色卡的 `greetings`」保證成立的時刻。之後只要使用者
+   * **編輯過**這則訊息的文字，就要材質化成字面 `swipes`（`chatMessages.ts` 的
+   * `PATCH /:id/messages/:messageId`）：使用者的修改是他自己的版本，
+   * 不該再被「角色卡之後又改了問候語」蓋掉。
+   *
+   * 🔴 **切候選（`PATCH .../swipe`）不材質化**——留著參照，這樣改了角色卡的問候語，
+   * 舊對話還沒編輯過的候選會跟著變新（附帶好處，見 `chats.ts` 那條路由的註解）。
+   * ⚠️ 這是刻意的取捨，不是沒想到反面：使用者如果**沒有**編輯過、只是切著看，
+   * 角色卡問候語一改，候選內容跟著變 —— 對「這段對話被誰動過」的直覺可能是意外的，
+   * 但比照「編輯過的訊息永遠不再跟著卡片變」這條規則，一致到看得懂：
+   * 你動過手，才會被凍結。
+   *
+   * 🔴 **匯入的對話、舊資料（此欄位加入之前落的檔）一律不會有這個欄位** ⇒
+   * `resolveSwipes()` 第一步永遠先看字面 `swipes` 存不存在 —— 舊檔照樣讀得起來，
+   * 不需要 migration。
+   */
+  greetingSwipes: z.boolean().optional(),
+  /**
+   * 🔴 **半成品**（H1／H6 跨層票，2026-08-28）。使用者按下「停止生成」時已經吐出來的字
+   * ——「半成品＝保留」（Peter 同日裁定，同 ST），但**要在資料上分得出來**，
+   * 不然下一輪組 prompt（`buildTurn.ts`）會把腰斬的句子當成說完的話送出去。
+   * 沒有值＝完整回覆（舊資料讀進來是 `undefined`，行為不變）。
+   */
+  partial: z.boolean().optional(),
+  /**
+   * 🔴 **這一則回覆花了多少（真金數字，見上面 `UsageSchema` 檔頭）。**
+   * 只有 `role: 'model'` 的訊息會有值；使用者訊息不耗供應商的用量。
+   * 🔴 **沒有這個欄位 ≠ 花費是 0**——是「這一則落地的時候我們還沒開始記」（此欄位加入
+   * 之前的舊訊息、或供應商那次沒回任何用量欄位）。畫面要用「沒有數字」表達，不是「0」
+   * ——同一個判準見 `src/features/chat/usageFormat.ts` 檔頭 `cacheRead` 那條。
+   * ⇒ 舊資料讀進來是 `undefined`，不需要 migration。
+   */
+  usage: UsageSchema.optional(),
 });
 export type Message = z.infer<typeof MessageSchema>;
+
+/**
+ * 供應商事件裡的用量是 `Record<string, number | undefined>`（見 `generate.ts` 的 `state.usage`）
+ * ——分兩次到、欄位可能是 `undefined`（沒回）。**把沒回的欄位濾掉再落地**：`{ inputTokens: undefined }`
+ * 這種半殘物件跟沒有這個欄位該是同一件事，全部都沒有 ⇒ 回 `undefined`，呼叫端不掛 `usage` 這個鍵。
+ */
+export function definedUsage(u: Record<string, number | undefined>): Usage | undefined {
+  const entries = Object.entries(u).filter(([, v]) => v !== undefined);
+  return entries.length ? (Object.fromEntries(entries) as Usage) : undefined;
+}
 
 export const ChatSchema = z.object({
   id: z.string(),

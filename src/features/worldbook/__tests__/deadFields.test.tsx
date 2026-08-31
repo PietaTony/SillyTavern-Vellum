@@ -1,6 +1,7 @@
 import { render, screen } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
-import { DEAD_FIELDS } from '../fields';
+import { DEAD_FIELDS, isPositionImplemented, POSITION_UNIMPLEMENTED } from '../fields';
+import { WI_POSITION } from '../model';
 import type { WbEntry } from '../types';
 import { DeadFieldsNote } from '../ui/DeadFieldsNote';
 
@@ -65,6 +66,18 @@ describe('總則五：引擎不理的欄位', () => {
     expect(screen.getByText(/不會生效/)).toBeTruthy();
   });
 
+  /**
+   * 🔴 **匯入的外部世界書檔沒有 `extensions`** —— `sticky`／`cooldown`／`delay`
+   * 在 `raw` 頂層（`server/lib/worldbook.ts` 檔頭）。只查 `extensions` 的話，
+   * 匯入的書會被看成「這些欄位都沒設」，即使檔案裡明明寫著。
+   */
+  it('🔴 匯入的書（沒有 extensions）—— sticky／cooldown／delay 在 raw 頂層也要抓得到', () => {
+    render(<DeadFieldsNote value={entry({ raw: { sticky: 3, cooldown: 5, delay: 2 } })} />);
+    expect(screen.getByText(/黏著幾則/)).toBeTruthy();
+    expect(screen.getByText(/冷卻幾則/)).toBeTruthy();
+    expect(screen.getByText(/前幾則不觸發/)).toBeTruthy();
+  });
+
   it('值是 0 不算「有設定」—— ST 的預設就是 0，全部標出來只是噪音', () => {
     const { container } = render(
       <DeadFieldsNote value={entry({ raw: { extensions: { sticky: 0, cooldown: 0 } } })} />,
@@ -74,5 +87,49 @@ describe('總則五：引擎不理的欄位', () => {
 
   it('清單本身涵蓋六個欄位（group ＋ 三個 ext ＋ 端點白名單擋掉的兩個）', () => {
     expect(DEAD_FIELDS.map((f) => f.key)).toEqual(['group', 'sticky', 'cooldown', 'delay']);
+  });
+});
+
+/**
+ * 🔴 A1（GAP-53）：`wiInject.ts` 算出 7 個桶，`buildTurn.ts` 只讀 3 個
+ * （`beforeChar`／`afterChar`／`atDepth`）。查證過 ST 原碼後確認 `anTop`／`anBottom`／
+ * `emTop`／`emBottom` 分別綁死在「Author's Note」與「範例對話」這兩個我們完全沒有的
+ * 概念上（`fields.ts` 檔頭附了行號），不能瞎猜一個位置頂上去 —— 選乙案：畫面上明說。
+ *
+ * 🔴 `outlet`（7）2026-08-31 補（`INBOX/20260831-outlet-hint-is-false.md`）：
+ * 成因跟前四個不一樣——不是「算出來沒人讀」，是 `wiInject.ts` 的 `switch` 落
+ * `default` 直接丟進 `plan.unplaced`（刻意拒絕，不猜語意），而且舊 UI hint 承諾的
+ * `{{outlet::名稱}}` 巨集全 repo 零消費端（`fields.ts` 檔頭查證）。**但對使用者
+ * 而言後果一樣**：選了、存了、文字不會出現在 prompt 裡——所以沿用同一顆
+ * `isPositionImplemented` 開關，不發明第二套標示。
+ *
+ * 這裡守的是**事實表本身**：五個桶、不多不少。畫面測試（`EntryEditor.test.tsx`）
+ * 守的是「事實表有沒有真的被拿去畫出來」——兩層都要有，任一層被挖空都要紅。
+ */
+describe('插入位置：五個桶到最後都進不了 prompt（GAP-53，含 outlet）', () => {
+  it('未接線的清單剛好是 anTop／anBottom／emTop／emBottom／outlet 五個，不多不少', () => {
+    expect(POSITION_UNIMPLEMENTED).toEqual(
+      new Set([
+        WI_POSITION.anTop,
+        WI_POSITION.anBottom,
+        WI_POSITION.emTop,
+        WI_POSITION.emBottom,
+        WI_POSITION.outlet,
+      ]),
+    );
+  });
+
+  it('三個真的有消費者的位置沒有被誤標', () => {
+    expect(isPositionImplemented(WI_POSITION.beforeChar)).toBe(true);
+    expect(isPositionImplemented(WI_POSITION.afterChar)).toBe(true);
+    expect(isPositionImplemented(WI_POSITION.atDepth)).toBe(true);
+  });
+
+  it('五個未接線的位置都標成 false', () => {
+    expect(isPositionImplemented(WI_POSITION.anTop)).toBe(false);
+    expect(isPositionImplemented(WI_POSITION.anBottom)).toBe(false);
+    expect(isPositionImplemented(WI_POSITION.emTop)).toBe(false);
+    expect(isPositionImplemented(WI_POSITION.emBottom)).toBe(false);
+    expect(isPositionImplemented(WI_POSITION.outlet)).toBe(false);
   });
 });

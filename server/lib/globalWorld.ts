@@ -22,6 +22,15 @@ import { type WbEntry, WI_POSITION } from './worldbook.ts';
 /** 全域世界書的 `characterId` 欄位放這個 —— 它不屬於任何角色。 */
 export const GLOBAL_OWNER = '__global__';
 
+/**
+ * 🔴 **匯入但還沒綁到任何一層**的書用這個，**不是 `GLOBAL_OWNER`**。
+ * `$worldId/index.tsx` 用 `characterId === GLOBAL_OWNER` 判斷要不要顯示
+ * 「這是全域世界書，會套用到你所有對話」那句警告 —— 剛匯入、還沒加進
+ * `Settings.globalWorlds` 的書如果也標成 `GLOBAL_OWNER`，那句警告就是謊言
+ * （它其實還沒套用到任何地方）。兩個狀態語意不同，字面值也要分開。
+ */
+export const IMPORTED_OWNER = '__imported__';
+
 /** 條目的預設值。🔴 **匯出**：內建樣板庫（`worldPresets.ts`）要用同一組預設，
  *  不然「樣板長什麼樣」會有兩份會分岔的定義。 */
 export const wbEntry = (
@@ -95,13 +104,22 @@ export function templateWorld(): { id: string; world: CharWorld } {
  * ⇒ 一建好就是「0 條被改」，這是對的：改動的基準點是樣板，不是某張卡。
  * ⚠️ 卡片來源的欄位（`cardId`／`cardVersion`／`createDate`）留空字串 ——
  * 這本書**不是從卡片來的**，填假的來源比留空更糟（升級比對會拿它去猜）。
+ *
+ * 🔴 `opts` 是給**匯入**用的：`characterId` 覆蓋預設的 `GLOBAL_OWNER`
+ * （匯入但還沒綁定的書要用 `IMPORTED_OWNER`，見上面那個常數的註解）；
+ * `name` 是書名（`worldList.ts` 的清單與 `WorldPicker` 認出是哪一本靠它）。
+ * 兩者都不帶就是原本的行為（樣板／空白全域書），呼叫端不用改。
  */
-export function makeWorld(entries: WbEntry[]): { id: string; world: CharWorld } {
+export function makeWorld(
+  entries: WbEntry[],
+  opts?: { characterId?: string; name?: string },
+): { id: string; world: CharWorld } {
   return {
     id: randomUUID(),
     world: {
       version: 1,
-      characterId: GLOBAL_OWNER,
+      characterId: opts?.characterId ?? GLOBAL_OWNER,
+      ...(opts?.name ? { name: opts.name } : {}),
       entries,
       origin: {
         cardId: '',

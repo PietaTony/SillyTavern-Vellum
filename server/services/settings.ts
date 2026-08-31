@@ -36,3 +36,13 @@ export async function setActiveProvider(provider: string): Promise<void> {
   const s = await loadSettings();
   await saveSettings({ ...s, activeProvider: provider });
 }
+
+/** 桌寵開關。沒設過就是開 —— 舊使用者不會被靜悄悄關掉（見 `settingsModel.ts`）。 */
+export async function getCompanionEnabled(): Promise<boolean> {
+  return (await loadSettings()).companionEnabled ?? true;
+}
+
+export async function setCompanionEnabled(enabled: boolean): Promise<void> {
+  const s = await loadSettings();
+  await saveSettings({ ...s, companionEnabled: enabled });
+}

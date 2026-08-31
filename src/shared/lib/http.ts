@@ -71,7 +71,11 @@ export const postBytes = <T>(path: string, bytes: ArrayBuffer): Promise<T> =>
     headers: { 'Content-Type': 'application/octet-stream' },
   });
 
-export const del = <T>(path: string): Promise<T> => request<T>(path, { method: 'DELETE' });
+export const del = <T>(path: string, data?: unknown): Promise<T> =>
+  request<T>(path, {
+    method: 'DELETE',
+    ...(data !== undefined ? { body: JSON.stringify(data) } : {}),
+  });
 
 /**
  * 跟 `postBytes` 一樣傳原始位元組，但用 `XMLHttpRequest` 換 `fetch` ——

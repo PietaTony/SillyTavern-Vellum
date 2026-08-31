@@ -83,4 +83,50 @@ describe('WorldPicker（C6）', () => {
     fireEvent.click(screen.getByText('選擇'));
     await waitFor(() => expect(screen.getByText(/跟著角色卡一起進來/)).toBeTruthy());
   });
+
+  /**
+   * 🔴 **匯入是 `lorebookId` 這個孤兒欄位唯一能綁到「新書」的地方**——
+   * 匯入的書不屬於任何好友，沒有這顆按鈕的話，剛匯入的書永遠選不到（總則四）。
+   */
+  it('🔴 匯入一個檔案 ＝ 建一本新書並直接選上它', async () => {
+    const fetchMock = vi.fn(async (url: string) => {
+      if (typeof url === 'string' && url.includes('/api/worlds/import')) {
+        return {
+          ok: true,
+          json: async () => ({ id: 'w9', name: '新匯入的書', entryCount: 1, enabledCount: 1 }),
+        };
+      }
+      return { ok: true, json: async () => WORLDS };
+    });
+    vi.stubGlobal('fetch', fetchMock as unknown as typeof fetch);
+
+    const onChange = vi.fn();
+    wrap(<WorldPicker value={undefined} onChange={onChange} />);
+    fireEvent.click(screen.getByText('選擇'));
+    await waitFor(() => expect(screen.getByLabelText('匯入世界書檔')).toBeTruthy());
+
+    const file = new File(['{"entries":{}}'], 'book.json', { type: 'application/json' });
+    fireEvent.change(screen.getByLabelText('匯入世界書檔'), { target: { files: [file] } });
+
+    await waitFor(() => expect(onChange).toHaveBeenCalledWith('w9'));
+  });
+
+  it('🔴 匯入失敗要顯示錯誤，不是默默沒反應', async () => {
+    const fetchMock = vi.fn(async (url: string) => {
+      if (typeof url === 'string' && url.includes('/api/worlds/import')) {
+        return { ok: false, status: 400, json: async () => ({ error: '缺少 entries 欄位' }) };
+      }
+      return { ok: true, json: async () => WORLDS };
+    });
+    vi.stubGlobal('fetch', fetchMock as unknown as typeof fetch);
+
+    wrap(<WorldPicker value={undefined} onChange={vi.fn()} />);
+    fireEvent.click(screen.getByText('選擇'));
+    await waitFor(() => expect(screen.getByLabelText('匯入世界書檔')).toBeTruthy());
+
+    const file = new File(['{oops'], 'bad.json', { type: 'application/json' });
+    fireEvent.change(screen.getByLabelText('匯入世界書檔'), { target: { files: [file] } });
+
+    await waitFor(() => expect(screen.getByText(/缺少 entries 欄位/)).toBeTruthy());
+  });
 });

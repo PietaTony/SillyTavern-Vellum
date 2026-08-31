@@ -1,7 +1,7 @@
 import { Hono } from 'hono';
 import { z } from 'zod';
-import type { CharWorld } from '../lib/charWorld.ts';
-import { templateWorld } from '../lib/globalWorld.ts';
+import { type CharWorld, parseWorldFile } from '../lib/charWorld.ts';
+import { makeWorld, templateWorld } from '../lib/globalWorld.ts';
 import { findPreset, WORLD_PRESETS } from '../lib/worldPresets.ts';
 import { safeId } from '../lib/ids.ts';
 import { loadSettings, saveSettings } from '../services/settings.ts';
@@ -81,6 +81,32 @@ export const globalWorlds = new Hono()
     const name = preset ? preset.name : `全域世界書 ${(s.globalWorlds ?? []).length + 1}`;
     await saveSettings({ ...s, globalWorlds: [...(s.globalWorlds ?? []), { id, name }] });
     return c.json({ id, name });
+  })
+
+  /**
+   * 匯入成一本全域書（C7）。與上面 `POST /` 共用「掛進 `Settings.globalWorlds` 名單」
+   * 那一步，差別只在條目是使用者上傳的檔案，不是我們寫死的樣板／模板。
+   *
+   * 🔴 **條目狀態照檔案原樣、不強制關閉** —— 乍看與上面「新增一本不該立刻改變所有
+   * 對話的行為」矛盾，這裡是刻意的取捨：使用者匯入一份「換機器帶著走」的檔案，
+   * 期待的是「跟原本一樣」；強制關閉會讓匯出／匯入不是同一件事（round-trip 破功，
+   * 見 `worldList.ts` 的 `toWorldFile`）。那本書的常駐條目原本開著，匯入後就會生效——
+   * 這是使用者匯入時選擇的那本書的既有狀態，不是這個端點另外決定的。
+   */
+  .post('/import', async (c) => {
+    const raw = await c.req.text();
+    const json = raw.trim() === '' ? {} : JSON.parse(raw); // 壞 JSON → app.ts 的 onError 收成 400
+    const parsed = parseWorldFile(json);
+    if (!parsed.ok) return c.json({ error: parsed.error }, 400);
+    const s = await loadSettings();
+    const name = parsed.name ?? `全域世界書 ${(s.globalWorlds ?? []).length + 1}`;
+    const { id, world } = makeWorld(parsed.entries, { name });
+    await writeJson(`worlds/${id}.json`, world);
+    await saveSettings({ ...s, globalWorlds: [...(s.globalWorlds ?? []), { id, name }] });
+    return c.json(
+      { id, name, entryCount: world.entries.length, enabledCount: world.entries.filter((e) => e.enabled).length },
+      201,
+    );
   })
 
   .delete('/:id', async (c) => {

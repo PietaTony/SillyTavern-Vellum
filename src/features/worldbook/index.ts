@@ -15,6 +15,7 @@ export {
   type WorldPresetInfo,
 } from './api';
 export { DEAD_FIELDS, SELECTIVE_LOGIC } from './fields';
+export { downloadWorld, type ImportResult, importGlobalWorld, importWorld } from './importExport';
 export {
   changedLabel,
   entryHint,
@@ -23,9 +24,10 @@ export {
   positionTitle,
   subtitleOf,
   WI_POSITION,
+  worldOwnerNote,
 } from './model';
 export type { Bindings, LayerFact, WbEntry, WiLine, World, WorldSummary } from './types';
-export { GLOBAL_OWNER } from './types';
+export { GLOBAL_OWNER, IMPORTED_OWNER } from './types';
 export { AddWorldPanel, BLANK } from './ui/AddWorldPanel';
 export { EntryEditor } from './ui/EntryEditor';
 export { EntryEditorAdvanced } from './ui/EntryEditorAdvanced';
@@ -34,6 +36,7 @@ export { EntryRow } from './ui/EntryRow';
 export { EntrySaveButton } from './ui/EntrySaveButton';
 export { GlobalWorldIntro } from './ui/GlobalWorldIntro';
 export { GlobalWorldList } from './ui/GlobalWorldList';
+export { ImportWorldButton } from './ui/ImportWorldButton';
 export { LayerTable } from './ui/LayerTable';
 export { LineSwitcher } from './ui/LineSwitcher';
 export { UnofficialWarning } from './ui/UnofficialWarning';

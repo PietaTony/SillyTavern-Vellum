@@ -6,12 +6,12 @@ import { get, patch } from '@/shared/lib/http';
  */
 export type NetworkState = {
   enabled: boolean;
-  /** 這次啟動實際綁的介面。`127.0.0.1` ＝ 只有本機連得到。 */
   bound: string;
-  /** `HOST` 環境變數蓋過設定 ⇒ 這顆開關現在管不到。 */
   forcedByEnv: boolean;
   port: number;
   urls: { kind: 'tailscale' | 'lan'; url: string }[];
+  /** 是否已設定存取密碼。 */
+  hasPassword: boolean;
 };
 
 export const fetchNetwork = (): Promise<NetworkState> => get<NetworkState>('/api/network');

@@ -14,10 +14,12 @@ import { safeId } from '../lib/ids.ts';
 import { readJson } from '../adapters/storage.ts';
 import { adapterFor } from '../providers/dispatch.ts';
 import { byId, isSelectable } from '../providers/registry.ts';
-import type { Chat } from '../services/chatModel.ts';
+import type { Chat, Message } from '../services/chatModel.ts';
 import { buildTurn } from '../services/buildTurn.ts';
 import { getActiveProvider, getProviderModel } from '../services/settings.ts';
 import { commitTurn } from '../services/applyVarUpdate.ts';
+import { applyProviderEvents, closeQuietly, finishGenerateStream, persistUsage } from '../services/finishGenerateStream.ts';
+import { handleIdleTimeout, IDLE_TIMEOUT_MS, raceReadIdle } from '../services/commitPartialTurn.ts';
 
 const Body = z.object({
   chatId: z.string(),
@@ -83,13 +85,23 @@ export const generate = new Hono().post('/', async (c) => {
       const reader = upstream.body!.getReader();
       const dec = new TextDecoder();
       let buf = '';
-      let full = '';
-      let finish: string | undefined;
       // 🔴 用量可能分兩次到（Anthropic 開頭給 input、結尾給 output）⇒ 累積不覆蓋。
-      let usage: Record<string, number | undefined> = {};
+      // 三個欄位包成物件傳給 `applyProviderEvents`——理由見那支的檔頭。
+      const state: { full: string; finish: string | undefined; usage: Record<string, number | undefined> } = {
+        full: '',
+        finish: undefined,
+        usage: {},
+      };
+      // A6：連上了、但吐第一個字之前掛掉且既不回錯誤也不關閉連線——理由見 `commitPartialTurn.ts`。
+      let timedOut = false;
       try {
         for (;;) {
-          const { done, value } = await reader.read();
+          const r = await raceReadIdle(reader, IDLE_TIMEOUT_MS);
+          if (r.timedOut) {
+            timedOut = true;
+            break;
+          }
+          const { done, value } = r;
           if (done) break;
           buf += dec.decode(value, { stream: true });
           const lines = buf.split('\n');
@@ -106,36 +118,24 @@ export const generate = new Hono().post('/', async (c) => {
               // 壞掉的一行不該讓整條串流死掉 —— 跳過，繼續讀下一行。
               continue;
             }
-            for (const ev of adapter.parse(parsedChunk)) {
-              if (ev.type === 'delta') {
-                // 🔴 **thinking 不進正文**：它是思考過程，混進去會變成角色的台詞。
-                if (ev.kind === 'text') {
-                  full += ev.text;
-                  ctrl.enqueue(enc.encode(sse('delta', { text: ev.text })));
-                } else {
-                  ctrl.enqueue(enc.encode(sse('thinking', { text: ev.text })));
-                }
-              } else if (ev.type === 'usage') {
-                usage = { ...usage, ...ev.usage };
-              } else if (ev.type === 'done') {
-                if (ev.finishReason) finish = ev.finishReason;
-                if (ev.usage) usage = { ...usage, ...ev.usage };
-              } else {
-                ctrl.enqueue(enc.encode(sse('error', { message: redact(ev.message, [key]) })));
-              }
-            }
+            applyProviderEvents(adapter.parse(parsedChunk), state, ctrl, enc, sse, key);
           }
         }
-        // 落地：訊息進檔案，順便把這一輪的 `<UpdateVariable>` 套進變數（見 `commitTurn`）。
-        const msg = await commitTurn(chatId, chat, full);
-        ctrl.enqueue(
-          enc.encode(sse('done', { message: msg, finishReason: finish ?? 'STOP', usage })),
-        );
+        if (timedOut) {
+          await handleIdleTimeout({ ctrl, enc, sse, controller, full: state.full, chatId, chat, usage: state.usage });
+        } else {
+          // 落地：訊息進檔案，順便把這一輪的 `<UpdateVariable>` 套進變數（見 `commitTurn`）。
+          const msg: Message = await commitTurn(chatId, chat, state.full);
+          const finishReason = state.finish ?? 'STOP';
+          await persistUsage(chatId, chat, msg, state.usage); // usage 落地——理由見 persistUsage 檔頭
+          ctrl.enqueue(enc.encode(sse('done', { message: msg, finishReason, usage: state.usage })));
+        }
       } catch (e) {
-        const detail = e instanceof Error ? redact(e.message, [key]) : '串流中斷';
-        ctrl.enqueue(enc.encode(sse('error', { message: detail })));
+        const full = state.full;
+        const usage = state.usage;
+        await finishGenerateStream({ ctrl, enc, sse, controller, full, chatId, chat, usage, key, error: e });
       } finally {
-        ctrl.close();
+        closeQuietly(ctrl);
       }
     },
     cancel() {

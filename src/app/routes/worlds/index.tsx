@@ -16,6 +16,7 @@ import {
   fetchWorldPresets,
   GlobalWorldIntro,
   GlobalWorldList,
+  importGlobalWorld,
   UnofficialWarning,
 } from '@/features/worldbook';
 import { Screen } from '@/shared/ui/Screen';
@@ -41,22 +42,20 @@ function WorldsPage() {
   const nav = useNavigate();
   const [busyId, setBusyId] = useState<string | null>(null);
   const q = useQuery({ queryKey: ['globalWorlds'], queryFn: fetchGlobalWorlds });
-
-  /**
-   * 🔴 樣板庫**單獨一支 query**，而且**壞掉不擋主畫面**：
-   * 讀不到內建樣板只是少一個捷徑，既有的書照樣要列得出來。
-   */
+  // 🔴 樣板庫單獨一支 query，且壞掉不擋主畫面：讀不到只是少一個捷徑，既有的書照樣列得出來。
   const presets = useQuery({ queryKey: ['worldPresets'], queryFn: fetchWorldPresets });
   const [pendingKey, setPendingKey] = useState<string | null>(null);
 
+  // 建好／匯入好之後共通的下一步：重新讀清單、報一句、直接開那本書。
+  const afterCreate = async (w: { id: string }, text: string) => {
+    await q.refetch();
+    pushToast({ severity: 'success', text });
+    void nav({ to: '/worlds/$worldId', params: { worldId: w.id } });
+  };
   const add = useMutation({
     mutationFn: (preset?: string) => createGlobalWorld(preset),
     onSettled: () => setPendingKey(null),
-    onSuccess: async (w) => {
-      await q.refetch();
-      pushToast({ severity: 'success', text: `已加入「${w.name}」，條目都先關著` });
-      void nav({ to: '/worlds/$worldId', params: { worldId: w.id } });
-    },
+    onSuccess: (w) => afterCreate(w, `已加入「${w.name}」，條目都先關著`),
     onError: (e: Error) => pushToast({ severity: 'warning', text: e.message }),
   });
   const del = useMutation({
@@ -66,7 +65,13 @@ function WorldsPage() {
     onSuccess: () => void q.refetch(),
     onError: (e: Error) => pushToast({ severity: 'warning', text: e.message }),
   });
-
+  // 🔴 與 `add` 不同：條目照檔案原樣，toast 不能講「先關著」。
+  const importMut = useMutation({
+    mutationFn: (text: string) => importGlobalWorld(text),
+    onSuccess: (w) =>
+      afterCreate(w, `已匯入「${w.name}」（開著 ${w.enabledCount}/${w.entryCount}）`),
+    onError: (e: Error) => pushToast({ severity: 'warning', text: e.message }),
+  });
   const items = q.data?.items ?? [];
 
   return (
@@ -135,6 +140,8 @@ function WorldsPage() {
             setPendingKey(key ?? BLANK);
             add.mutate(key);
           }}
+          onImport={(text) => importMut.mutate(text)}
+          importBusy={importMut.isPending}
         />
       </Stack>
     </Screen>

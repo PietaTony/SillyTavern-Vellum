@@ -6,7 +6,28 @@ export type Message = {
   at: string;
   /** 同一則的其他候選（開場白有 9 則）。沒有候選的訊息**不會有這個欄位**。 */
   swipes?: string[];
-  swipeIndex?: number;
+  /**
+   * 🔴 **`null` ≠ 省略**（Peter 2026-08-28 裁定，理由同 `server/lib/greetings.ts`
+   * 的 `withResolvedSwipes`）。省略＝沒有多重候選；`null`＝有候選，但角色卡
+   * 砍掉了使用者當初選的那則、`text` 沒變只是找不到它在清單裡的位置了。
+   * ⚠️ `SwipeBar`／`SwipePicker` 不可以用 `?? 0` 接住——那會把「不知道選
+   * 哪個」畫成「選了第一個」，比壞掉的分數更騙人。
+   */
+  swipeIndex?: number | null;
+  /**
+   * 🔴 **半成品**（跨層票 2026-08-28）。使用者按「停止生成」時已經吐出來的字——
+   * 「半成品＝保留」，但要在資料上分得出來（見 `server/services/chatModel.ts` 同名欄位）。
+   * 沒有值＝完整回覆。
+   */
+  partial?: boolean;
+  /**
+   * 🔴 **這一則回覆花了多少（H1 落地票，2026-08-31）。** 形狀照抄 `server/services/chatModel.ts`
+   * 的 `UsageSchema` —— 兩邊是同一份資料的兩端。
+   * 🔴 **沒有這個欄位 ≠ 花費是 0**——是「這一則落地的時候我們還沒開始記」（此欄位加入
+   * 之前的舊訊息、或供應商那次沒回任何用量欄位）。畫面要用「不畫」表達，不是「畫 0」
+   * ——同一個判準見 `usageFormat.ts` 檔頭。
+   */
+  usage?: Usage;
 };
 export type Chat = {
   id: string;
@@ -30,6 +51,20 @@ export type Chat = {
   variables?: Record<string, unknown>;
 };
 
+/**
+ * 🔴 **B4：供應商層早就算好了，前端連型別都沒有**（`grep -rni "usage" src` 命中 0）。
+ * 形狀照抄 `server/providers/types.ts` 的 `Usage` —— 兩邊是同一份資料的兩端，
+ * 欄位對不上前端就得再猜一次「後端到底送了什麼」。
+ * `exactOptionalPropertyTypes` 開著：沒回的欄位就是 `undefined`，不寫 `| undefined`
+ * 組不進來（同一個判準見後端那份檔頭）。
+ */
+export type Usage = {
+  inputTokens?: number | undefined;
+  outputTokens?: number | undefined;
+  cacheRead?: number | undefined;
+  cacheWrite?: number | undefined;
+};
+
 export type StreamEvent =
   | { type: 'delta'; text: string }
   /**
@@ -43,7 +78,8 @@ export type StreamEvent =
    * 這裡只拿它當「還活著、而且在想」的訊號。
    */
   | { type: 'thinking'; text: string }
-  | { type: 'done'; message: Message; finishReason: string }
+  /** 🔴 `usage` 可能是空物件（供應商沒回任何用量）——省略欄位，不要硬塞 `{}`。 */
+  | { type: 'done'; message: Message; finishReason: string; usage?: Usage | undefined }
   | { type: 'error'; message: string };
 
 /**
@@ -67,6 +103,7 @@ export function parseSse(buffer: string): { events: StreamEvent[]; rest: string 
       text?: string;
       message?: Message | string;
       finishReason?: string;
+      usage?: Usage;
     };
     if (name === 'delta') events.push({ type: 'delta', text: payload.text ?? '' });
     else if (name === 'thinking') events.push({ type: 'thinking', text: payload.text ?? '' });
@@ -75,6 +112,8 @@ export function parseSse(buffer: string): { events: StreamEvent[]; rest: string 
         type: 'done',
         message: payload.message,
         finishReason: payload.finishReason ?? 'STOP',
+        // 🔴 後端一律送（可能是 `{}`）——只有真的有欄位才往上傳，空物件不算「有用量」。
+        ...(payload.usage && Object.keys(payload.usage).length ? { usage: payload.usage } : {}),
       });
     else if (name === 'error')
       events.push({ type: 'error', message: String(payload.message ?? '未知錯誤') });
@@ -103,37 +142,4 @@ export function shouldSubmitOnKey(e: {
   if (e.isComposing) return false;
   if (e.keyCode === 229) return false;
   return true;
-}
-
-/** 生成失敗時該顯示什麼。`setupKey` ＝ 後端說「缺金鑰」，畫面要給得出那個出口。 */
-export type ChatFailureInfo = { text: string; setupKey: boolean };
-
-/**
- * 把後端回來的錯誤 **body 原文**翻成人看的一句話（Peter 2026-08-27 實機踩到）。
- *
- * 🔴 **他看到的是一整串 JSON**：`{"error":"尚未設定 Google Gemini 金鑰","action":"setup-…`
- * —— `api.ts` 的 `streamGenerate` 在 `!res.ok` 時直接把 `res.text()` 切 300 字丟出來，
- * 而 `server/routes/generate.ts` 回的是 `c.json({ error, action })`。
- * 「原文照顯示」這條規則是為了**不要把供應商的錯誤訊息改寫掉**，
- * 但它不該連我們自己那層 JSON 外殼一起端上去。
- *
- * 🔴 **`action: 'setup-key'` 要接成真的出口。** 使用者缺的是金鑰，
- * 而這一頁給的鈕是「重新送出上一句」—— 再送一百次也還是同一個錯。
- *
- * ⚠️ **解析不出來就原文照顯示**，不要吞掉。上游（Gemini／OpenAI）的錯誤是純文字或
- * 另一種 JSON 形狀，猜錯格式而丟掉內容，比多幾個括號糟得多。
- */
-export function failureOf(raw: string): ChatFailureInfo {
-  const t = raw.trim();
-  if (!t) return { text: '送不出去', setupKey: false };
-  if (t.startsWith('{')) {
-    try {
-      const o = JSON.parse(t) as { error?: unknown; action?: unknown };
-      if (typeof o.error === 'string' && o.error.trim())
-        return { text: o.error, setupKey: o.action === 'setup-key' };
-    } catch {
-      // 不是完整的 JSON（例如被 slice(300) 切掉尾巴）⇒ 落回原文。
-    }
-  }
-  return { text: t, setupKey: false };
 }
