@@ -419,8 +419,12 @@ function runSelftest(): void {
   const tests = checkDiffTests(['server/lib/authStore.ts']);
   if (!tests[0]?.includes('authStore.test.ts')) fail('diff 測試配對');
 
-  const routes = checkDiffRoutes(['src/app/routes/login.tsx'], ROOT);
-  if (routes.length !== 1 || !routes[0]?.includes('login')) fail('diff route 對 screens');
+  // 🔴 2026-08-31 rebase 後才炸出來的坑：這裡原本寫死 `login.tsx`，
+  // 假設它「一定不在 screens.json」——PR #37（存取密碼）把 login route 排進
+  // active 里程碑之後這條假設就不成立，選一個永遠不會被登記的假路由名避免重蹈覆轍。
+  const routes = checkDiffRoutes(['src/app/routes/zzz-definitely-unregistered.tsx'], ROOT);
+  if (routes.length !== 1 || !routes[0]?.includes('zzz-definitely-unregistered'))
+    fail('diff route 對 screens');
 
   console.log(
     bad
