@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { Card } from '../lib/card.ts';
-import { mergeOwned } from '../lib/cardMerge.ts';
+import { mergeOwned, mergeWorldToggles } from '../lib/cardMerge.ts';
 
 /**
  * 🔴 **這支守的是本專案的最高契約：無資訊遺失**（規格 §7 A1／A2）。
@@ -95,5 +95,83 @@ describe('mergeOwned', () => {
   it('沒有的那一份不會被憑空造出來', () => {
     const card: Card = { primary: 'chara', payloads: { chara: { description: '舊' } } };
     expect(Object.keys(mergeOwned(card, OWNED).payloads)).toEqual(['chara']);
+  });
+});
+
+/**
+ * 🔴 A4：世界書條目的開／關要能合併回 `character_book`（GAP-66 同一個坑的第二條路徑）。
+ * 判準跟 `mergeOwned` 一樣是「無資訊遺失」——這裡額外守的是**只碰 `enabled`**：
+ * `extensions`、`content`、`keys`……一個字都不能動，連「被改動的那一條」自己的
+ * 其他欄位也不行。
+ */
+describe('mergeWorldToggles', () => {
+  const book = {
+    entries: [
+      { id: 0, keys: ['甲'], content: '甲的內容', enabled: true, extensions: { probability: 100 } },
+      { id: 1, keys: ['乙'], content: '乙的內容', enabled: true, extensions: { probability: 50 } },
+      { keys: ['丙，沒有 id'], content: '丙的內容', enabled: false }, // uid 靠陣列索引（2）
+    ],
+  };
+
+  it('🔴 只關掉使用者關掉的那一條，其餘條目逐位元組不變', () => {
+    const card: Card = {
+      primary: 'ccv3',
+      payloads: { ccv3: { data: { name: 'X', character_book: book, extensions: { regex_scripts: [{ x: 1 }] } } } },
+    };
+    const out = mergeWorldToggles(card, [
+      { uid: '0', enabled: false }, // 甲：關掉
+      { uid: '1', enabled: true }, // 乙：本來就開著，不該被動到
+      { uid: '2', enabled: false }, // 丙：本來就是關的，不該被動到
+    ]) as { payloads: { ccv3: { data: Record<string, unknown> } } };
+    const d = out.payloads.ccv3.data;
+    const entries = (d['character_book'] as { entries: Record<string, unknown>[] }).entries;
+    expect(entries[0]).toEqual({ ...book.entries[0], enabled: false });
+    // 沒被動到的兩條：連物件參照都該是同一個（沒被重新序列化）
+    expect(entries[1]).toBe(book.entries[1]);
+    expect(entries[2]).toBe(book.entries[2]);
+    // 世界書以外的東西（`extensions.regex_scripts`）原樣留著
+    expect(d['extensions']).toEqual({ regex_scripts: [{ x: 1 }] });
+  });
+
+  it('V2（`character_book` 在 top-level）：寫回 top-level，不可以偷偷搬進 `data`', () => {
+    const card: Card = { primary: 'chara', payloads: { chara: { name: 'X', character_book: book } } };
+    const out = mergeWorldToggles(card, [{ uid: '0', enabled: false }]) as {
+      payloads: { chara: Record<string, unknown> };
+    };
+    expect(out.payloads.chara['data']).toBeUndefined();
+    const entries = (out.payloads.chara['character_book'] as { entries: Record<string, unknown>[] }).entries;
+    expect(entries[0]).toEqual({ ...book.entries[0], enabled: false });
+  });
+
+  it('沒對上任何 uid 的開關列表 ＝ 整份 payload 原封不動（同一個物件參照）', () => {
+    const card: Card = { primary: 'chara', payloads: { chara: { name: 'X', character_book: book } } };
+    const out = mergeWorldToggles(card, [{ uid: '99', enabled: false }]);
+    expect(out.payloads.chara).toBe(card.payloads.chara);
+  });
+
+  it('沒有 character_book 的卡：原樣退回，不會憑空生出一個', () => {
+    const card: Card = { primary: 'chara', payloads: { chara: { name: 'X', description: '舊' } } };
+    const out = mergeWorldToggles(card, [{ uid: '0', enabled: false }]);
+    expect(out.payloads.chara).toEqual({ name: 'X', description: '舊' });
+  });
+
+  it('兩份 payload 都要合併（chara／ccv3 各自處理）', () => {
+    const card: Card = {
+      primary: 'ccv3',
+      payloads: {
+        ccv3: { data: { character_book: book } },
+        chara: { character_book: book },
+      },
+    };
+    const out = mergeWorldToggles(card, [{ uid: '0', enabled: false }]) as {
+      payloads: { ccv3: { data: { character_book: { entries: Record<string, unknown>[] } } }; chara: { character_book: { entries: Record<string, unknown>[] } } };
+    };
+    expect(out.payloads.ccv3.data.character_book.entries[0]?.['enabled']).toBe(false);
+    expect(out.payloads.chara.character_book.entries[0]?.['enabled']).toBe(false);
+  });
+
+  it('不是物件的 payload 原樣退回', () => {
+    const card: Card = { primary: 'chara', payloads: { chara: '這不是物件' } };
+    expect(mergeWorldToggles(card, [{ uid: '0', enabled: false }]).payloads.chara).toBe('這不是物件');
   });
 });
