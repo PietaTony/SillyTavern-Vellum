@@ -6,6 +6,32 @@ import type { Character } from '../lib/character.ts';
 import type { Chat } from '../services/chatModel.ts';
 
 /**
+ * 🔴 **`writeJson` 呼叫次數／可控失敗的攔截層**（PR #50 獨立驗收退回一／二補測）。
+ * `vi.mock` 的註冊會跨過 `app()` 裡的 `vi.resetModules()` 存活——工廠函式在每次
+ * 重新 `import('../adapters/storage.ts')` 時都會被重新呼叫一次，`writeCounts`／
+ * `writeFailPlan` 這兩個閉包變數則活在這支測試檔自己的模組作用域，不會被
+ * `resetModules` 清掉，所以可以拿來跨 `app()` 呼叫累計次數、注入失敗。
+ * 預設（`writeFailPlan === null`）完全透明地轉呼叫真正的 `writeJson`。
+ */
+const writeCounts = new Map<string, number>();
+let writeFailPlan: { path: string; onCall: number } | null = null;
+
+vi.mock('../adapters/storage.ts', async (importOriginal) => {
+  const real = await importOriginal<typeof import('../adapters/storage.ts')>();
+  return {
+    ...real,
+    writeJson: async (rel: string, value: unknown) => {
+      const n = (writeCounts.get(rel) ?? 0) + 1;
+      writeCounts.set(rel, n);
+      if (writeFailPlan && writeFailPlan.path === rel && writeFailPlan.onCall === n) {
+        throw new Error('模擬寫檔失敗（測試用）');
+      }
+      return real.writeJson(rel, value);
+    },
+  };
+});
+
+/**
  * A6：**串流沒有 idle timeout，會無限期卡在「思考中」**——`/api/generate` 在此之前
  * 一個測試都沒有（34→50 個測試檔零命中同一個形狀，見 `chatSwipe.test.ts` 檔頭）。
  *
@@ -98,6 +124,8 @@ beforeEach(async () => {
   // 順序錯了會把 fixture 寫進 worktree 自己的 `data/`，而且 `pnpm test` 照樣全綠）。
   process.env['VELLUM_DATA'] = root;
   vi.resetModules();
+  writeCounts.clear();
+  writeFailPlan = null;
   const { writeJson } = await import('../adapters/storage.ts');
   await writeJson(`characters/${CH.id}.json`, CH);
   await writeJson(`chats/${CHAT.id}.json`, CHAT);
@@ -160,6 +188,45 @@ describe('POST /api/generate 的 idle timeout（A6）', () => {
     expect(last.partial).toBe(true);
   });
 
+  /**
+   * 🔴 PR #50 獨立驗收退回三：`commitPartialTurn.ts` 的第 4 個參數 `usage` 兩個
+   * 呼叫點都接了、`definedUsage()` 也濾過——但在此之前**零測試**證明「逾時／中止前
+   * 供應商已經回過用量，半成品訊息真的帶著它」。跟上面那支幾乎同一個情境，差別
+   * 只在這次的 chunk 多帶了 `usageMetadata`。
+   */
+  it('🔴 逾時前供應商已經回過用量 ⇒ 半成品訊息也帶著它，不是只有完整回覆才有', async () => {
+    const enc = new TextEncoder();
+    const stream = new ReadableStream<Uint8Array>({
+      start(ctrl) {
+        ctrl.enqueue(
+          enc.encode(
+            'data: {"candidates":[{"content":{"parts":[{"text":"半"}]}}],"usageMetadata":{"candidatesTokenCount":13}}\n\n',
+          ),
+        );
+      },
+    });
+    vi.stubGlobal('fetch', vi.fn(async () => new Response(stream, { status: 200 })));
+    const a = await app();
+    const res = await a.request('/api/generate', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ chatId: CHAT.id }),
+    });
+    const body = await readAll(res);
+    expect(body).toContain('"finishReason":"TIMEOUT"');
+    expect(body).toContain('"partial":true');
+
+    const { readJson } = await import('../adapters/storage.ts');
+    const saved = await readJson<Chat>(`chats/${CHAT.id}.json`, CHAT);
+    const last = saved.messages.at(-1) as {
+      text: string;
+      partial?: boolean;
+      usage?: { outputTokens?: number };
+    };
+    expect(last.partial).toBe(true);
+    expect(last.usage?.outputTokens).toBe(13);
+  });
+
   it('尺沒壞的證明：正常吐完、正常關閉連線的請求不會被誤判成逾時', async () => {
     vi.stubGlobal('fetch', vi.fn(async () => delayedStream(OK_LINE, 20)));
     const a = await app(); // idleMs=50，20ms 的延遲遠遠沒到，不該被判逾時
@@ -217,14 +284,20 @@ const USAGE_LINE =
   'data: {"candidates":[{"content":{"parts":[{"text":"嗨"}]},"finishReason":"STOP"}],"usageMetadata":{"candidatesTokenCount":42}}\n\n';
 
 describe('usage 落地（H1 落地票，2026-08-31）', () => {
+  const chatPath = `chats/${CHAT.id}.json`;
+
   it('🔴 供應商回了用量 ⇒ 訊息重讀（從磁碟）也帶著同一個數字，不是只在這次回應裡', async () => {
     vi.stubGlobal('fetch', vi.fn(async () => delayedStream(USAGE_LINE, 20)));
     const a = await app();
+    const before = writeCounts.get(chatPath) ?? 0;
     const res = await a.request('/api/generate', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ chatId: CHAT.id }),
     });
+    // 🔴 **一定要先把串流讀完再去看磁碟／寫入次數**（PR #50 獨立驗收退回一）：
+    // `a.request()` 在 handler 回傳 `new Response(stream, ...)` 當下就 resolve，
+    // 不會等 `ReadableStream.start(ctrl)` 裡的 `commitTurn`／`persistUsage` 跑完。
     const body = await readAll(res);
     expect(body).toContain('event: done');
     // 這次回應本身就帶著它——但這條斷言守不住「有沒有真的落地」，下面重讀磁碟那段才是。
@@ -232,25 +305,72 @@ describe('usage 落地（H1 落地票，2026-08-31）', () => {
 
     // 🔴 重點：從磁碟重讀一次（不是同一個回應物件），證明真的寫進了 chat 檔。
     const { readJson } = await import('../adapters/storage.ts');
-    const saved = await readJson<Chat>(`chats/${CHAT.id}.json`, CHAT);
+    const saved = await readJson<Chat>(chatPath, CHAT);
     const last = saved.messages.at(-1) as { text: string; usage?: { outputTokens?: number } };
     expect(last.text).toBe('嗨');
     expect(last.usage?.outputTokens).toBe(42);
+    // 🔴 有用量 ⇒ `commitTurn` 寫一次、`persistUsage` 再寫一次 ＝ 兩次，
+    // 跟下面「沒有用量只寫一次」的對照組是同一把尺（見那支檔頭）。
+    expect((writeCounts.get(chatPath) ?? 0) - before).toBe(2);
   });
 
-  it('🔴 供應商完全沒回用量 ⇒ 落地的訊息不帶 `usage` 這個鍵——不是「usage: {}」也不是「0」', async () => {
+  it('🔴 供應商完全沒回用量 ⇒ 落地的訊息不帶 `usage` 這個鍵，而且根本不多寫那一次檔', async () => {
     vi.stubGlobal('fetch', vi.fn(async () => delayedStream(OK_LINE, 20))); // OK_LINE 沒有 usageMetadata
     const a = await app();
-    await a.request('/api/generate', {
+    const before = writeCounts.get(chatPath) ?? 0;
+    const res = await a.request('/api/generate', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ chatId: CHAT.id }),
     });
+    // 🔴 同上：不等串流讀完就去看磁碟，會在 `commitTurn` 真的落地之前就讀到舊檔，
+    // 斷言「沒有 usage 鍵」會**碰巧**跟種子資料一樣而通過——不是因為守到了什麼。
+    await readAll(res);
 
     const { readJson } = await import('../adapters/storage.ts');
-    const saved = await readJson<Chat>(`chats/${CHAT.id}.json`, CHAT);
+    const saved = await readJson<Chat>(chatPath, CHAT);
     const last = saved.messages.at(-1) as { text: string; usage?: unknown };
     expect(last.text).toBe('嗨');
     expect('usage' in last).toBe(false);
+    /**
+     * 🔴 **這才是守住「沒有用量就不多這次 I/O」那條保證的斷言**（`persistUsage` 檔頭
+     * 的承諾，PR #50 獨立驗收退回一）：只斷言檔案內容不夠——`msg.usage = undefined`
+     * 這種寫法就算真的多寫一次檔，`JSON.stringify` 一樣會把 `undefined` 值的欄位
+     * 拿掉，內容斷言完全看不出差別。只有寫入次數（`commitTurn` 一次、沒有第二次）
+     * 才擋得住「guard 被拔掉」這個突變。
+     */
+    expect((writeCounts.get(chatPath) ?? 0) - before).toBe(1);
+  });
+
+  /**
+   * PR #50 獨立驗收退回二：`persistUsage` 在此之前沒有包 try/catch。它丟例外時被
+   * `generate.ts` 外層 `catch` 接住 → `controller.signal.aborted` 是 false →
+   * 落進 `finishGenerateStream()` 的 `else if` 分支，**只送一顆 `error`、不再送
+   * `done`**——但 `commitTurn` 那次寫檔早就成功了，訊息本體已經在磁碟上。
+   * 這支測的是修好之後：第二次寫檔（`persistUsage` 自己那次）失敗，使用者仍然
+   * 收到 `done`，畫面上的文字（`commitTurn` 已經寫進去的那份）不會消失。
+   */
+  it('🔴 usage 落地那次寫檔失敗，不可以把已經成功的 turn 判成失敗', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => delayedStream(USAGE_LINE, 20)));
+    const a = await app();
+    const before = writeCounts.get(chatPath) ?? 0;
+    // `onCall` 用絕對次數：before+1 是 `commitTurn` 那次（要成功，訊息才真的落地），
+    // before+2 是 `persistUsage` 那次（讓它失敗）。
+    writeFailPlan = { path: chatPath, onCall: before + 2 };
+    const res = await a.request('/api/generate', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ chatId: CHAT.id }),
+    });
+    const body = await readAll(res);
+    // 🔴 沒有這一條，前一版的 bug 就是：只收到 `error`，收不到 `done`。
+    expect(body).toContain('event: done');
+    expect(body).not.toContain('event: error');
+
+    // 訊息本體（`commitTurn` 那次寫檔）真的還在——不是「使用者的回覆整段消失」。
+    const { readJson } = await import('../adapters/storage.ts');
+    const saved = await readJson<Chat>(chatPath, CHAT);
+    const last = saved.messages.at(-1) as { text: string };
+    expect(last.text).toBe('嗨');
   });
 });

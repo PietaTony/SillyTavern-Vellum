@@ -124,5 +124,19 @@ export async function persistUsage(
   const usage = definedUsage(rawUsage);
   if (!usage) return;
   msg.usage = usage;
-  await writeJson(`chats/${chatId}.json`, chat);
+  /**
+   * 🔴 **這次寫檔失敗不可以把一個已經成功的 turn 判成失敗**（PR #50 獨立驗收退回二）。
+   * `commitTurn` 那次寫檔已經成功——訊息本體已經在磁碟上。這裡失敗只代表 usage 這個
+   * 補充欄位沒寫進去，不是回覆消失。反過來若讓例外冒出去，會被 `generate.ts` 外層
+   * `catch` 接住、`controller.signal.aborted` 是 false ⇒ 落進 `finishGenerateStream()`
+   * 的 `else if` 分支，只送 `error` 事件、不再送 `done`——前端 `streamEventHandler.ts`
+   * 的 `error` 分支不會把 `acc.value` 併回畫面，使用者剛吐出來的整段回覆會從畫面上
+   * 消失（重整才會再出現）。跟 `commitPartialTurn` 的呼叫端一樣（見 `handleIdleTimeout`／
+   * `finishGenerateStream` 兩處都用 try/catch 包住、失敗只 `console.error`），這裡要對稱。
+   */
+  try {
+    await writeJson(`chats/${chatId}.json`, chat);
+  } catch (e) {
+    console.error('[vellum] usage 落地失敗（不影響這一則回覆）：', e);
+  }
 }
