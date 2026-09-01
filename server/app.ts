@@ -7,6 +7,7 @@
  * ⇒ 這裡只組不啟動；`index.ts` 負責啟動。
  */
 import { Hono } from 'hono';
+import { HTTPException } from 'hono/http-exception';
 import { apiBodyLimit } from './http/bodyLimits.ts';
 import { authGuard } from './http/authGuard.ts';
 import { hostGuard } from './http/hostGuard.ts';
@@ -89,9 +90,21 @@ export const app = new Hono()
    * 全 repo 有 17 處 `await c.req.json()`，逐處包 try/catch 會漏掉下一個新增的
    * ⇒ 在這裡收，新的 route 自動受保護。
    * 🔴 順便把其餘未捕捉的例外收斂成一句話 —— 預設會把 stack 吐給呼叫端。
+   *
+   * 🔴 **`HTTPException` 曾經也被這句「其餘一律 500」收斂進去**（`INBOX/
+   * 20260831-bodylimit-413-becomes-500.md`）：`apiBodyLimit()`（`http/bodyLimits.ts`）
+   * 擋下超過上限的上傳時，Hono 的 `bodyLimit` 正確地拋出 `HTTPException(413, ...)`，
+   * 但這裡只認得 `SyntaxError`，於是使用者收到的是「伺服器內部錯誤」500 ——
+   * 畫面上看起來像「我們壞了」，而不是「你的檔案太大」。
+   * ⇒ 先接住 `HTTPException`、照它自帶的 `status` 回，而不是全部壓成 500；
+   * 413 另外給一句人話（其餘狀態碼照 Hono 自己的訊息，目前 repo 裡只有 413 這一種來源）。
    */
   .onError((err, c) => {
     if (err instanceof SyntaxError) return c.json({ error: '參數不合法：body 不是 JSON' }, 400);
+    if (err instanceof HTTPException) {
+      const message = err.status === 413 ? '檔案太大：超過這個路徑允許的上傳大小上限' : err.message || '請求錯誤';
+      return c.json({ error: message }, err.status);
+    }
     console.error('[vellum] 未預期的錯誤：', err);
     return c.json({ error: '伺服器內部錯誤' }, 500);
   });
