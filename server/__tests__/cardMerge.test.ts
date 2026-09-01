@@ -174,4 +174,25 @@ describe('mergeWorldToggles', () => {
     const card: Card = { primary: 'chara', payloads: { chara: '這不是物件' } };
     expect(mergeWorldToggles(card, [{ uid: '0', enabled: false }]).payloads.chara).toBe('這不是物件');
   });
+
+  /**
+   * 🔴 GAP：先前只測過開→關（entry0）、開留開（entry1）、關留關（entry2）——
+   * 唯獨少了「原本關的被打開」這個方向。單獨開一個 `it`、自己的 fixture，
+   * 不共用上面的 `book`：混在同一份 fixture 裡，日後有人只看到「entries[0]
+   * 變了」就以為涵蓋了兩個方向，其實開→關跟關→開是兩條獨立要守的路徑。
+   */
+  it('🔴 原本關的條目，透過這條路徑被打開（缺的那個方向）', () => {
+    const offBook = {
+      entries: [{ id: 5, keys: ['丁'], content: '丁的內容', enabled: false, extensions: { probability: 30 } }],
+    };
+    const card: Card = { primary: 'ccv3', payloads: { ccv3: { data: { name: 'Y', character_book: offBook } } } };
+    const out = mergeWorldToggles(card, [{ uid: '5', enabled: true }]) as {
+      payloads: { ccv3: { data: Record<string, unknown> } };
+    };
+    const entries = (out.payloads.ccv3.data['character_book'] as { entries: Record<string, unknown>[] }).entries;
+    expect(entries[0]?.['enabled']).toBe(true);
+    expect(entries[0]?.['id']).toBe(5);
+    expect(entries[0]?.['content']).toBe('丁的內容');
+    expect(entries[0]?.['extensions']).toEqual({ probability: 30 });
+  });
 });

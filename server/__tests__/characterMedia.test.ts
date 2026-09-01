@@ -111,6 +111,54 @@ describe('匯入 → PATCH 世界書開關 → 匯出', () => {
     ]);
   });
 
+  it('🔴 原本關的條目，透過 PATCH → 匯出被打開（缺的那個方向，同 cardMerge.test.ts 的守法）', async () => {
+    const a = await app();
+    const offV3 = {
+      ...v3,
+      data: {
+        ...v3.data,
+        character_book: {
+          ...v3.data.character_book,
+          entries: [
+            { id: 0, keys: ['甲'], content: '甲的內容', enabled: false, extensions: { probability: 100 } },
+            { id: 1, keys: ['乙'], content: '乙的內容', enabled: true, extensions: { probability: 50 } },
+          ],
+        },
+      },
+    };
+    const png = await cardPng(offV3);
+
+    const up = await a.request('/api/characters/import', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/octet-stream' },
+      body: new Uint8Array(png),
+    });
+    expect(up.status).toBe(201);
+    const created = (await up.json()) as { id: string };
+
+    // 打開條目 0（甲，本來是關的）
+    const patch = await a.request(`/api/characters/${created.id}/world/0`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ enabled: true }),
+    });
+    expect(patch.status).toBe(200);
+
+    const down = await a.request(`/api/characters/${created.id}/card.png`);
+    expect(down.status).toBe(200);
+    const out = Buffer.from(await down.arrayBuffer());
+
+    const { readCard } = await import('../lib/card.ts');
+    const back = readCard(out).payloads['ccv3'] as {
+      data: { character_book: { entries: { id: number; enabled: boolean; content: string }[] } };
+    };
+    const entries = back.data.character_book.entries;
+    expect(entries.find((e) => e.id === 0)?.enabled).toBe(true);
+    expect(entries.find((e) => e.id === 0)?.content).toBe('甲的內容');
+    // 沒被動到的那一條原樣留著（本來就開的，不該因為別條被動就跟著變）
+    expect(entries.find((e) => e.id === 1)?.enabled).toBe(true);
+  });
+
   it('沒有任何 PATCH：匯出的開關跟卡片原樣一致（不是意外全開或全關）', async () => {
     const a = await app();
     const png = await cardPng(v3);
