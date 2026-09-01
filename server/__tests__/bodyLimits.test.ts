@@ -19,6 +19,8 @@ describe('sizeFor —— 每條路徑的上限', () => {
   it.each([
     ['/api/characters/import', 64 * MB],
     ['/api/chats/import', 64 * MB],
+    // 量出來才加的（見該規則旁的註解）：2000 輪的長期對話序列化後 9.67 MB，超過 DEFAULT。
+    ['/api/chats/import/vellum', 64 * MB],
     ['/api/backgrounds', 32 * MB],
     ['/api/characters', 8 * MB],
     ['/api/generate', 8 * MB],
