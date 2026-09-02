@@ -1,4 +1,3 @@
-import Alert from '@mui/material/Alert';
 import Button from '@mui/material/Button';
 import Paper from '@mui/material/Paper';
 import Stack from '@mui/material/Stack';
@@ -6,10 +5,11 @@ import Typography from '@mui/material/Typography';
 import { useMutation } from '@tanstack/react-query';
 import { useState } from 'react';
 import { readDraft } from '@/shared/lib/draftStore';
-import { readImageScaled } from '@/shared/lib/image';
 import { DraftField } from '@/shared/ui/DraftField';
 import { pushToast } from '@/shared/ui/toastStore';
 import { type ImportedCharacter, importCardByUrl, importCardFile } from '../api';
+import { ImportCardError } from './ImportCardError';
+import { useCardFileImport } from './useCardFileImport';
 
 /**
  * 匯入現成的角色卡。**放在加入好友頁最上方**（Peter 指定）。
@@ -44,7 +44,6 @@ export function ImportCardBox({
 }) {
   // 還原在 initializer 同步做完（`useDraftWriter` 檔頭寫了為什麼不放在 effect）。
   const [url, setUrl] = useState<string>(() => readDraft<string>(URL_DRAFT) ?? '');
-  const [lastFile, setLastFile] = useState<File | null>(null);
   const m = useMutation({
     mutationFn: (input: string | ArrayBuffer) =>
       typeof input === 'string' ? importCardByUrl(input) : importCardFile(input),
@@ -70,11 +69,31 @@ export function ImportCardBox({
       onImported(c);
     },
   });
+  /** 拖進來的檔案與「或選擇檔案」按的是同一支——兩個入口不該有兩套行為（見 hook 檔頭）。 */
+  const { lastFile, clientError, setClientError, fromFile, dragging, dragProps } =
+    useCardFileImport((b) => m.mutate(b), m.isPending);
+
+  /** URL 那條路自己的送出——跟 `fromFile` 分開放是因為要先清掉上一輪的 client 端錯誤。 */
+  const submitUrl = () => {
+    setClientError(null);
+    m.mutate(url.trim());
+  };
 
   return (
-    <Paper variant="outlined" sx={{ p: 2, mb: 2 }}>
+    <Paper
+      variant="outlined"
+      {...dragProps}
+      sx={{
+        p: 2,
+        mb: 2,
+        borderStyle: dragging ? 'dashed' : 'solid',
+        borderColor: dragging ? 'primary.main' : 'divider',
+        borderWidth: dragging ? 2 : 1,
+        bgcolor: dragging ? 'vellum.accentWashSubtle' : 'transparent',
+      }}
+    >
       <Typography variant="subtitle2" sx={{ mb: 1 }}>
-        已經有角色卡？貼上網址或選檔案
+        {dragging ? '放開就開始匯入' : '已經有角色卡？貼上網址、選檔案，或直接拖進來'}
       </Typography>
       <Stack direction="row" spacing={1}>
         <DraftField
@@ -96,7 +115,7 @@ export function ImportCardBox({
           variant="contained"
           loading={m.isPending}
           disabled={imported ? false : url.trim() === ''}
-          onClick={() => (imported ? onReset?.() : m.mutate(url.trim()))}
+          onClick={() => (imported ? onReset?.() : submitUrl())}
         >
           {imported ? '重設' : '匯入'}
         </Button>
@@ -110,35 +129,20 @@ export function ImportCardBox({
           aria-label="選擇角色卡檔案"
           onChange={(e) => {
             const f = e.target.files?.[0];
-            if (!f) return;
-            setLastFile(f);
-            void f.arrayBuffer().then((b) => m.mutate(b));
+            if (f) fromFile(f);
           }}
         />
       </Button>
-      {m.isError ? (
-        <Alert
-          severity="warning"
-          sx={{ mt: 1 }}
-          action={
-            // 🔴 不是卡片的圖 ≠ 這條路走不下去。**把它接到「自己建角色」那條路上。**
-            lastFile && onUseAsAvatar ? (
-              <Button
-                size="small"
-                onClick={() => {
-                  void readImageScaled(lastFile).then((dataUrl) => {
-                    onUseAsAvatar(dataUrl);
-                    m.reset();
-                  });
-                }}
-              >
-                改用這張圖當頭像
-              </Button>
-            ) : null
-          }
-        >
-          {m.error instanceof Error ? m.error.message : '匯入失敗'}
-        </Alert>
+      {clientError || m.isError ? (
+        <ImportCardError
+          message={clientError ?? (m.error instanceof Error ? m.error.message : '匯入失敗')}
+          lastFile={lastFile}
+          onUseAsAvatar={onUseAsAvatar}
+          onReset={() => {
+            setClientError(null);
+            m.reset();
+          }}
+        />
       ) : null}
     </Paper>
   );

@@ -1,5 +1,6 @@
 import { useRef, useState } from 'react';
 import { appendMessage, streamGenerate } from './api';
+import { useFailureRetry } from './failureRetry';
 import type { Message } from './model';
 import { applyStopGeneration } from './stopGeneration';
 import { makeRunEventHandler } from './streamEventHandler';
@@ -27,6 +28,8 @@ export function useChatStream(
    * 於是 `<UpdateVariable><JSONPatch>…` 會原封印在畫面上直到下次重讀。
    */
   onDone?: () => Promise<unknown>,
+  // B5：使用者調過的 AI 回應上限——呼叫端已經拿好值（理由見 `useMaxResponseTokens.ts`）。
+  maxOutputTokens?: number,
 ) {
   const [local, setLocal] = useState<Message[] | null>(null);
   const [streaming, setStreaming] = useState<string | null>(null);
@@ -38,11 +41,10 @@ export function useChatStream(
    * 我們只需要「有沒有在想」這一個位元。
    */
   const [thinking, setThinking] = useState(false);
-  const [failure, setFailure] = useState<string | null>(null);
   // B4：這一輪用量（理由與「只留最近一輪」的判準見 `useGenerationUsage.ts`）。
   const { usage, clear: clearUsage, record: recordUsage } = useGenerationUsage();
   const abortRef = useRef<AbortController | null>(null);
-
+  const { failureBanner, setFailure } = useFailureRetry(retry);
   const messages = local ?? fromServer ?? [];
 
   /**
@@ -66,6 +68,7 @@ export function useChatStream(
       chatId,
       makeRunEventHandler({ base, onDone, acc, setters, recordUsage }),
       ac.signal,
+      maxOutputTokens,
     ).catch((e: unknown) => {
       /*
        * 🔴 **不 await 就必須自己接住例外。** 在此之前是 `await`，例外會冒到
@@ -80,7 +83,7 @@ export function useChatStream(
       }
       setThinking(false);
       setStreaming(null);
-      setFailure(e instanceof Error ? e.message : '生成中斷');
+      setFailure({ message: e instanceof Error ? e.message : '生成中斷', retryable: true });
     });
   }
 
@@ -92,7 +95,7 @@ export function useChatStream(
     try {
       mine = await appendMessage(chatId, 'user', text);
     } catch (e) {
-      setFailure(e instanceof Error ? e.message : '送不出去');
+      setFailure({ message: e instanceof Error ? e.message : '送不出去', retryable: false });
       throw e;
     }
 
@@ -120,10 +123,11 @@ export function useChatStream(
     setFailure(null);
     run(base);
   }
-
+  function retry() {
+    regenerate(messages); // 重送失敗當下的 local，真的重送，不只清橫幅（GAP-54）
+  }
   /** 丟掉樂觀暫存，改讀伺服器那份。**切候選成功之後一定要叫它**（見檔頭 B1）。 */
   const reset = () => setLocal(null);
-
   const stop = () => abortRef.current?.abort(); // 停止生成（跨層票 H1／H6）：交給 catch 分支處理。
 
   /*
@@ -136,8 +140,7 @@ export function useChatStream(
     messages,
     streaming,
     generation: { thinking, usage },
-    failure,
-    setFailure,
+    failureBanner,
     send,
     regenerate,
     reset,

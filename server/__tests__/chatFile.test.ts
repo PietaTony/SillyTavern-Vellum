@@ -1,5 +1,16 @@
 import { describe, expect, it } from 'vitest';
-import { BadChatFile, parseChatJsonl, viewOfEntry, viewOfHeader, writeChatJsonl } from '../lib/chatFile.ts';
+import {
+  BadChatFile,
+  BadNativeChatFile,
+  NATIVE_CHAT_EXPORT_VERSION,
+  parseChatJsonl,
+  parseNativeChat,
+  viewOfEntry,
+  viewOfHeader,
+  writeChatJsonl,
+  writeNativeChat,
+} from '../lib/chatFile.ts';
+import type { Message } from '../services/chatModel.ts';
 
 /** 照實測的形狀造：鍵集每行不同，`extra` 子鍵每行不同，`is_ejs_processed` 是 array。 */
 const header = { user_name: '我', character_name: '某人', chat_metadata: { variables: {}, tainted: false } };
@@ -74,5 +85,50 @@ describe('對話 JSONL', () => {
 
   it('JSON 陣列那種行不算合法訊息', () => {
     expect(() => parseChatJsonl('[1,2,3]')).toThrow(BadChatFile);
+  });
+});
+
+/**
+ * 🔴 我們自己的可攜格式（H1 落地票 2026-08-31）：`swipes`／`swipeIndex`／`partial`／`usage`
+ * 這些 ST 沒有的欄位要原樣過得去 round-trip，這是這張票的底線。
+ */
+describe('我們自己的對話匯出格式', () => {
+  const messages: Message[] = [
+    { id: 'm1', role: 'user', text: '嗨', at: '2026-08-31T00:00:00.000Z' },
+    {
+      id: 'm2',
+      role: 'model',
+      text: '第二個候選',
+      at: '2026-08-31T00:00:01.000Z',
+      swipes: ['第一個候選', '第二個候選', '第三個候選'],
+      swipeIndex: 1,
+      usage: { inputTokens: 120, outputTokens: 340 },
+    },
+    { id: 'm3', role: 'model', text: '被腰斬的回', at: '2026-08-31T00:00:02.000Z', partial: true },
+  ];
+  const source = { characterName: '測試卡A', createdAt: '2026-08-31T00:00:00.000Z', messages };
+
+  it('🔴 round-trip：訊息數、text、swipes/swipeIndex、partial、usage 全部一致', () => {
+    const round = parseNativeChat(writeNativeChat(source));
+    expect(round.messages).toHaveLength(3);
+    expect(round.messages).toEqual(messages);
+    expect(round.characterName).toBe('測試卡A');
+    expect(round.version).toBe(NATIVE_CHAT_EXPORT_VERSION);
+  });
+
+  it('版本不符 → 明確拒絕，不是盡量讀', () => {
+    const bad = JSON.stringify({ ...source, version: 999 });
+    expect(() => parseNativeChat(bad)).toThrow(BadNativeChatFile);
+    expect(() => parseNativeChat(bad)).toThrow(/版本 999/);
+  });
+
+  it('不是合法 JSON → BadNativeChatFile，不是把例外原樣丟出去', () => {
+    expect(() => parseNativeChat('這不是 JSON')).toThrow(BadNativeChatFile);
+  });
+
+  it('缺欄位（不是這個格式）→ BadNativeChatFile', () => {
+    expect(() => parseNativeChat(JSON.stringify({ version: NATIVE_CHAT_EXPORT_VERSION }))).toThrow(
+      BadNativeChatFile,
+    );
   });
 });

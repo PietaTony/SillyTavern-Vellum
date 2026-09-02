@@ -23,9 +23,24 @@ You own **H1 · Chat Core**. `AGENTS.md` holds the rules this file does not repe
   `/api/settings/companion`，直接註冊在 `server/app.ts`——2026-08-28 由另一張 X3
   小票補的登記，第一版曾借掛在 `chatMessages.ts` 的 `/api/chats` 前綴下，已歸位）。
 - `server/lib/` — `chatFile.ts` `greetings.ts` `messageEdit.ts`
+  `historyTruncation.ts` 🔴 A2 抽檔票（2026-08-31）新增：`HISTORY_BYTE_BUDGET`／
+  `truncateHistory()`（GAP-37 對話歷史截斷）從 `services/buildTurn.ts` 搬出來——
+  純函式、無 IO，照 `lib`／`services` 既有分法本來就該在這裡；上一輪先做在
+  `buildTurn.ts` 是因為新增檔案要先開票宣告，這張票補上宣告與搬遷。
+  `maxResponseTokens.ts`
+  🔴 B5（2026-08-31）新增：AI 回應上限的邊界常數（256／65536／4096，鏡射
+  `generate.ts` Body schema——那支現在被 H5 借走，不能改，數字手動保持同步，
+  見該檔檔頭）。純常數、無 IO。**2026-08-31 收斂票**：持久化已經改走 X3
+  （`services/settings.ts`／`settingsModel.ts`＋`settingsLimits.ts`，見下方
+  `server/services/`），不再是獨立的 `maxResponseSettings.json`——這裡只留
+  三個邊界常數，那句舊註解「刻意不進 settings.json／X3」已經改掉，不是假的了。
 - `server/services/` — `chatModel.ts` `renderChat.ts` `buildTurn.ts` `greetingLore.ts`
   `landOpening.ts` `seedGreetingVars.ts` `commitPartialTurn.ts` `finishGenerateStream.ts`
-  🔴 These four are in `services/`, not `lib/`. `services/` touches IO; `lib/` is pure.
+  🔴 B5 的 `getMaxResponseTokens()`／`setMaxResponseTokens()` 現在是 `services/settings.ts`
+  （X3，無主）裡的兩個 export，不是這裡任何一支檔案——那支跟 `settingsModel.ts`／
+  新的 `server/lib/settingsLimits.ts` 都不在本檔 §1，改它們要跨層票。
+  🔴 These four (`chatModel.ts` … `finishGenerateStream.ts`) are in `services/`, not
+  `lib/`. `services/` touches IO; `lib/` is pure.
 
 **Tests** — `server/__tests__/<module>.test.ts` for any module above.
 

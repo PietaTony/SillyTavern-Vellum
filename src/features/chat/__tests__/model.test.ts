@@ -24,9 +24,14 @@ describe('SSE 解析', () => {
     expect(events[0]).toMatchObject({ type: 'done', finishReason: 'STOP' });
   });
 
-  it('error 事件被認出來', () => {
+  it('error 事件被認出來，沒有 retryable 欄位就當 false（跨層票 B6）', () => {
     const { events } = parseSse('event: error\ndata: {"message":"炸了"}\n\n');
-    expect(events[0]).toEqual({ type: 'error', message: '炸了' });
+    expect(events[0]).toEqual({ type: 'error', message: '炸了', retryable: false });
+  });
+
+  it('🔴 後端送了 retryable:true 要原封傳上去，不是一律當 false', () => {
+    const { events } = parseSse('event: error\ndata: {"message":"炸了","retryable":true}\n\n');
+    expect(events[0]).toEqual({ type: 'error', message: '炸了', retryable: true });
   });
 
   /**

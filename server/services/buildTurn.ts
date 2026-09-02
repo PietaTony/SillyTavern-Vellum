@@ -6,6 +6,7 @@
  * 分開放才守得住那條界線，也讓 `generate.ts` 回到 150 行以內。
  */
 import type { Chat } from './chatModel.ts';
+import { truncateHistory } from '../lib/historyTruncation.ts';
 import type { Character } from '../lib/character.ts';
 import { readJson } from '../adapters/storage.ts';
 import { displayOf } from '../lib/persona.ts';
@@ -15,10 +16,18 @@ import { substitute } from '../lib/macro.ts';
 import { applyRules } from '../lib/outputRules.ts';
 import { depthFromEnd, rulesOf } from './renderChat.ts';
 import { worldDepthPieces, worldForChat, worldSystemText, DEPTH_PRIORITY } from './promptWorld.ts';
+import { getHistoryByteBudget } from './settings.ts';
 
 export type Turn = {
   system: string;
   messages: { role: 'user' | 'assistant'; text: string }[];
+  /**
+   * A2（GAP-37）：這一輪被使用者可調的歷史位元組上限（`settings.ts` 的
+   * `getHistoryByteBudget()`，沒設過就用 `historyTruncation.ts` 的
+   * `DEFAULT_HISTORY_BYTE_BUDGET`）裁掉幾則舊訊息，0＝沒裁。
+   * 回傳出去、不留呼叫端再挖一次——同 `promptWorld.ts` 的 `WorldOutcome.trimmed` 先例。
+   */
+  historyDropped: number;
 };
 
 /**
@@ -66,8 +75,27 @@ export async function buildTurn(chat: Chat): Promise<Turn> {
    */
   const ch = await readJson<Character | null>(`characters/${chat.characterId}.json`, null);
   const rules = await rulesOf(ch);
-  const total = chat.messages.length;
-  const history = chat.messages.map((m, i) => {
+  // A2（GAP-37，2026-08-31 跨層票）：使用者可調的上限——沒設過就是
+  // `DEFAULT_HISTORY_BYTE_BUDGET`，這裡永遠現算，不快取（跟 persona 同一個理由：
+  // 使用者可能剛在設定頁改過，存起來的話這一輪還是用舊值）。
+  const historyByteBudget = (await getHistoryByteBudget()).bytes;
+  // A2（GAP-37）：先裁再算 depth——被裁掉的訊息連 rules/巨集都不用算，
+  // 而且留下來的是連續一段最新的，`depthFromEnd` 對「留下來的這些」算出來的
+  // 深度，跟對完整歷史算是同一個數字（深度是從**最後一則**往回數，
+  // 留下來的那段本來就是原陣列的尾巴，位置沒有變）。
+  const { kept: truncated, droppedCount: historyDropped } = truncateHistory(
+    chat.messages,
+    historyByteBudget,
+  );
+  if (historyDropped > 0) {
+    // 🔴 使用者今天看不到這行（同 `promptWorld.ts` 那句「靜默失敗」的註解）——
+    // 至少伺服器日誌上看得到，`historyDropped` 也回傳給呼叫端，資料在門口。
+    console.warn(
+      `[vellum] 對話 ${chat.id} 歷史超出 ${historyByteBudget} bytes，裁掉 ${historyDropped} 則舊訊息才送出這一輪（GAP-37）`,
+    );
+  }
+  const total = truncated.length;
+  const history = truncated.map((m, i) => {
     const ruledText = rules.length
       ? applyRules(m.text, rules, { target: 'prompt', depth: depthFromEnd(i, total) })
       : m.text;
@@ -104,5 +132,6 @@ export async function buildTurn(chat: Chat): Promise<Turn> {
       role: m.role === 'model' ? ('assistant' as const) : ('user' as const),
       text: m.text,
     })),
+    historyDropped,
   };
 }

@@ -19,27 +19,10 @@
  * 省略 ＝ 當作 `characterBook`（既有呼叫端從沒設過這欄，行為不變）。
  */
 
-export const WI_POSITION = {
-  beforeChar: 0,
-  afterChar: 1,
-  anTop: 2,
-  anBottom: 3,
-  atDepth: 4,
-  emTop: 5,
-  emBottom: 6,
-  outlet: 7,
-} as const;
-
-/** v3 卡內用字串，外部檔用數值。這張表是兩者的橋。 */
-const V3_POSITION: Record<string, number> = {
-  before_char: WI_POSITION.beforeChar,
-  after_char: WI_POSITION.afterChar,
-  before_an: WI_POSITION.anTop,
-  after_an: WI_POSITION.anBottom,
-  at_depth: WI_POSITION.atDepth,
-  before_em: WI_POSITION.emTop,
-  after_em: WI_POSITION.emBottom,
-};
+// 🔴 GAP-52 抽檔（A7 抽檔票 2026-08-31）：`WI_POSITION`／`V3_POSITION`／
+// position 解析邏輯搬到 `wiPosition.ts` 去了，這裡重新匯出保持既有 import 路徑不變。
+export { WI_POSITION, resolveCharacterBookPosition } from './wiPosition.ts';
+import { WI_POSITION, resolveCharacterBookPosition } from './wiPosition.ts';
 
 export type WbEntry = {
   uid: string;
@@ -116,7 +99,8 @@ export function fromCharacterBook(book: unknown): WbEntry[] {
   return rows.map((raw, i) => {
     const e = bag(raw);
     const x = bag(e['extensions']);
-    const pos = typeof e['position'] === 'string' ? V3_POSITION[e['position']] : undefined;
+    // 🔴 GAP-52 的優先序判準（extensions.position 贏過字串 fallback）搬進了
+    // `resolveCharacterBookPosition()`（`wiPosition.ts`）——說明見那支函式自己的註解。
     return {
       uid: String(e['id'] ?? i),
       keys: list(e['keys']),
@@ -129,7 +113,7 @@ export function fromCharacterBook(book: unknown): WbEntry[] {
       selective: bool(e['selective'], false),
       selectiveLogic: num(x['selectiveLogic'], 0),
       order: num(e['insertion_order'], 100),
-      position: pos ?? num(x['position'], WI_POSITION.beforeChar),
+      position: resolveCharacterBookPosition(e, x),
       depth: num(x['depth'], 4),
       role: typeof x['role'] === 'number' ? x['role'] : null,
       caseSensitive: bool(x['case_sensitive'], false),

@@ -124,6 +124,126 @@ describe('A3：worldForChat 真的把 budget 傳給 planInjection', () => {
     expect(warnSpy).not.toHaveBeenCalled(); // 沒裁就不該印——警告本身也要對「沒事」誠實
     warnSpy.mockRestore();
   });
+
+  /**
+   * 🔴 2026-08-31 換尺（字元數→UTF-8 位元組數）的反規回歸：舊制 `DEFAULT_WI_BUDGET`
+   * 是 `20_000` 字元；換尺前最壞情況（一本 20000 字、整本純中文的世界書）剛好卡在
+   * 邊界、不會被裁。換尺後單位變成位元組，若沒有同步調大 `DEFAULT_WI_BUDGET`，
+   * 中文一字 3 bytes ⇒ 這本世界書會被腰斬成只剩約 6666 字就被裁——這正是票所警告
+   * 的「本來不會被裁的內容，換尺後突然被裁」的災難。這支測試釘住「沒有發生」。
+   */
+  it('🔴 換尺前的最壞情況（20000 字純中文）換尺後仍然不被裁——沒有把安全網收緊', async () => {
+    const { worldForChat, writeJson, DEFAULT_WI_BUDGET } = await fresh();
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    const wholeChineseAtOldLimit = wbEntry({ uid: 'legacy-fit', content: '中'.repeat(20_000), order: 100 });
+    await writeJson(`worlds/char1.json`, {
+      version: 1,
+      characterId: 'char1',
+      entries: [wholeChineseAtOldLimit],
+      origin: { cardId: '', cardVersion: '', createDate: '', importedAt: '', entries: {} },
+    });
+
+    const outcome = await worldForChat(chat('char1'), null, []);
+
+    expect(DEFAULT_WI_BUDGET).toBeGreaterThanOrEqual(20_000 * 3); // 3 = UTF-8 下 BMP CJK 一字的 bytes
+    expect(outcome.trimmed).toBe(0); // 沒被裁——換尺沒有讓「本來不裁」變成「現在裁」
+    expect(outcome.plan.afterChar).toEqual([wholeChineseAtOldLimit.content]);
+    expect(warnSpy).not.toHaveBeenCalled();
+    warnSpy.mockRestore();
+  });
+
+  /**
+   * 🔴 GAP：上面「換尺前的最壞情況」那支反災難測試只釘了下界
+   * （`toBeGreaterThanOrEqual`）——PR #53 獨立驗收線實測：把 `DEFAULT_WI_BUDGET`
+   * 從 `60_000` 改成 `600_000`（大十倍），全部既有測試照樣綠燈。原因是上面那支
+   * 用的 fixture（`'F'.repeat(DEFAULT_WI_BUDGET - 10)`）**大小跟著常數一起長**，
+   * 常數變多大它都會過——那個設計是為了「換尺」不必依賴具體數值，代價就是
+   * 沒有人擋「常數被改到荒謬大」。常數被改到荒謬大等於退回沒有上限，
+   * 就是 PR #44 原本要修的洞（世界書無限塞爆 prompt，靜默發生）。這支測試補上界。
+   *
+   * 🔴 **上界怎麼推出來、為什麼是這個數字**（將來要調它的人重新推導這幾行，
+   * 不要直接改大）：
+   * - 這個 repo 沒有自己的「context window 上限」表（`historyTruncation.ts`
+   *   的 A2 票已經查過、Peter 否決了 26 家 per-model 表那條路，見該檔案
+   *   header），所以不能拿「我們的最大 context」當基準。
+   * - 改拿 ST 自己對「WI 預算的絕對值」設的上限當基準：ST 的 `world_info_budget`
+   *   本身是**相對 context 的百分比**（1–100，`world-info.js:73`），但 ST 另外
+   *   提供 `world_info_budget_cap`——一個**絕對值**覆寫（超過相對值算出來的
+   *   預算就用這個絕對值封頂，`world-info.js:4626-4628`），UI 把它的滑桿跟數字
+   *   輸入框都釘死在 `max="65536"`（`index.html:4730-4731`）——**65536 就是
+   *   ST 自己願意讓這個絕對值走到多大**，單位是 token
+   *   （跟 `getTokenCountAsync()` 比較，`world-info.js:4942`）。
+   * - 這個 repo 沒有 tokenizer，同 `historyTruncation.ts`／`wiInject.ts` 已經
+   *   立下的判準：1 token 最壞情況用 **3 bytes**（BMP CJK 一字）換算——
+   *   `historyTruncation.ts` 的 `DEFAULT_HISTORY_BYTE_BUDGET = 4000 × 3 = 12_000`
+   *   就是同一個乘數，這裡延用同一套，兩邊才「單位一致、可以直接比較」
+   *   （見 `historyTruncation.ts` header 對這兩個預算關係的說明）。
+   * - `65536 token × 3 bytes/token = 196_608 bytes`——這就是這支測試的上界。
+   *   `DEFAULT_WI_BUDGET`（60_000）離這個上界還有將近 3.3 倍餘裕，
+   *   PR #53 那次「改成 600_000」會直接超過，紅燈。
+   * - 這不是精算的 token 上限（同檔案其他地方反覆強調：本專案沒有真 tokenizer），
+   *   是「ST 自己都不讓這個值超過多少」的參照上界，跟下界那支的「換尺前最壞情況」
+   *   同一種**安全網**性質，不是校準過的效能邊界。
+   */
+  it('🔴 DEFAULT_WI_BUDGET 不能被改到「等於沒有上限」——回到 PR #44 要修的洞', async () => {
+    const { DEFAULT_WI_BUDGET } = await fresh();
+    // 65536 token（ST world_info_budget_cap 的 UI 上限，index.html:4730-4731）
+    // × 3 bytes/token（本 repo 的保守換算乘數，同 historyTruncation.ts:DEFAULT_HISTORY_BYTE_BUDGET）
+    const WI_BUDGET_UPPER_BOUND_BYTES = 65_536 * 3; // 196_608
+    expect(DEFAULT_WI_BUDGET).toBeLessThan(WI_BUDGET_UPPER_BOUND_BYTES);
+  });
+});
+
+/**
+ * 🔴 B8：`server/lib/wiLayers.ts` 的 `orderLayers()` 完整支援三種 `CHAR_STRATEGY`
+ * （evenly／characterFirst／globalFirst），但過去全 repo 唯一的生產呼叫端
+ * （`worldForChat`）沒有傳 `strategy` 給它 ⇒ 永遠吃參數預設值 `evenly`，
+ * 三種策略選了也沒差。
+ *
+ * 🔴 **為什麼要用「同 order」的資料**：`wiInject.ts` 的 `planInjection()` 事後又對
+ * `activated` 做一次全域 `order` 排序（`byOrderDesc`），如果 global／character
+ * 兩條的 `order` 不同，那次全域排序會直接蓋掉 `orderLayers()` 決定的層序，
+ * 讓「策略有沒有接上」在最終輸出上完全看不出差異。兩條給**同一個 order**，
+ * 讓 `planInjection` 內部的排序落回「穩定排序＝保留輸入順序」，
+ * `orderLayers()` 決定的先後才會真的滲透到最終文字順序——這正是這支測試
+ * 要驗的「同一份資料、不同策略，輸出順序不同」。
+ *
+ * 🔴 **推導出來的具體順序**（`wiInject.ts` 的 unshift 陷阱：處理順序會被反過來）：
+ * `CHAR_STRATEGY.characterFirst` 讓 `orderLayers()` 吐出 `[character, global]`，
+ * 經過 `planInjection` 的 unshift 反轉後，最終 `afterChar` 是 `[global內容, character內容]`。
+ * 挖空（`promptWorld.ts` 改回不傳 `DEFAULT_WI_STRATEGY`）會落回 `evenly`，
+ * `orderLayers()` 吐出 `[global, character]`（同 order 時 `evenly` 保留這個串接順序），
+ * 反轉後變成 `[character內容, global內容]`——跟 wired 版本的順序**相反**，
+ * 這裡的斷言會紅。
+ */
+describe('B8：worldForChat 真的把 strategy 傳給 orderLayers（不再永遠是 evenly）', () => {
+  it('🔴 global 與 character 用同一個 order 時，最終順序照 CHAR_STRATEGY.characterFirst 排——不是預設的 evenly', async () => {
+    const { worldForChat, writeJson } = await fresh();
+
+    const character = wbEntry({ uid: 'char-entry', content: '角色書內容', order: 100 });
+    await writeJson(`worlds/char1.json`, {
+      version: 1,
+      characterId: 'char1',
+      entries: [character],
+      origin: { cardId: '', cardVersion: '', createDate: '', importedAt: '', entries: {} },
+    });
+
+    const globalBook = wbEntry({ uid: 'global-entry', content: '全域書內容', order: 100 });
+    await writeJson(`worlds/global1.json`, {
+      version: 1,
+      characterId: 'global1',
+      entries: [globalBook],
+      origin: { cardId: '', cardVersion: '', createDate: '', importedAt: '', entries: {} },
+    });
+    await writeJson('settings.json', { globalWorlds: [{ id: 'global1', name: '全域書' }] });
+
+    const outcome = await worldForChat(chat('char1'), null, []);
+
+    expect(outcome.activated).toBe(2);
+    // 🔴 這就是本次要補的洞：characterFirst ⇒ 反轉後全域內容排在角色內容之前。
+    // 挖空（不傳 strategy，落回 evenly）會變成 ['角色書內容', '全域書內容']——順序相反，斷言會紅。
+    expect(outcome.plan.afterChar).toEqual(['全域書內容', '角色書內容']);
+  });
 });
 
 /**

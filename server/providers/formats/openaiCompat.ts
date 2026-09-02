@@ -11,7 +11,7 @@ import { authHeaders, resolveUrl } from './shared.ts';
 type Chunk = {
   choices?: { delta?: { content?: string; reasoning_content?: string }; finish_reason?: string | null }[];
   usage?: { prompt_tokens?: number; completion_tokens?: number };
-  error?: { message?: string };
+  error?: { message?: string; code?: number | string };
 };
 
 /**
@@ -63,7 +63,17 @@ export const openaiCompat: Adapter = {
 
   parse(data): ProviderEvent[] {
     const c = data as Chunk;
-    if (c.error?.message) return [{ type: 'error', message: c.error.message, retryable: false }];
+    if (c.error?.message) {
+      // 🔴 **22 家共用，不挑某一家的錯誤字串**（跨層票 B6）：`code` 的型別本身就是
+      // 跨家訊號——真打驗證：OpenRouter（gateway 型，代理多家）壞金鑰回
+      // `{"error":{"code":401,...}}`，`code` 是數字，那是它把內層真實供應商的 HTTP
+      // status 正規化過來的慣例；OpenAI／DeepSeek（原生）壞金鑰回 `code:"invalid_api_key"`
+      // ／`"invalid_request_error"`，是字串。數字 429／5xx＝限流或過載，可重試；
+      // 字串一律不猜語意，不重試。
+      const code = c.error.code;
+      const retryable = typeof code === 'number' && (code === 429 || code >= 500);
+      return [{ type: 'error', message: c.error.message, retryable }];
+    }
     const out: ProviderEvent[] = [];
     const d = c.choices?.[0]?.delta;
     // 🔴 `reasoning_content` 是 DeepSeek／部分 OpenRouter 模型的思考區塊 ——

@@ -25,7 +25,15 @@ export const gemini: Adapter = {
 
   parse(data): ProviderEvent[] {
     const c = data as GeminiChunk;
-    if (c.error?.message) return [{ type: 'error', message: c.error.message, retryable: false }];
+    if (c.error?.message) {
+      // 🔴 **不是寫死 false**（跨層票 B6）：Google 全家 API 共用 google.rpc.Status
+      // 慣例，`error.code` 是數字 HTTP 狀態碼——真打驗證：壞金鑰打 `models` 端點與
+      // `streamGenerateContent` 端點都回 `{"error":{"code":400,...}}`，兩處一致。
+      // 429／5xx 是限流或過載，可重試；其餘（含這個 400）是設定錯的。
+      const code = c.error.code;
+      const retryable = typeof code === 'number' && (code === 429 || code >= 500);
+      return [{ type: 'error', message: c.error.message, retryable }];
+    }
     const { text, finishReason } = parseChunk(c);
     const out: ProviderEvent[] = [];
     if (text) out.push({ type: 'delta', kind: 'text', text });

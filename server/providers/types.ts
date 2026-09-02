@@ -109,3 +109,14 @@ export type Adapter = {
 export type ModelsResult =
   | { ok: true; models: string[] }
   | { ok: false; status: number; message: string };
+
+/**
+ * 🔴 **`retryable` 的其中一半判準**（跨層票 B6，2026-08-31）：HTTP 狀態碼本身就是
+ * 跨供應商通用的訊號——真打驗證（Google／OpenAI／Anthropic／Cohere／OpenRouter／
+ * DeepSeek 六家用壞金鑰各打一次）四家原生供應商全部在**串流開始前**就用標準 HTTP
+ * status 拒絕（401/400），不是靠猜某一家的錯誤字串。429／5xx 是臨時性的（限流、
+ * 過載），其餘 4xx 是設定錯的（金鑰／模型／內容），重試沒有用。
+ */
+export function retryableFromStatus(status: number): boolean {
+  return status === 429 || status >= 500;
+}

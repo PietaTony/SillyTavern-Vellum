@@ -44,3 +44,4 @@ export { WorldBookHead } from './ui/WorldBookHead';
 export { WorldList } from './ui/WorldList';
 export { WorldPicker } from './ui/WorldPicker';
 export { useEntryDraft } from './useEntryDraft';
+export { useGlobalWorldMutations } from './useGlobalWorldMutations';

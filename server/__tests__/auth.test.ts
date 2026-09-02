@@ -195,6 +195,54 @@ describe('存取密碼', () => {
     expect(lastStatus).toBe(429);
   });
 
+  /**
+   * 🔴 GAP：登出不撤銷 token（2026-08-31 A5）。session 是 stateless HMAC cookie，
+   * `/logout` 原本只回清空用的 `Set-Cookie`——瀏覽器丟掉它之後這條路走不通，但
+   * **舊 cookie 本身直到過期都還過得了 `sessionValid()`**，重放一樣 200。
+   * 存取密碼整套的存在理由是「開遠端連線前必須先設密碼」，這個洞正好落在
+   * 會用到登出的那群人（開了區網／Tailscale）的路徑上。
+   */
+  it('🔴 登出後重放舊 cookie 會被拒絕', async () => {
+    const a = await app();
+    const cookie = await setPassword(a, 'long-enough');
+    const before = await a.request('/api/settings/companion', { headers: cookieHeader(cookie) });
+    expect(before.status).toBe(200);
+
+    const out = await a.request('/api/auth/logout', { method: 'POST', headers: cookieHeader(cookie) });
+    expect(out.status).toBe(204);
+
+    // 重放登出前發出的舊 cookie——不是登出回應清空用的那個
+    const replay = await a.request('/api/settings/companion', { headers: cookieHeader(cookie) });
+    expect(replay.status).toBe(401);
+  });
+
+  it('登出不影響正常登入——重新登入拿到的新 cookie 仍然有效', async () => {
+    const a = await app();
+    const first = await setPassword(a, 'long-enough');
+    await a.request('/api/auth/logout', { method: 'POST', headers: cookieHeader(first) });
+
+    const login = await a.request('/api/auth/login', {
+      method: 'POST',
+      headers: H,
+      body: JSON.stringify({ password: 'long-enough' }),
+    });
+    expect(login.status).toBe(204);
+    const fresh = await a.request('/api/settings/companion', {
+      headers: cookieHeader(login.headers.get('set-cookie')),
+    });
+    expect(fresh.status).toBe(200);
+  });
+
+  it('登出撤銷是寫進磁碟的——重啟後（新的 app() 實例、同一份資料）舊 cookie 依然被拒', async () => {
+    const a = await app();
+    const cookie = await setPassword(a, 'long-enough');
+    await a.request('/api/auth/logout', { method: 'POST', headers: cookieHeader(cookie) });
+
+    const restarted = await app(); // 同一個 root，模擬程序重啟後重新載入 auth.json
+    const replay = await restarted.request('/api/settings/companion', { headers: cookieHeader(cookie) });
+    expect(replay.status).toBe(401);
+  });
+
   it('不同真實連線不會互相鎖住——單純沒帶的舊 bug 也不該回來', async () => {
     const a = await app();
     await setPassword(a, 'long-enough');

@@ -3,22 +3,37 @@
  *
  * 🔴 加 `auth.json` 的六題（對照 `settingsModel.ts` 的 `exposeNetwork`）：
  * ① 加了什麼 —— `{ passwordHash, salt, sessionSecret }`，語意「這台 instance 的存取密碼」。
- * ② 為何非加不可 —— README 已承諾「之後會加密碼」；`exposeNetwork` 開了之後
- *    連得到的人等於使用者本人，不能繼續裸奔。
- * ③ 為何不用既有的 —— `secrets.json` 是 LLM 金鑰；`settings.json` 會被卡片
- *    `global` 變數端點間接碰到，密碼 hash 不該跟設定混寫。
+ * ② 為何非加不可 —— README 已承諾「之後會加密碼」；`exposeNetwork` 開了之後連得到的人等於使用者本人，不能繼續裸奔。
+ * ③ 為何不用既有的 —— `secrets.json` 是 LLM 金鑰；`settings.json` 會被卡片 `global` 變數端點間接碰到，密碼 hash 不該跟設定混寫。
  * ④ 對既有資料的影響 —— 零；沒有 `auth.json` ⇒ 視為未設密碼，行為與現在相同。
  * ⑤ 誰讀誰寫 —— 寫：`PUT/DELETE /api/auth/password`；讀：`authGuard`、`/api/auth/status`。
  * ⑥ 可逆 —— 刪 `auth.json` 或 `DELETE /api/auth/password`（未開放連線時）。
  *
- * 🔴 **session 用 signed cookie，不用 server 端 session 表** —— 單 process、單人，
- * 重啟後全部登出是可接受的；少一個要遷移的狀態檔。
- * ⚠️ **變更密碼不主動踢舊 session**（Phase 1）—— 只有一台裝置在改密碼的話夠用；
- * 若要「改密碼後全部重登」是 Phase 2（rotate `sessionSecret`）。
+ * 🔴 **session 用 signed cookie，不用 server 端 session 表** —— 單 process、單人，重啟後全部登出是可接受的；少一個要遷移的狀態檔。
+ * ⚠️ **變更密碼不主動踢舊 session**（Phase 1）—— 只有一台裝置在改密碼的話夠用；若要「改密碼後全部重登」是 Phase 2（rotate `sessionSecret`）。
+ * 🔴 **`/logout` 撤銷靠的正是上面那句話裡提到的 Phase 2 手法，只是觸發點換成登出**（2026-08-31 A5，見 `auth.ts` 檔頭）：`revokeSession()` 直接輪替
+ * `sessionSecret` 並寫回 `auth.json`。舊 cookie 的簽章是用舊 secret 算的，`sessionValid()` 一律拿**當下**的 secret 重新驗簽 ⇒ 舊 cookie 立刻簽章對不上，
+ * 不需要另外維護一張 session 表、也不需要在 cookie payload 裡加欄位。⇒ **副作用**：單一使用者、單一共享密碼的模型下，這會讓「這台 instance 當下
+ * 所有裝置的 session」一起失效，不是只登出按下按鈕的那一台——跟 ST 用同一個帳號版本雜湊讓所有 session 一起失效是同一個取捨（見 `users.js:993-1001`），
+ * 對單人 app 是可接受、甚至更符合「登出」語意的行為。⇒ **重啟後仍然有效**：新 secret 寫進 `auth.json`（磁碟），不是記憶體內的
+ * 撤銷清單——跟 rate limit 那份「重啟就清零」的取捨不同類，這裡重啟不會讓舊 cookie 復活。
+ * 🔴 **`auth.json` 沒有鎖**（`storage.ts` 的 `readJson`／`writeJson` 是整包讀寫，不是 compare-and-swap）——`setPassword()` 跟 `revokeSession()` 都是「讀
+ * prev、算、寫回」，兩個併發跑會撞出遺失更新：`/logout` 剛把 `sessionSecret` 換成新的，緊接著完成寫入的 `setPassword()`（改密碼）卻用它自己更早讀到的
+ * 舊 `sessionSecret` 蓋回去——登出前發出的舊 cookie 因此重新變得有效（2026-08-31 PR #56 獨立驗收親手重現，見 `server/__tests__/authStoreRace.test.ts`，
+ * 使用者最可能同時做「登出」跟「改密碼」的時候，正是他懷疑帳號被盜的時候）。⇒ `withAuthLock()` 用一個模組內的 promise 佇列序列化所有「讀 auth.json、
+ * 算、寫回」的操作——單一 Node process、單人 app（見上面「單 process」那句話已經在講的前提），不需要跨程序的檔案鎖。任何新的讀-改-寫路徑都要包這一層，
+ * 不要各自繞過去用裸的 `load()`／`save()`。
  */
 import { createHmac, randomBytes, scrypt, timingSafeEqual } from 'node:crypto';
 import { promisify } from 'node:util';
 import { readJson, writeJson } from '../adapters/storage.ts';
+
+let authLock: Promise<unknown> = Promise.resolve();
+function withAuthLock<T>(fn: () => Promise<T>): Promise<T> {
+  const run = authLock.then(fn, fn);
+  authLock = run.then(() => undefined, () => undefined);
+  return run;
+}
 
 const scryptAsync = promisify(scrypt);
 const SESSION_DAYS = 30;
@@ -43,12 +58,15 @@ async function hashPassword(password: string, salt: Buffer): Promise<string> {
 export async function setPassword(password: string): Promise<void> {
   if (password.length < 8) throw new Error('密碼至少 8 個字元');
   const salt = randomBytes(16);
+  // scrypt 是 CPU 工作、不碰檔案，留在鎖外面——只有「讀 prev、寫回」這段才需要跟 revokeSession() 互斥。
   const passwordHash = await hashPassword(password, salt);
-  const prev = await load();
-  await save({
-    passwordHash,
-    salt: salt.toString('base64'),
-    sessionSecret: prev.sessionSecret ?? randomBytes(32).toString('base64'),
+  await withAuthLock(async () => {
+    const prev = await load();
+    await save({
+      passwordHash,
+      salt: salt.toString('base64'),
+      sessionSecret: prev.sessionSecret ?? randomBytes(32).toString('base64'),
+    });
   });
 }
 
@@ -70,7 +88,7 @@ export async function changePassword(current: string, next: string): Promise<voi
 
 export async function clearPassword(current: string): Promise<void> {
   if (!(await verifyPassword(current))) throw new Error('目前密碼不正確');
-  await save({});
+  await withAuthLock(() => save({}));
 }
 
 function sign(payload: string, secret: string): string {
@@ -88,6 +106,18 @@ export async function makeSessionCookie(): Promise<string> {
 
 export const clearSessionCookie = (): string =>
   `${COOKIE}=; Path=/; HttpOnly; SameSite=Strict; Max-Age=0`;
+
+/**
+ * 登出撤銷：輪替 `sessionSecret`，讓所有用舊 secret 簽出的 cookie 立刻簽章失效——不需要記住是哪一張 cookie，因為單人 app 只有一把共享 secret（見檔頭）。
+ * 沒設過密碼（沒有 `passwordHash`／`sessionSecret`）時是 no-op：沒有 session 可撤銷，也不該無中生有寫出一個孤兒 secret。
+ */
+export async function revokeSession(): Promise<void> {
+  await withAuthLock(async () => {
+    const a = await load();
+    if (!a.passwordHash || !a.sessionSecret) return;
+    await save({ ...a, sessionSecret: randomBytes(32).toString('base64') });
+  });
+}
 
 export async function sessionValid(cookieHeader: string | undefined): Promise<boolean> {
   const a = await load();

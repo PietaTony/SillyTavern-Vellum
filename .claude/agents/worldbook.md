@@ -18,6 +18,11 @@ You own **H3 · World Info**. `AGENTS.md` holds the rules this file does not rep
 - `server/lib/` — `worldbook.ts` `wiInject.ts` `wiSelect.ts` `wiMatch.ts` `wiLayers.ts` `wiLines.ts`
   `wiEdit.ts` `wiBindings.ts` `charWorld.ts` `globalWorld.ts` `worldList.ts`
   `worldPresets.ts` `worldPresetEntries.ts` `loreRules.ts` `loreTags.ts`
+  `wiPosition.ts` 🔴 A7 抽檔票（2026-08-31，`INBOX/20260831-a7-extract-position.md`）新增：
+  `WI_POSITION`／`V3_POSITION`／`resolveCharacterBookPosition()`（GAP-52 的
+  extensions.position 優先序判準）從 `worldbook.ts` 搬出來——GAP-52 修法後
+  `worldbook.ts` 漲到 154 行，超過 `gate:file-size` 的 150 上限；`worldbook.ts`
+  仍重新匯出 `WI_POSITION`，既有 import 路徑不用改。
 - `server/services/promptWorld.ts` — the sole interface between world info and prompt assembly
 
 **Tests** — `server/__tests__/<module>.test.ts` for any module above.

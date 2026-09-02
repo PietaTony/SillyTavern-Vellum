@@ -20,6 +20,7 @@ import {
   Thread,
   UsageReadout,
   useChatStream,
+  useMaxResponseTokensQuery,
   useSwipeMessage,
 } from '@/features/chat';
 import { Screen } from '@/shared/ui/Screen';
@@ -35,17 +36,16 @@ function ChatPage() {
     queryFn: () => fetchCharacter(q.data?.characterId ?? ''),
     enabled: Boolean(q.data?.characterId),
   });
-
   // 🔴 這一間自己的背景蓋過全站那張。**必須在所有早退之前**呼叫（理由見該檔檔頭）。
   useChatBackgroundOverride(q.data?.background, q.data?.backgroundFitting);
-
   // 點對方頭像開的角色設定層。🔴 對話中唯讀（Peter 2026-08-26）。
   const [showChar, setShowChar] = useState(false);
   // ☰ →「換開場」開的候選目錄（M12 第三批）。同一個元件，第三個入口。
   const [showGreetings, setShowGreetings] = useState(false);
-  // 🔴 生成完要重讀（理由見 `useChatStream` 的 `onDone`）。
-  const { messages, streaming, generation, failure, setFailure, send, regenerate, reset, stop } =
-    useChatStream(chatId, q.data?.messages, () => q.refetch());
+  const maxResp = useMaxResponseTokensQuery();
+  // 🔴 生成完要重讀（理由見 `useChatStream` 的 `onDone`）。B5 那顆值見 `useMaxResponseTokens.ts`。
+  const { messages, streaming, generation, failureBanner, send, regenerate, reset, stop } =
+    useChatStream(chatId, q.data?.messages, () => q.refetch(), maxResp.data?.tokens);
   const swipe = useSwipeMessage(chatId, () => q.refetch(), reset);
 
   // 🔴 型別邊界不是動 H6：dropUnknownSwipeIndex 理由見 `features/chat/swipeDisplay.ts`。
@@ -92,7 +92,7 @@ function ChatPage() {
       // ⇒ 擺在 children 裡會被擠出容器、疊到輸入框上（Peter 2026-08-27 的截圖）。
       footer={
         <>
-          {failure ? <ChatFailure message={failure} onDismiss={() => setFailure(null)} /> : null}
+          {failureBanner ? <ChatFailure {...failureBanner} /> : null}
           <UsageReadout usage={generation.usage} />
           <Composer chatId={chatId} busy={streaming !== null} onSend={send} />
         </>

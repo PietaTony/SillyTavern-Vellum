@@ -164,3 +164,68 @@ describe('DELETE /api/global-worlds/:id', () => {
     expect(r.status).toBe(404);
   });
 });
+
+/**
+ * 🔴 B9 + 驗收線敵意驗收（2026-08-31）：`z.string().min(1)` 只檢查**原始字串**長度，
+ * 純空白 `"   "` 長度是 3、直接通過驗證 ⇒ 後端曾經 200 接受一個純空白名字，
+ * 清單上會出現一本「看起來是空白」的書。`.trim()` 要接在 `.min(1)` 之前
+ * （見 `globalWorlds.ts` 的 PATCH 檔頭），這裡釘住三種邊界：純空白拒絕、
+ * 前後夾雜空白會被存成 trim 過的版本、正常改名成功。
+ */
+describe('PATCH /api/global-worlds/:id', () => {
+  const patch = (a: App, id: string, body: unknown) =>
+    a.request(`/api/global-worlds/${id}`, { method: 'PATCH', headers: H, body: JSON.stringify(body) });
+
+  it('🔴 純空白名字要擋——不是後端唯一防線繞過去就能存出一本清單上看起來是空白的書', async () => {
+    const a = await app();
+    const { id, name: before } = (await (await post(a)).json()) as { id: string; name: string };
+
+    const r = await patch(a, id, { name: '   ' });
+    expect(r.status).toBe(400);
+
+    // 沒改成功——原本的名字要還在，不是被空白蓋掉又擋在回應層。
+    const items = (await (await a.request('/api/global-worlds', { headers: H })).json()) as {
+      items: { id: string; name: string }[];
+    };
+    expect(items.items.find((x) => x.id === id)?.name).toBe(before);
+  });
+
+  it('🔴 前後夾雜空白要存成 trim 過的版本，不是原封不動存進去', async () => {
+    const a = await app();
+    const { id } = (await (await post(a)).json()) as { id: string };
+
+    const r = await patch(a, id, { name: '  改過的名字  ' });
+    expect(r.status).toBe(200);
+    expect(((await r.json()) as { name: string }).name).toBe('改過的名字');
+
+    const items = (await (await a.request('/api/global-worlds', { headers: H })).json()) as {
+      items: { id: string; name: string }[];
+    };
+    expect(items.items.find((x) => x.id === id)?.name).toBe('改過的名字');
+  });
+
+  it('正常改名會成功，且清單讀得到新名字', async () => {
+    const a = await app();
+    const { id } = (await (await post(a)).json()) as { id: string };
+
+    const r = await patch(a, id, { name: '一本好記的名字' });
+    expect(r.status).toBe(200);
+
+    const items = (await (await a.request('/api/global-worlds', { headers: H })).json()) as {
+      items: { id: string; name: string }[];
+    };
+    expect(items.items.find((x) => x.id === id)?.name).toBe('一本好記的名字');
+  });
+
+  it('改不存在的書回 404', async () => {
+    const r = await patch(await app(), 'nope1', { name: '隨便' });
+    expect(r.status).toBe(404);
+  });
+
+  it('超過 80 字回 400', async () => {
+    const a = await app();
+    const { id } = (await (await post(a)).json()) as { id: string };
+    const r = await patch(a, id, { name: 'x'.repeat(81) });
+    expect(r.status).toBe(400);
+  });
+});

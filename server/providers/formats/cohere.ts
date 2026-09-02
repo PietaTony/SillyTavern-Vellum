@@ -46,6 +46,12 @@ export const cohere: Adapter = {
 
   parse(data): ProviderEvent[] {
     const c = data as Chunk;
+    // 🔴 **不是懶得判，是真打驗證過沒有可判的欄位**（跨層票 B6）：Cohere 的錯誤信封
+    // 一律是 `{id, message}`（真打四種情境：無金鑰／壞金鑰／缺 model／list models 壞
+    // 金鑰，四次形狀完全一樣），沒有 `type`／`code`／`status` 可用來分辨限流跟設定
+    // 錯誤。**這裡的 false 是誠實的「這一層判不出來」**，不是漏判——Cohere 真正的
+    // 429／5xx 幾乎都在 `!upstream.ok`（`generate.ts`）就被 HTTP 狀態碼攔下來了，
+    // 走不到這裡；這裡守的是「200 已經開始串流之後才出錯」那個窄很多的情境。
     if (c.message && !c.type) return [{ type: 'error', message: c.message, retryable: false }];
     // 🔴 delta 藏在 `delta.message.content.text`，比另外三家多兩層
     if (c.type === 'content-delta') {
