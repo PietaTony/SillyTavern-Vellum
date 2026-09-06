@@ -176,4 +176,110 @@ describe('匯入 → PATCH 世界書開關 → 匯出', () => {
     };
     expect(back.data.character_book.entries.every((e) => e.enabled)).toBe(true);
   });
+
+  /**
+   * 🔴 GAP（20260901 開票）：上面三支測試的 fixture 全部明確給了 `enabled: true`／
+   * `false` —— `cardMerge.ts` 的 `have` 預設分支（條目根本沒有 `enabled` 欄位、
+   * 或 `enabled` 是非 boolean 髒型別）在 PATCH → 匯出這條真實組合路徑上零覆蓋。
+   * 這兩支補的是**同一顆坑在 HTTP 路徑上的樣子**：PATCH 只改 `worlds/<id>.json`
+   * 副本，從不碰 PNG 裡的原始 `character_book.entries[]`（見 `characterMedia.ts`
+   * 檔頭），所以匯出時 `mergeWorldToggles` 讀到的 `raw['enabled']` 仍然是卡片
+   * 原本那個缺欄位／髒型別的值 —— 跟 `cardMerge.test.ts` 的單元測試守的是同一行，
+   * 只是這裡連 import 解析（`worldbook.ts` 自己另一套 `bool(e['enabled'], true)`
+   * 預設）跟 PATCH 寫入都一起跑過一遍。
+   */
+  it('🔴 卡片裡沒有 `enabled` 欄位的條目被 PATCH 關掉：匯出後要看到明確布林 enabled:false', async () => {
+    const a = await app();
+    const noFieldV3 = {
+      ...v3,
+      data: {
+        ...v3.data,
+        character_book: {
+          ...v3.data.character_book,
+          entries: [
+            // 🔴 完全沒有 `enabled` 這個鍵 —— 不是 `enabled: true`
+            { id: 2, keys: ['缺欄位'], content: '缺欄位的內容', extensions: { probability: 20 } },
+          ],
+        },
+      },
+    };
+    const png = await cardPng(noFieldV3);
+
+    const up = await a.request('/api/characters/import', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/octet-stream' },
+      body: new Uint8Array(png),
+    });
+    expect(up.status).toBe(201);
+    const created = (await up.json()) as { id: string };
+
+    // 匯入時卡片沒有 `enabled` 欄位 ⇒ `worldbook.ts` 的 `bool(e['enabled'], true)`
+    // 讓它一開始就被視為開著 —— 這裡把它關掉。
+    const patch = await a.request(`/api/characters/${created.id}/world/2`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ enabled: false }),
+    });
+    expect(patch.status).toBe(200);
+
+    const down = await a.request(`/api/characters/${created.id}/card.png`);
+    expect(down.status).toBe(200);
+    const out = Buffer.from(await down.arrayBuffer());
+
+    const { readCard } = await import('../lib/card.ts');
+    const back = readCard(out).payloads['ccv3'] as {
+      data: { character_book: { entries: { id: number; enabled: boolean; content: string }[] } };
+    };
+    const entry = back.data.character_book.entries.find((e) => e.id === 2);
+    // 🔴 這一條直接對到 cardMerge.ts 的 `have` 預設：改成 `: false` 會讓匯出時
+    // 誤判「本來就一樣」而跳過寫入，`enabled` 會停留在缺欄位狀態 —— 使用者關掉的
+    // 條目匯出後又悄悄變回開著。
+    expect(entry?.enabled).toBe(false);
+    expect(entry?.content).toBe('缺欄位的內容');
+  });
+
+  it('🔴 卡片裡 `enabled` 是髒型別（字串 "false"）的條目被 PATCH 關掉：匯出後要看到布林 false，不是原本的字串', async () => {
+    const a = await app();
+    const dirtyV3 = {
+      ...v3,
+      data: {
+        ...v3.data,
+        character_book: {
+          ...v3.data.character_book,
+          entries: [
+            // 🔴 `enabled` 是字串 "false"，不是 boolean —— 髒型別（PR #57 同型污染）
+            { id: 3, keys: ['髒型別'], content: '髒型別的內容', enabled: 'false' },
+          ],
+        },
+      },
+    };
+    const png = await cardPng(dirtyV3);
+
+    const up = await a.request('/api/characters/import', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/octet-stream' },
+      body: new Uint8Array(png),
+    });
+    expect(up.status).toBe(201);
+    const created = (await up.json()) as { id: string };
+
+    const patch = await a.request(`/api/characters/${created.id}/world/3`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ enabled: false }),
+    });
+    expect(patch.status).toBe(200);
+
+    const down = await a.request(`/api/characters/${created.id}/card.png`);
+    expect(down.status).toBe(200);
+    const out = Buffer.from(await down.arrayBuffer());
+
+    const { readCard } = await import('../lib/card.ts');
+    const back = readCard(out).payloads['ccv3'] as {
+      data: { character_book: { entries: { id: number; enabled: boolean; content: string }[] } };
+    };
+    const entry = back.data.character_book.entries.find((e) => e.id === 3);
+    expect(entry?.enabled).toBe(false);
+    expect(entry?.content).toBe('髒型別的內容');
+  });
 });
