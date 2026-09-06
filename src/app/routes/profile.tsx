@@ -52,6 +52,10 @@ function MePage() {
     // 🔴 **已綁定的世界書要帶進來**。漏掉的話選擇器會顯示「沒有綁定」——
     // 那是**謊話**，而且使用者一存檔就真的把綁定洗掉了。
     lorebookId: current?.lorebookId ?? '',
+    // 🔴 **同一種坑**（GAP-68）：漏掉這兩個的話，選單會顯示引擎預設值而不是
+    // 已存的值，使用者一存檔就把原本設定的 position／depth 洗成預設。
+    position: current?.position ?? 'in_prompt',
+    depth: current?.depth ?? 4,
   };
 
   const save = useMutation({

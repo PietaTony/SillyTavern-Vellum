@@ -12,6 +12,7 @@ import { readImageScaled, toDataUrl } from '@/shared/lib/image';
 import { DraftField } from '@/shared/ui/DraftField';
 import { pushToast } from '@/shared/ui/toastStore';
 import type { PersonaDraft } from '../api';
+import { PersonaPositionFields } from './PersonaPositionFields';
 
 /**
  * 「我是誰」的編輯器。
@@ -92,7 +93,6 @@ export function PersonaEditor({
           placeholder="對方會這樣稱呼你"
         />
       </Stack>
-
       <Button
         variant="outlined"
         size="small"
@@ -102,13 +102,11 @@ export function PersonaEditor({
       >
         透過圖片自動生成內容
       </Button>
-
       {renamed ? (
         <Alert severity="info">
           改名之後，<b>之前訊息裡的舊名字不會跟著改</b>。對方可能會把舊名字當成另一個人。
         </Alert>
       ) : null}
-
       {/* 🔴 這是全站**唯一會打很長**的欄位（金鑰跟名字掉了重貼就好，這個掉了很痛）。 */}
       <DraftField
         draftKey={PERSONA_DRAFT.description}
@@ -124,6 +122,12 @@ export function PersonaEditor({
         名字決定對方怎麼稱呼你；自我介紹會整段讓對方知道。兩者可以只填一個。
       </Typography>
 
+      {/* 🔴 ST 落差重掃：引擎早就支援，`src/features/persona/` 底下一直沒有控制項。 */}
+      <PersonaPositionFields
+        position={value.position ?? 'in_prompt'}
+        depth={value.depth ?? 4}
+        onChange={(patch) => onChange({ ...value, ...patch })}
+      />
       {/*
        * 🔴 **C6 把 `lorebookId` 這個孤兒欄位接起來**（階段八）。
        * 在此之前欄位做好了、prompt 也真的會讀它，但沒有任何地方可以選 ——
@@ -136,7 +140,6 @@ export function PersonaEditor({
         onChange={(id) => onChange({ ...value, ...(id ? { lorebookId: id } : { lorebookId: '' }) })}
         hint="跟著「你」走的設定，不管跟誰聊天都會生效。選的是某位好友那一本 —— 在那邊改條目，這裡也會跟著變。"
       />
-
       <Button variant="contained" loading={saving} disabled={!value.name.trim()} onClick={onSave}>
         儲存
       </Button>

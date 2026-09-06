@@ -26,6 +26,27 @@ const Body = z.object({
   lorebookId: z.string().optional(),
 });
 
+/**
+ * 🔴 **PATCH 不可以從 `Body.partial()` 生出來**——跟 `characterEdit.ts` 的
+ * `EditBody` 同一個坑（那支檔頭有解釋）：`Body` 的欄位帶 `.default(...)`，
+ * `.partial()` 只是把每個欄位包一層 `.optional()`，**不會拿掉裡面的
+ * `.default()`**。實測抓到（`personasPosition.test.ts`）：PATCH 只送
+ * `{ depth: 12 }`，沒送 `position`，結果 `position` 被 zod 的預設值
+ * `'in_prompt'` 蓋掉、`description` 被 `''` 蓋掉——使用者只想改深度，
+ * 卻把自我介紹跟位置都洗掉了，是 GAP-68「half a card persisted」同一類坑。
+ * ⇒ 這裡自己宣告一份全 optional、**沒有任何 default** 的 schema。
+ */
+const PatchBody = z.object({
+  name: z.string().min(1).optional(),
+  avatar: z.string().optional(),
+  description: z.string().optional(),
+  position: z.enum(PERSONA_POSITION).optional(),
+  depth: z.number().optional(),
+  role: z.number().optional(),
+  title: z.string().optional(),
+  lorebookId: z.string().optional(),
+});
+
 /** 誰正在引用這個 persona —— 刪除前要問的問題。 */
 async function referencedBy(id: string): Promise<{ chats: number; friends: number; isDefault: boolean }> {
   const [chats, friends, settings] = [
@@ -73,7 +94,7 @@ export const personas = new Hono()
     if (!id) return c.json({ error: '找不到這個 persona' }, 404);
     const cur = await readJson<Persona | null>(`personas/${id}.json`, null);
     if (!cur) return c.json({ error: '找不到這個 persona' }, 404);
-    const parsed = Body.partial().safeParse(await c.req.json());
+    const parsed = PatchBody.safeParse(await c.req.json());
     if (!parsed.success) return c.json({ error: '參數不合法' }, 400);
     const next = { ...cur, ...parsed.data };
     await writeJson(`personas/${id}.json`, next);
