@@ -12,8 +12,19 @@ import { buildExportZip } from '../lib/backupArchive.ts';
 import { listSnapshots, readSnapshot, snapshotNow } from '../lib/backup.ts';
 
 /**
- * 🔴 **顯著警告文字（Peter 2026-10-03 裁定的一部分）**——前端的匯出按鈕旁必須顯示這句，
- * 不是只有這支 API 知道。放在這裡當唯一正本，前端從這裡拿，不要自己重新措辭一份。
+ * 🔴 **顯著警告文字（Peter 2026-10-03 裁定的一部分）**——顯示的地方是前端匯出按鈕旁
+ * （`src/features/backup/ui/BackupExportCard.tsx`），**不是這支 API 的回應**。
+ *
+ * ⚠️ **這裡曾經把同一句話塞進 `X-Vellum-Export-Warning` response header，已移除**
+ * （驗收退回，見票）：Node 的 header 寫入（不管是真的 `node:http` 還是測試用的
+ * `undici`／`app.request()`）只接受 Latin-1 範圍，中文字串一塞進去就整支請求變 500——
+ * **100% 重現，不是邊界情況**。這句話本來就沒有讀者：前端下載走 `blob`，從來沒有
+ * 程式碼讀過這個 header（見 `BackupExportCard.tsx` 檔頭），留著只是「看起來比較完整」
+ * 但會炸的裝飾。
+ *
+ * 單一正本留在這裡（canonical wording），前端那份用同一句話，
+ * 兩邊是否還一致由 `src/features/backup/__tests__/BackupExportCard.test.tsx`
+ * 動態 import 這個常數做跨層斷言釘住——**不是靠「記得同步改」**。
  */
 export const EXPORT_SECRETS_WARNING =
   '這份檔案包含你的 API 金鑰，請收在只有你自己拿得到的地方。';
@@ -26,7 +37,6 @@ export const backup = new Hono()
       headers: {
         'Content-Type': 'application/zip',
         'Content-Disposition': `attachment; filename="vellum-backup-${stamp}.zip"`,
-        'X-Vellum-Export-Warning': EXPORT_SECRETS_WARNING,
       },
     });
   })

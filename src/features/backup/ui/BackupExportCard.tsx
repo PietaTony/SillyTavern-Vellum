@@ -12,9 +12,15 @@ import { downloadBackupExport } from '../api';
  * 🔴 **這句警告文字是 Peter 2026-10-03 裁定的一部分，不是文案潤飾**：
  * 匯出的 zip 含 `secrets.json`（API 金鑰），跟 ST 用伺服器端 config 預設排除不同——
  * 單人桌面版沒有「管理員 vs 使用者」的區分可以藏這件事，所以在按鈕旁**明說**。
- * 跟後端 `routes/backup.ts` 的 `EXPORT_SECRETS_WARNING`（回在 `X-Vellum-Export-Warning`
- * header 裡）是同一句話的兩份——前端畫面沒有管道讀那個 header（下載走 blob，不是
- * 在這支元件的 fetch 回應上看 header），所以這裡直接照抄一份常數，不是真的共用同一個值。
+ *
+ * 跟後端 `routes/backup.ts` 的 `EXPORT_SECRETS_WARNING` 是同一句話的兩份手抄本——
+ * **這裡曾經硬編碼一份、後端也硬編碼一份**，兩邊沒有任何東西釘住它們一致，直到驗收線
+ * 退回才發現（而且後端那份原本還塞進了一個 response header，中文字串一上 header 就
+ * 讓整支 `/export` 500，兩份手抄本和那個 bug 一起修）。現在：這裡的文字仍然是手打的
+ * （前端下載走 blob，沒有管道讀後端的 response header），但
+ * `src/features/backup/__tests__/BackupExportCard.test.tsx` 動態 import 後端的
+ * `EXPORT_SECRETS_WARNING` 常數、斷言畫面上真的 render 出同一句話——
+ * 改一邊沒跟上另一邊會讓那支測試紅，不再是「沒人管」。
  */
 export function BackupExportCard() {
   const download = useMutation({
