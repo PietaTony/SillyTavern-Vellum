@@ -18,6 +18,12 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
  * 就丟 `TypeError`（undici 的 ByteString 轉換失敗），不用真的起 node:http 伺服器才踩到。
  * 跟真實 `@hono/node-server`／`node:http` 丟的 `ERR_INVALID_CHAR` 是同一個根因
  * （header value 必須是 Latin-1），只是錯誤發生的那一層不同。
+ *
+ * ⚠️ **這支只斷言 happy path 200**（複驗線誠實指出，2026-10-03）：如果之後有人
+ * 又把中文塞回 header，這支會紅，但訊息只會是「expected 500 to be 200」——
+ * **不會講出「header value 不能放非 ASCII」**。踩到的人要自己往 `routes/backup.ts`
+ * 找，再往上翻這段歷史才知道根因。故意不改斷言（改了反而失去「真的壞掉會長怎樣」
+ * 的訊號），只在這裡把下一步要去哪查寫清楚。
  */
 let root: string;
 
