@@ -196,3 +196,90 @@ describe('mergeWorldToggles', () => {
     expect(entries[0]?.['extensions']).toEqual({ probability: 30 });
   });
 });
+
+/**
+ * 🔴 GAP（20260901 開票）：上面所有 fixture 的每一條都明確給了 `enabled: true`／
+ * `false` ⇒ `cardMerge.ts` 那一行
+ * `const have = typeof raw['enabled'] === 'boolean' ? raw['enabled'] : true;`
+ * 唯二會用到 `: true` 預設分支的兩種情況 ——
+ * **① 條目上根本沒有 `enabled` 欄位、② `enabled` 是非 boolean 的髒型別**
+ * —— 完全零覆蓋。卡片是外部來源，欄位型別不受我們控制（PR #57 抓到過字串 "4"
+ * 污染進 number 欄位的真實案例，「宣告是 boolean 就一定是 boolean」在這個 repo
+ * 已經被實例推翻過一次）。
+ *
+ * ST 對照（`world-info.js:4014` `disable: { default: false, type: 'boolean' }`，
+ * `:4689` `if (entry.disable == true)`）：欄位缺失時套用 schema 預設 `false`
+ * （不停用 ＝ 開啟），跟這裡的 `: true` 一致 —— **沒有行為分歧**，這裡補的純粹是
+ * 這兩個方向原本掛零的測試覆蓋率，不是修行為。
+ */
+describe('mergeWorldToggles — `enabled` 欄位缺失／髒型別時的預設值', () => {
+  it('🔴 缺 `enabled` 欄位 + 要求關掉：預設當作開著，所以要明確寫入布林 enabled:false（不是維持缺欄位）', () => {
+    const book = {
+      entries: [{ id: 20, keys: ['缺欄位'], content: '缺欄位的內容', extensions: { probability: 10 } }],
+    };
+    const card: Card = { primary: 'ccv3', payloads: { ccv3: { data: { character_book: book } } } };
+    const out = mergeWorldToggles(card, [{ uid: '20', enabled: false }]) as {
+      payloads: { ccv3: { data: Record<string, unknown> } };
+    };
+    const entries = (out.payloads.ccv3.data['character_book'] as { entries: Record<string, unknown>[] }).entries;
+    // 🔴 直接對到 cardMerge.ts 的 `: true`：改成 `: false` 會讓這裡誤判「本來就一樣」
+    // 而跳過寫入，entries[0].enabled 會停留在 undefined —— 這正是票面說的
+    // 「使用者關掉的條目悄悄還在生效」那個真實症狀。
+    expect(entries[0]?.['enabled']).toBe(false);
+    expect(entries[0]?.['id']).toBe(20);
+    expect(entries[0]?.['content']).toBe('缺欄位的內容');
+    expect(entries[0]?.['extensions']).toEqual({ probability: 10 });
+  });
+
+  it('缺 `enabled` 欄位 + 要求開著：本來就當作開著，維持同一個物件參照，不無故改寫', () => {
+    const raw = { id: 21, keys: ['缺欄位2'], content: '缺欄位2的內容' };
+    const card: Card = { primary: 'ccv3', payloads: { ccv3: { data: { character_book: { entries: [raw] } } } } };
+    const out = mergeWorldToggles(card, [{ uid: '21', enabled: true }]) as {
+      payloads: { ccv3: { data: Record<string, unknown> } };
+    };
+    const entries = (out.payloads.ccv3.data['character_book'] as { entries: Record<string, unknown>[] }).entries;
+    // 🔴 同一個物件參照：`: true` 改成 `: false` 會讓這裡誤判「有變」，
+    // 憑空生出一份新物件並寫入 enabled:true —— 違反檔頭「沒被動過的東西，
+    // 連『被重新序列化』都不應該發生」。
+    expect(entries[0]).toBe(raw);
+    expect(entries[0]?.['enabled']).toBeUndefined();
+  });
+
+  it('🔴 `enabled` 是髒型別（null／字串／數字）+ 要求關掉：一律當作原本開著，要明確覆寫成布林 false', () => {
+    const book = {
+      entries: [
+        { id: 30, keys: ['髒-null'], content: '內容A', enabled: null },
+        { id: 31, keys: ['髒-字串'], content: '內容B', enabled: 'false' },
+        { id: 32, keys: ['髒-數字'], content: '內容C', enabled: 0 },
+      ],
+    };
+    const card: Card = { primary: 'ccv3', payloads: { ccv3: { data: { character_book: book } } } };
+    const out = mergeWorldToggles(card, [
+      { uid: '30', enabled: false },
+      { uid: '31', enabled: false },
+      { uid: '32', enabled: false },
+    ]) as { payloads: { ccv3: { data: Record<string, unknown> } } };
+    const entries = (out.payloads.ccv3.data['character_book'] as { entries: Record<string, unknown>[] }).entries;
+    // 具體值：布林 false，不是原本的 null／字串 'false'／數字 0
+    expect(entries[0]?.['enabled']).toBe(false);
+    expect(entries[1]?.['enabled']).toBe(false);
+    expect(entries[2]?.['enabled']).toBe(false);
+    expect(entries[0]?.['content']).toBe('內容A');
+    expect(entries[1]?.['content']).toBe('內容B');
+    expect(entries[2]?.['content']).toBe('內容C');
+  });
+
+  it('🔴 `enabled` 是髒型別（字串 "false"）+ 要求開著：typeof 檢查要擋住它，維持同一個物件參照，不把字串洗成布林', () => {
+    const raw = { id: 40, keys: ['髒-字串-開'], content: '內容D', enabled: 'false' };
+    const card: Card = { primary: 'ccv3', payloads: { ccv3: { data: { character_book: { entries: [raw] } } } } };
+    const out = mergeWorldToggles(card, [{ uid: '40', enabled: true }]) as {
+      payloads: { ccv3: { data: Record<string, unknown> } };
+    };
+    const entries = (out.payloads.ccv3.data['character_book'] as { entries: Record<string, unknown>[] }).entries;
+    // 🔴 這一條連坐兩個修改：`typeof` 檢查被拿掉、跟 `: true` 改成 `: false`，
+    // 兩者都會讓這裡誤判「有變」，把字串 'false' 洗成布林 true（見本檔案改動說明的
+    // 挖空矩陣）。
+    expect(entries[0]).toBe(raw);
+    expect(entries[0]?.['enabled']).toBe('false');
+  });
+});
