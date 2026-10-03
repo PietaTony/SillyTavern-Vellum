@@ -14,6 +14,10 @@ the user, starts, updates, and cannot be trivially broken into.
 
 **Front end**
 - `src/features/about/**` `src/features/backgrounds/**` `src/features/network/**` `src/features/update/**`
+  `src/features/backup/**`
+  🔴 **`backup` 宣告於 `INBOX/20261003-backup-restore.md`（中控線裁定，2026-10-03）**：
+  備份是平台基礎設施，不是某個 H1–H9 的產品功能；塞進 `settings/about.tsx` 會讓那頁變成
+  什麼都放的垂直合集。不是 X1（不跨功能、不碰 theme/shared），單層免簽。
 - `src/app/routes/` — `__root.tsx` `index.tsx` `first-run/index.tsx` `first-run/route.tsx`
   `settings/index.tsx` `settings/about.tsx` `settings/network.tsx` `login.tsx`
   🔴 Paths are relative to `src/app/routes/`. `index.tsx` means the app's own root index,
@@ -24,8 +28,11 @@ the user, starts, updates, and cannot be trivially broken into.
 - `src/app/report.ts`
 
 **Back end**
-- `server/routes/` — `update.ts` `network.ts` `backgrounds.ts` `chatBackground.ts` `auth.ts`
-- `server/lib/releaseNotes.ts` `server/lib/authStore.ts`
+- `server/routes/` — `update.ts` `network.ts` `backgrounds.ts` `chatBackground.ts` `auth.ts` `backup.ts`
+- `server/lib/releaseNotes.ts` `server/lib/authStore.ts` `server/lib/backup.ts` `server/lib/backupArchive.ts`
+  🔴 **`backup.ts`／`backupArchive.ts`／`routes/backup.ts` 宣告於
+  `INBOX/20261003-backup-restore.md`**（Peter 2026-10-03 已簽 `Crosses: X3` ＋ `archiver` 依賴；
+  `server/lib/` 與 `server/routes/` 是多 owner 共用目錄，`gate:ownership` 要這裡逐檔列名才認得）。
 - `server/adapters/**` **except** `gemini.ts` (H5's), `audioFiles.ts` (H8's), `extensionFetch.ts` (H9's)
 - `server/http/**` — `bodyLimits.ts` `hostGuard.ts` `authGuard.ts`
 

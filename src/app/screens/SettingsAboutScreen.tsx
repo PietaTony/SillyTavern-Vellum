@@ -2,6 +2,7 @@ import Stack from '@mui/material/Stack';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { AlphaNotice, fetchAbout, SourceCard } from '@/features/about';
+import { BackupExportCard } from '@/features/backup';
 import { fetchUpdate } from '@/features/update';
 import { Screen } from '@/shared/ui/Screen';
 import { UpdateCheckCard } from './UpdateCheckCard';
@@ -52,6 +53,7 @@ export function SettingsAboutScreen({ onBack }: { onBack: () => void }) {
         {/* 版號旁邊就要說清楚這是什麼階段的版號 —— 裝好之後想確認時找得到。 */}
         <AlphaNotice />
         <UpdateCheckCard info={q.data} checking={checking} onCheck={check} />
+        <BackupExportCard />
         <SourceCard info={about.data} />
       </Stack>
     </Screen>
