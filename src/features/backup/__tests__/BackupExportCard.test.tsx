@@ -20,7 +20,9 @@ import { BackupExportCard } from '../ui/BackupExportCard';
  */
 const render = (ui: ReactElement) =>
   rtlRender(
-    <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+    <QueryClientProvider
+      client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}
+    >
       <ThemeProvider theme={theme}>{ui}</ThemeProvider>
     </QueryClientProvider>,
   );
