@@ -4,9 +4,11 @@
  * 為什麼是檔案不是 DB：ST 用檔案系統，而「匯入匯出保真」是我們的契約之一。
  * 走同一種形狀，之後對接 ST 的 data 目錄時不必再轉一層。
  */
-import { mkdir, readFile, readdir, rm, stat, writeFile } from 'node:fs/promises';
+import { readFile, readdir, rm, stat } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
-import { dirname, join, resolve, sep } from 'node:path';
+import { join, resolve, sep } from 'node:path';
+import { recordWrite } from '../lib/backup.ts';
+import { readRawAt, writeRawAt } from './storageRaw.ts';
 
 const ROOT = process.env['VELLUM_DATA'] ?? join(process.cwd(), 'data');
 const ROOT_ABS = resolve(ROOT);
@@ -63,20 +65,28 @@ export async function describeData(): Promise<string> {
   return `資料目錄 ${ROOT} —— 角色 ${chars}、對話 ${chats}、金鑰 ${key}`;
 }
 
-async function ensureDir(file: string): Promise<void> {
-  await mkdir(dirname(file), { recursive: true });
-}
-
 export async function readJson<T>(rel: string, fallback: T): Promise<T> {
   const file = pathFor(rel);
   if (!existsSync(file)) return fallback;
   return JSON.parse(await readFile(file, 'utf8')) as T;
 }
 
+/** 讀原始字串，不經過 `JSON.parse`（配 `writeRaw`，詳見 `storageRaw.ts` 檔頭）。 */
+export const readRaw = (rel: string): Promise<string | null> => readRawAt(pathFor(rel));
+
+/** 寫原始字串，不經過 `JSON.stringify`。🔴 不觸發自動快照（那是 `writeJson()` 的事，見下）。 */
+export const writeRaw = (rel: string, content: string): Promise<void> => writeRawAt(pathFor(rel), content);
+
 export async function writeJson(rel: string, value: unknown): Promise<void> {
-  const file = pathFor(rel);
-  await ensureDir(file);
-  await writeFile(file, `${JSON.stringify(value, null, 2)}\n`, 'utf8');
+  const content = `${JSON.stringify(value, null, 2)}\n`;
+  await writeRaw(rel, content);
+  // 🔴 全 repo 唯一的 JSON 落檔路徑 ⇒ 自動備份掛鉤點，理由見 `lib/backup.ts` 檔頭。
+  // try/catch：快照失敗不能讓真正的存檔也跟著失敗。
+  try {
+    recordWrite(ROOT_ABS, rel, content);
+  } catch (err) {
+    console.error('[backup] 自動快照掛鉤失敗', rel, err);
+  }
 }
 
 /**
@@ -131,8 +141,4 @@ export async function readBin(rel: string): Promise<Buffer | null> {
   return readFile(file);
 }
 
-export async function writeBin(rel: string, data: Buffer): Promise<void> {
-  const file = pathFor(rel);
-  await ensureDir(file);
-  await writeFile(file, data);
-}
+export const writeBin = (rel: string, data: Buffer): Promise<void> => writeRawAt(pathFor(rel), data);

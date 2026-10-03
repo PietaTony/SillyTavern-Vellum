@@ -32,6 +32,7 @@ import { chatImport } from './routes/chatImport.ts';
 import { generate } from './routes/generate.ts';
 import { update } from './routes/update.ts';
 import { network } from './routes/network.ts';
+import { backup } from './routes/backup.ts';
 import { companionSettings } from './routes/companionSettings.ts';
 import { currentVersion } from './adapters/version.ts';
 import { LICENSE_ID, sourceUrl, UPSTREAM_URL } from './adapters/sourceUrl.ts';
@@ -82,6 +83,8 @@ export const app = new Hono()
   .route('/api/update', update)
   // 「允許其他裝置連線」的開關（見該檔檔頭：GET 會同時回設定值與實際綁的介面）。
   .route('/api/network', network)
+  // 備份／還原（票 `INBOX/20261003-backup-restore.md`，X3 已由 Peter 2026-10-03 簽字）。
+  .route('/api/backup', backup)
   .route('/api/auth', auth)
   .route('/api/settings', companionSettings)
   /**
