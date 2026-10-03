@@ -261,6 +261,191 @@ describe('POST /api/generate 的 idle timeout（A6）', () => {
 });
 
 /**
+ * 一之二 · **使用者中止（`AbortController.abort()`）—— 20260906 開票補的洞**：
+ * 上面整組 idle timeout 測試只守住「逾時」這條入口（`raceReadIdle` 自己的計時器
+ * 觸發 `handleIdleTimeout`），完全沒有測過「client 呼叫
+ * `abortRef.current?.abort()`」這條——兩者匯流到同一個 `commitPartialTurn`，
+ * 但入口不同：使用者中止走的是 `generate.ts:64`
+ * `c.req.raw.signal.addEventListener('abort', ...)`。有人動了那支 listener，
+ * 上面的逾時測試不會發現（見下面第一支測試：只挖空那一行，只有這裡的斷言會紅）。
+ *
+ * 🔴 **這裡順手挖到一個範圍外的坑，記下來、不修**（這輪的鎖只給這支測試檔）：
+ * `commitPartialTurn.ts` 的 `raceReadIdle()` 把 `reader.read()` 包成
+ * `readPromise.then((r) => {...})`——這個 `.then()` 只接了成功分支，沒有第二個參數
+ * 也沒有 `.catch`。真的 fetch/undici 對「連線被中止」的行為是讓 `reader.read()`
+ * 用 AbortError reject；那個拒絕會順著 `.then()` 往下傳，變成沒人接的 rejected
+ * promise，`setTimeout` 的逾時分支要等到自己的計時器跑到才把它 `.catch(() => {})`
+ * 吞掉、`resolve({ timedOut: true })`。實測（本輪調查用的獨立腳本，跑在這支同一份
+ * `generate.ts`／`commitPartialTurn.ts` 上）：client 中止之後 13ms 內，內部
+ * `AbortController` 就真的收到了 abort（listener 有效、有轉發），但整條串流一路
+ * 等到 idle timeout（腳本用 2000ms 量的，**正式環境預設 60000ms**）才真的落地，
+ * 而且落地的 `finishReason` 是 `'TIMEOUT'`，不是 `'ABORTED'`。也就是說
+ * `finishGenerateStream()` 裡 `controller.signal.aborted && full.length > 0`
+ * 那個分支，在「使用者中止」這個真實觸發路徑下**目前打不到**——現在真的在跑的
+ * 其實是 `handleIdleTimeout`，只是被中止提早把上游斷開而已。下面兩支測試分開守：
+ * ① 守 listener 真的把中止轉發下去、不用等 idle timeout（這是這張票要守的核心）
+ * ② 忠實記錄「資料最終還是會落地，但走的是逾時路徑、標記也是逾時」這個現狀，
+ * 順便釘住 `commitPartialTurn.ts` 檔頭那個刻意邊界（半成品不套用
+ * `<UpdateVariable>`）。**不要把②的 `finishReason:'TIMEOUT'` 讀成「這樣才對」**——
+ * 那是現狀，不是設計；`raceReadIdle` 修好之後這條斷言要跟著改成 `'ABORTED'`。
+ * 票：INBOX/20260907-raceReadIdle-swallows-abort.md（修好後把這條斷言改成 'ABORTED'）
+ */
+describe('POST /api/generate 使用者中止（client AbortController.abort()，非 idle timeout，2026-09-06 補票）', () => {
+  /**
+   * 🔴 **接住上面檔頭講的 `raceReadIdle` 洞留下的副作用**：真的讓上游串流在中止時
+   * `ctrl.error()`（模擬真 fetch/undici），會讓 `commitPartialTurn.ts` 裡那個沒接
+   * `.catch` 的 `readPromise` 變成**未處理的 rejection**——這件事本身就是這輪
+   * 調查挖到的東西，不是這支測試檔自己的失誤。不接住的話 `pnpm vitest` 會因為
+   * 「Unhandled Errors」把整個 run 判成失敗（`exit code 1`），即使每一支
+   * `it()` 都是綠的——那正是這個坑在**正式環境**也會做的事：使用者只要按一次
+   * 停止鈕，Node process 就會生出一顆沒人接的 rejected promise。
+   * 這裡不是把它藏起來，是**明確斷言它真的發生了**，把這個現狀釘住。
+   */
+  let unhandled: unknown[] = [];
+  function onUnhandledRejection(reason: unknown): void {
+    unhandled.push(reason);
+  }
+  beforeEach(() => {
+    unhandled = [];
+    process.on('unhandledRejection', onUnhandledRejection);
+  });
+  afterEach(() => {
+    process.off('unhandledRejection', onUnhandledRejection);
+  });
+
+  it('🔴 client 中止 ⇒ generate.ts:64 的 abort listener 把它轉給供應商的 AbortSignal，遠比 idle timeout 快', async () => {
+    const enc = new TextEncoder();
+    let captured: AbortSignal | undefined;
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (_url: string, init?: RequestInit) => {
+        captured = init?.signal ?? undefined;
+        const stream = new ReadableStream<Uint8Array>({
+          start(ctrl) {
+            ctrl.enqueue(
+              enc.encode('data: {"candidates":[{"content":{"parts":[{"text":"半"}]}}]}\n\n'),
+            );
+            // 供應商連線被中止時，真 fetch/undici 會把底層串流 error 掉，之後
+            // 的 reader.read() 用 AbortError reject——這正是 generate.ts:64
+            // 那個 listener 存在的理由：把 client 的中止接力給供應商連線。
+            captured?.addEventListener('abort', () => {
+              ctrl.error(new DOMException('中止（測試模擬）', 'AbortError'));
+            });
+          },
+        });
+        return new Response(stream, { status: 200 });
+      }),
+    );
+
+    const clientAbort = new AbortController();
+    const a = await app(); // idleMs=50——刻意夠短，才量得出「立刻」跟「逾時才到」的差別
+    const res = await a.request('/api/generate', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ chatId: CHAT.id }),
+      signal: clientAbort.signal,
+    });
+
+    // 先確定真的已經看到字了才按停止——跟真實情境一樣：使用者是看到字才按的。
+    const reader = res.body!.getReader();
+    const dec = new TextDecoder();
+    const { value } = await reader.read();
+    expect(dec.decode(value)).toContain('"text":"半"');
+
+    clientAbort.abort();
+    // 🔴 不用等——`AbortController.abort()` 同步觸發監聽者（實測：中止與供應商端
+    // 收到訊號落在同一個 tick）。這裡故意不靠 `setTimeout` 等，是要讓「拿掉
+    // listener 之後這裡再也不會是 true」這件事不必靠計時器僥倖成立。
+    expect(captured?.aborted).toBe(true);
+
+    // 讀到串流結束——實際落地行為見下一支測試與上面檔頭說明。
+    for (;;) {
+      const { done } = await reader.read();
+      if (done) break;
+    }
+    // 🔴 見上面 `beforeEach` 的檔頭：中止會讓 `raceReadIdle()` 裡沒接 `.catch`
+    // 的那個 promise 變成未處理的 rejection——這裡明確斷言它真的發生了。
+    expect(unhandled.length).toBeGreaterThan(0);
+    expect(String(unhandled[0])).toMatch(/Abort/i);
+  });
+
+  it('目前的實際落地行為（現狀，不是設計上的理想值）：中止後資料最終落地，但走 idle timeout 路徑、finishReason 是 TIMEOUT；半成品不動 chat.variables', async () => {
+    const enc = new TextEncoder();
+    let captured: AbortSignal | undefined;
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (_url: string, init?: RequestInit) => {
+        captured = init?.signal ?? undefined;
+        const stream = new ReadableStream<Uint8Array>({
+          start(ctrl) {
+            ctrl.enqueue(
+              enc.encode('data: {"candidates":[{"content":{"parts":[{"text":"半成品"}]}}]}\n\n'),
+            );
+            captured?.addEventListener('abort', () => {
+              ctrl.error(new DOMException('中止（測試模擬）', 'AbortError'));
+            });
+          },
+        });
+        return new Response(stream, { status: 200 });
+      }),
+    );
+
+    // 種一個 chat.variables，用來守「半成品不套用 <UpdateVariable>」這個刻意邊界
+    // （見 `commitPartialTurn.ts` 檔頭）——落地後這個值要原封不動。
+    const { writeJson, readJson } = await import('../adapters/storage.ts');
+    const chatPath = `chats/${CHAT.id}.json`;
+    const seeded = { ...CHAT, variables: { foo: 1 } };
+    await writeJson(chatPath, seeded);
+
+    const clientAbort = new AbortController();
+    const a = await app(); // idleMs=50
+    const res = await a.request('/api/generate', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ chatId: CHAT.id }),
+      signal: clientAbort.signal,
+    });
+
+    const reader = res.body!.getReader();
+    const dec = new TextDecoder();
+    let out = '';
+    const { value } = await reader.read();
+    out += dec.decode(value);
+    expect(out).toContain('"text":"半成品"');
+
+    clientAbort.abort();
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      if (value) out += dec.decode(value);
+    }
+
+    // 🔴 具體內容——不是「有訊息」／「不是空的」：落地的文字要等於中止前
+    // 已經吐出來的那幾個字，一個字都不多不少。
+    expect(out).toContain('event: done');
+    expect(out).toContain('"text":"半成品"');
+    expect(out).toContain('"partial":true');
+    // 🔴 現狀（見上面檔頭說明的 raceReadIdle 坑）：目前落地的 finishReason 是
+    // TIMEOUT，不是設計上該有的 ABORTED——這條斷言釘住「現在真的在跑什麼」，
+    // 不是背書這是對的；`raceReadIdle` 修好之後這裡要跟著改成 'ABORTED'。
+    // 票：INBOX/20260907-raceReadIdle-swallows-abort.md（修好後把這條斷言改成 'ABORTED'）
+    expect(out).toContain('"finishReason":"TIMEOUT"');
+
+    const saved = await readJson<Chat & { variables?: Record<string, unknown> }>(chatPath, seeded);
+    const last = saved.messages.at(-1) as { text: string; partial?: boolean };
+    expect(last.text).toBe('半成品');
+    expect(last.partial).toBe(true);
+    // 🔴 釘住 `commitPartialTurn.ts` 檔頭那個刻意邊界：半成品不套用
+    // `<UpdateVariable>`，`chat.variables` 原封不動——不是漏做，動它才是 bug。
+    expect(saved.variables).toEqual({ foo: 1 });
+
+    // 🔴 見上面 `beforeEach` 的檔頭：同一個 `raceReadIdle` 洞，這支測試也會踩到。
+    expect(unhandled.length).toBeGreaterThan(0);
+    expect(String(unhandled[0])).toMatch(/Abort/i);
+  });
+});
+
+/**
  * 二 · **60 秒這個預設值在此之前零測試覆蓋**（PR #46 獨立驗收抓到）：
  * `grep -rn "IDLE_TIMEOUT_MS"` 命中三處——定義、`generate.ts` 使用、以及這支測試檔——
  * 而這支測試檔對每一支測試都無條件覆寫成 `'50'`。沒有任何測試在「不設這個環境變數」
