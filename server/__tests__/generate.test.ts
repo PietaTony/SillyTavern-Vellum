@@ -288,6 +288,7 @@ describe('POST /api/generate 的 idle timeout（A6）', () => {
  * 順便釘住 `commitPartialTurn.ts` 檔頭那個刻意邊界（半成品不套用
  * `<UpdateVariable>`）。**不要把②的 `finishReason:'TIMEOUT'` 讀成「這樣才對」**——
  * 那是現狀，不是設計；`raceReadIdle` 修好之後這條斷言要跟著改成 `'ABORTED'`。
+ * 票：INBOX/20260907-raceReadIdle-swallows-abort.md（修好後把這條斷言改成 'ABORTED'）
  */
 describe('POST /api/generate 使用者中止（client AbortController.abort()，非 idle timeout，2026-09-06 補票）', () => {
   /**
@@ -427,6 +428,7 @@ describe('POST /api/generate 使用者中止（client AbortController.abort()，
     // 🔴 現狀（見上面檔頭說明的 raceReadIdle 坑）：目前落地的 finishReason 是
     // TIMEOUT，不是設計上該有的 ABORTED——這條斷言釘住「現在真的在跑什麼」，
     // 不是背書這是對的；`raceReadIdle` 修好之後這裡要跟著改成 'ABORTED'。
+    // 票：INBOX/20260907-raceReadIdle-swallows-abort.md（修好後把這條斷言改成 'ABORTED'）
     expect(out).toContain('"finishReason":"TIMEOUT"');
 
     const saved = await readJson<Chat & { variables?: Record<string, unknown> }>(chatPath, seeded);
